@@ -20,12 +20,15 @@ A single-file web app for one person (Surath). It tracks meals and macros, lift 
 ## Design rules
 
 - **Light mode only.** Do not add a dark theme unless asked.
-- **Native iOS 26 feel (Liquid Glass).** The `.glass` class is the material: translucent gradient, backdrop blur and saturation, a specular highlight (`::before`) and a light edge (`::after`). Used on the floating tab bar, week strip, rest timer, toast and sheets.
-- Native patterns already in place: large titles that hand over to a compact blurred nav bar on scroll, a week strip for picking days, inset grouped cards, capsule segmented controls and switches, a floating sheet that can be dragged down to dismiss, swipe left to delete with Undo, tap-to-complete sets, a rest timer pill with a chime, banner toasts from the top.
-- **Motion:** spring easing (`--spring`) for physical things (tab indicator, switches, presses, timer, toasts), ease-out (`--out`) for content (rings, bars, sheets, expanding lifts). Page changes use the View Transitions API with a slide direction, with a CSS fallback. Every animation must respect `prefers-reduced-motion`, which also switches the code to synchronous paths.
-- Apple's SF Symbols and font files are not bundled (licence). The iPhone renders the system font as SF Pro automatically. Icons are hand-drawn SVGs in the SF style.
-- **Accent colour is blue** (`--accent: #007AFF`). Use it for things you can tap and for selection. Change it in one place, the `:root` block.
-- **Macro colours are data only**: protein indigo, fat yellow, carbs green, kcal near-black. Do not use them for buttons.
+- **iOS 26 Liquid Glass, following Apple's HIG.** The `.glass` class is the material: translucent white tint, backdrop blur, saturation and brightness, a specular highlight and touch glow (`::before`) and a light rim (`::after`). Safari cannot do real lensing (no SVG filters in `backdrop-filter`), so edges and inner light imply it.
+- **Glass is for the navigation layer only**: tab bar, its accessory (rest timer), toolbar buttons, menus, sheets, alerts and toasts. Content (cards, rows, the week strip) stays solid. No glass on glass. Small glass is clearer; large glass (menus, sheets) is thicker and more opaque. Tint glass only for the primary action (`.btn`, prominent glass).
+- **Glass materialises, it does not fade.** Appearing and disappearing ramp blur, tint and scale (`.ghost` state and the `mat` animation). Only what sits on the glass fades.
+- **Interaction:** touching glass lights it from the fingertip (`.lit`, `--px`/`--py`, spreading to the shared group) and it grows slightly with a spring. Controls lift into a see-through lens while touched: the tab bar selection (drag it across tabs), segmented control thumbs (drag them), and switch knobs.
+- **Native patterns in place:** a transparent nav bar with glass toolbar buttons (`toolbarHTML`: Today on the left, a `+` and `⋯` group on the right), large titles that hand over to an inline title and subtitle on scroll, a soft scroll edge effect at the top and bottom (`.edge`), a floating tab bar that minimises while scrolling down and returns on scroll up, the rest timer as a tab bar accessory that moves inline when the bar minimises, menus that grow out of their button (`openMenu`), sheets that zoom out of a toolbar button and are inset glass at partial height but edge to edge and opaque when tall (`.sheet.full`), a sheet bar with Close or Back leading and an inline title, a glass alert (`askGlass`), inset grouped cards, swipe left to delete with Undo, tap-to-complete sets, banner toasts.
+- **Motion:** SwiftUI-style springs as CSS `linear()` curves (`--spring` bouncy, `--smooth`, `--snappy`, with cubic-bezier fallbacks). JavaScript animations read them through `EASE`. Page changes use the View Transitions API and only `#app` is named: do not give the nav bar or dock a `view-transition-name`, because that makes them a backdrop root and their glass stops blurring the page. Every animation must respect `prefers-reduced-motion`, which also switches the code to synchronous paths.
+- Apple's SF Symbols and font files are not bundled (licence). The iPhone renders the system font as SF Pro automatically. Icons are hand-drawn SVGs in the SF style. Toolbar and menu icons are monochrome.
+- **Accent colour is iOS 26 system blue** (`--accent: #0088FF`). Use it for things you can tap and for selection. Change it in one place, the `:root` block. Colours follow the iOS 26 palette (red `#FF383C`, indigo `#6155F5`).
+- **Macro colours are data only**: protein indigo, fat yellow, carbs green, kcal blue. Do not use them for buttons.
 - Mobile first, one column, max width 560px. Tap targets at least 44px.
 - Copy: plain, sentence case, active voice. **No em dashes anywhere**, in the UI or in replies to the user.
 - Respect `prefers-reduced-motion`. Keep focus outlines visible.
@@ -36,7 +39,7 @@ A single-file web app for one person (Surath). It tracks meals and macros, lift 
 2. **CONFIG**: `DEFAULT_TARGETS`, `DEFAULT_CAPS`, `EX` (lifts), `TEMPLATES` (sessions), `DEFAULT_SCHEDULE`, `FOODS`, `QUICK`, `SLOTS`, and the starting data (`SEED_SETS`, `SEED_WAIST`, `SEED_DAYS`).
 3. **CORE**: helpers, storage, `liftHistory`, `suggest` (progression), `computeOwed` and `buildPlan` (planner), macro maths, `suggestGap`.
 4. **Views**: `viewTrain`, `viewEat`, `viewProgress`, `viewSetup`.
-5. **Sheets, timer, render, gestures and events**: `drawSheet`, `toast`, the rest timer (`startRest`), `render` and `afterRender` (tab indicator, nav bar, number tween), the `H` handler object, pointer gestures (swipe rows, sheet drag) and delegated click, input, change and keydown listeners.
+5. **Sheets, timer, render, gestures and events**: `drawSheet` and `morphSheet`, `toast`, `askGlass`, the rest timer (`startRest`), `render` and `afterRender` (tab indicator `placeIndicator`, `setToolbar`, `initSegs`, nav bar, number tween), menus (`menuSpec`, `openMenu`, `closeMenu`), the `H` handler object, pointer gestures (swipe rows, sheet drag, then the Liquid Glass block: touch light, tab and segment lens drags, week swipe) and delegated click, input, change and keydown listeners.
 
 Rendering is plain template strings. Views re-render with `render()`. Logging is the exception: set inputs save on `input` and only refresh the lift header and the session card, and opening a lift or checking a set only replaces that lift (`refreshEx`), so focus and scroll are kept. `ui.anim` is set before renders that should replay the rings and bars (tab or day change).
 
@@ -93,7 +96,7 @@ Do not name top-level functions or variables after browser globals (`history`, `
 
 ## Testing notes
 
-There is no test suite in the repo. In automated tests, stub `matchMedia` to report reduced motion so sheets and toggles run synchronously. When changing the planner or progression, check by hand with `window.__TODAY__` set before load (for example `window.__TODAY__='2026-10-27'`), covering these cases:
+There is no test suite in the repo. In automated tests, stub `matchMedia` to report reduced motion so sheets and toggles run synchronously. For visual checks, drive the page with Playwright in WebKit and Chromium at 393×852. Headless WebKit does not draw `backdrop-filter` or the incoming page of a view transition, so judge the glass in Chromium or on the phone. When changing the planner or progression, check by hand with `window.__TODAY__` set before load (for example `window.__TODAY__='2026-10-27'`), covering these cases:
 
 1. Missed Monday, go on an off Tuesday: Monday's session appears, carried, trimmed to the time budget.
 2. Missed Monday, Wednesday has its own session: the two merge and compounds win.
