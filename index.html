@@ -373,6 +373,8 @@ h2.first{margin-top:6px}
 .srow .v{color:var(--ink2)}
 .srow svg{width:13px;height:13px;flex:none;color:var(--ink3)}
 .srow:active{background:var(--press)}
+.srow.static{cursor:default}
+.srow.static:active{background:none}
 .srow.act{color:var(--accent)}
 .srow.danger{color:var(--red)}
 .frow{position:relative;display:flex;align-items:center;gap:12px;min-height:56px;padding:6px 16px;font-size:15px}
@@ -560,7 +562,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.5';
+const APP_VERSION = '3.6';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -803,11 +805,12 @@ function loadState(){
   try { const raw = localStorage.getItem(LS_KEY); if (raw) return migrate(JSON.parse(raw)); } catch(e) { storageOk = false; }
   return null;
 }
-function saveState(){
+function saveLocal(){
   try { localStorage.setItem(LS_KEY, JSON.stringify(S)); storageOk = true; } catch(e) { storageOk = false; }
 }
+function saveState(){ saveLocal(); scheduleSync(); }   // every change lands on the device first, then goes to the cloud a few seconds later
 let S = loadState() || freshState();
-saveState();
+saveLocal();
 
 /* ---------- exercise config (base + your overrides) ---------- */
 function cfg(id){ return Object.assign({}, EX[id], (S.settings.exCfg||{})[id] || {}); }
@@ -1376,7 +1379,7 @@ function field(label, path, val, unit){
   return `<label class="frow"><span class="grow">${label}${unit ? ` <span class="muted">${unit}</span>` : ''}</span><input class="field" type="text" inputmode="decimal" data-set="${path}" value="${esc(val)}" aria-label="${esc(label)}${unit ? ' ' + unit : ''}"></label>`;
 }
 /* Setup is laid out like the Health profile: a header, then grouped rows that open their own page */
-const SETUP_PAGES = { targets:'Daily targets', caps:'Food limits', split:'Weekly split', lifts:'Lift settings', foods:'My foods' };
+const SETUP_PAGES = { targets:'Daily targets', caps:'Food limits', split:'Weekly split', lifts:'Lift settings', foods:'My foods', cloud:'Cloud backup' };
 const srow = (page, value) => `<button class="srow" data-act="setuppage" data-p="${page}"><span class="grow">${SETUP_PAGES[page]}</span>${value ? `<span class="v">${value}</span>` : ''}${ICON.chevR}</button>`;
 function setupPage(p){
   const st = S.settings, T = st.targets, C = st.caps;
@@ -1391,6 +1394,16 @@ function setupPage(p){
     ${Object.keys(EX).map(id => { const c = cfg(id); return `<div class="exset"><span>${esc(c.name)}</span>
       ${['sets','low','high','inc'].map(f => `<input class="field" type="text" inputmode="decimal" data-set="exCfg.${id}.${f}" value="${esc(c[f])}" aria-label="${esc(c.name)} ${f}">`).join('')}</div>`; }).join('')}</div>
     <p class="note">When every set reaches the top of the range, the next session adds the jump.</p>`;
+  if (p === 'cloud') return cloud.token
+    ? `<div class="group"><div class="srow static"><span class="grow">Status</span><span class="v">${cloudLine()}</span></div>
+        <div class="srow static"><span class="grow">Last saved from</span><span class="v">${esc(cloud.lastFrom || 'not yet')}</span></div></div>
+      <div class="group"><button class="srow act" data-act="cloudsync">Sync now</button><button class="srow act danger" data-act="clouddisconnect">Turn off on this device</button></div>
+      <p class="note">Every change is copied to a private database in Frankfurt a few seconds after you make it. The app still works without signal and catches up later. A copy of each day is kept for 31 days.</p>`
+    : `<p class="note" style="margin-top:0">Keeps a copy of everything in a private database in Frankfurt and keeps your devices in step, for example the Home Screen app and Safari. The app still works without signal and syncs when it can. A copy of each day is kept for 31 days.</p>
+      <h2>Connect this device</h2><div class="group pad stack">
+        <input id="cloudpass" class="field" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Passphrase" aria-label="Cloud backup passphrase" style="text-align:left;font-family:var(--font);font-weight:400">
+        <button class="btn" data-act="cloudconnect">Connect</button></div>
+      <p class="note">You enter the passphrase once on each device. If this device already has data, it is combined with the cloud copy, nothing is replaced.</p>`;
   if (p === 'foods') return ((S.foods||[]).length ? `<div class="group">` + S.foods.map(f => `<div class="lift"><div><strong>${esc(f.name)}</strong><div class="small muted">${f.unit==='g' ? 'per 100 g' : 'per '+esc(f.unit)}: ${f.kcal} kcal, ${f.p} P, ${f.f} F, ${f.c} C</div></div><span></span><button class="link" data-act="delfood" data-id="${f.id}">Remove</button></div>`).join('') + `</div>`
       : `<p class="note" style="margin-top:0">Foods you save while logging appear here. The built-in list has ${FOODS.length} items.</p>`) +
     `<h2>Add a food</h2><div class="group pad stack">
@@ -1404,16 +1417,17 @@ function viewSetup(){
   if (ui.setupPage) return setupPage(ui.setupPage);
   const st = S.settings, sessions = Object.values(st.schedule).filter(Boolean).length;
   let h = `<div class="prof"><img src="apple-touch-icon.png" alt="" width="96" height="96"><h1 class="lt">Coach</h1>
-    <p>Last backup: ${st.lastExport ? dateLabel(st.lastExport) : 'never'} • <button class="link" data-act="export">Back up now</button></p></div>`;
+    <p>${cloud.token ? `${cloudLine()} • <button class="link" data-act="cloudsync">Sync now</button>`
+      : `Last backup: ${st.lastExport ? dateLabel(st.lastExport) : 'never'} • <button class="link" data-act="export">Back up now</button>`}</p></div>`;
   if (!storageOk) h += `<p class="why" style="color:var(--red-ink)">This browser is blocking storage, so changes are lost when you close the tab. Turn off private browsing.</p>`;
   h += `<div class="group">${srow('targets', `${fmtInt(st.targets.training.kcal)} kcal`)}${srow('caps')}</div>`;
   h += `<h2>Training</h2><div class="group">${srow('split', `${sessions} session${sessions === 1 ? '' : 's'}`)}${srow('lifts')}</div>`;
   h += `<h2>Food</h2><div class="group">${srow('foods', (S.foods||[]).length ? String(S.foods.length) : '')}</div>`;
-  h += `<h2>Your data</h2><div class="group">
+  h += `<h2>Your data</h2><div class="group">${srow('cloud', cloud.token ? 'On' : 'Off')}</div><div class="group">
     <button class="srow act" data-act="export">Export backup</button>
     <label class="srow act">Import backup<input id="importfile" type="file" accept="application/json" hidden></label>
     <button class="srow act danger" data-act="reset">Erase everything</button></div>
-    <p class="note">Everything is stored on this device only. Export a backup now and then, and before clearing Safari data. Version ${APP_VERSION}. Planning starts counting from ${dateLabel(st.planStart)}.</p>`;
+    <p class="note">${cloud.token ? 'Everything is kept on this device and copied to your private cloud backup.' : 'Everything is stored on this device only. Turn on Cloud backup, or export a backup now and then.'} Version ${APP_VERSION}. Planning starts counting from ${dateLabel(st.planStart)}.</p>`;
   return h;
 }
 
@@ -1942,8 +1956,9 @@ const H = {
     S.settings.lastExport = todayStr(); saveState(); if (ui.tab === 'setup') render(); toast('Backup downloaded'); },
   setuppage(t){ ui.setupPage = t.dataset.p; window.scrollTo(0, 0); render({ transition:true, dir:1 }); },
   setupback(){ if (!ui.setupPage) return; ui.setupPage = null; window.scrollTo(0, 0); render({ transition:true, dir:-1 }); },
-  reset(){ askGlass('Erase everything?', 'All logs, foods and settings on this device will be deleted. This cannot be undone.', 'Erase').then(ok => {
-    if (!ok) return; try { localStorage.removeItem(LS_KEY); } catch(e) {} S = freshState(); saveState(); render(); toast('Everything erased'); }); },
+  reset(){ askGlass('Erase everything?', cloud.token ? 'All logs, foods and settings on this device will be deleted. Your cloud backup is kept, and this device stops syncing.'
+      : 'All logs, foods and settings on this device will be deleted. This cannot be undone.', 'Erase').then(ok => {
+    if (!ok) return; cloudOff(); try { localStorage.removeItem(LS_KEY); } catch(e) {} S = freshState(); saveLocal(); render(); toast('Everything erased'); }); },
   timeradd(){ RT.end = Math.max(RT.end, Date.now()) + 15000; RT.total += 15000; $('#timer').classList.remove('done'); $('#timerl').textContent = 'Rest';
     clearTimeout(RT.hideT); clearInterval(RT.iv); RT.iv = setInterval(tickRest, 250); tickRest(); },
   timerskip(){ hideRest(); },
@@ -2120,8 +2135,130 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden && !$('#timer').classList.contains('ghost')) tickRest();
 });
 
-if (typeof window !== 'undefined') window.__coach = { S: () => S, setS: v => { S = v; }, ui, render, getPlan, suggest, suggestGap, H, dayType, sumMacros, addEntry, foodById, mergeHistory, saveState: () => saveState() };
+/* =====================================================================
+   CLOUD SYNC: an optional private copy in Upstash Redis through /api/sync.
+   The device stays the source of truth and works offline; a few seconds after a change,
+   when the app opens and when it comes back online, it swaps changes with the cloud.
+   When both sides changed, they are merged day by day against the last synced copy.
+   ===================================================================== */
+const SYNC_KEY = 'coach-sync', SYNC_BASE = 'coach-sync-base';
+const cloud = (() => { try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || {}; } catch(e) { return {}; } })();   // token, rev, lastSync, lastFrom, status
+let syncBase, syncing = null, syncAgain = false, syncTimer = 0;
+const sameJSON = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+function cloudSave(){ try { localStorage.setItem(SYNC_KEY, JSON.stringify(cloud)); } catch(e) {} }
+function getBase(){ if (syncBase === undefined) { try { syncBase = JSON.parse(localStorage.getItem(SYNC_BASE)); } catch(e) { syncBase = null; } } return syncBase; }
+function setBase(st){ syncBase = st ? deepClone(st) : null; try { st ? localStorage.setItem(SYNC_BASE, JSON.stringify(syncBase)) : localStorage.removeItem(SYNC_BASE); } catch(e) {} }
+function deviceName(){
+  if (navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)) return 'Home Screen app';
+  return /iPhone|iPad/.test(navigator.userAgent) ? 'Safari on iPhone' : /Macintosh/.test(navigator.userAgent) ? 'Mac browser' : 'browser';
+}
+const agoText = ms => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : dateLabel(fmtD(new Date(ms))); };
+function cloudLine(){
+  if (!cloud.token) return 'Off';
+  return { auth:'Passphrase not accepted', setup:'Not set up on the server', offline:'Offline, syncs when back online', error:'Sync failed, will retry' }[cloud.status]
+    || (cloud.lastSync ? `Synced ${agoText(cloud.lastSync)}` : 'Waiting to sync');
+}
+
+/* merge two copies that both moved on from `base` (null on the first sync, so everything counts as changed) */
+function merge3(base, a, b){
+  const out = { ...deepClone(b), ...deepClone(a) }, O = base || {};
+  const pick = (ov, av, bv, both) => sameJSON(av, bv) ? av : sameJSON(av, ov) ? bv : sameJSON(bv, ov) ? av : both(av, bv);
+  const byDate = {
+    days: (x, y) => { if (!x || !y) return x || y;
+      const ids = new Set(x.entries.map(e => e.id));
+      return { ...y, ...x, entries: [...x.entries, ...y.entries.filter(e => !ids.has(e.id))] }; },
+    workouts: (x, y) => { if (!x || !y) return x || y;
+      const ex = { ...y.ex };
+      Object.entries(x.ex || {}).forEach(([id, sets]) => { const done = l => (l || []).filter(s => +s.r > 0).length; if (!ex[id] || done(sets) >= done(ex[id])) ex[id] = sets; });
+      return { ...y, ...x, ex, added: [...new Set([...(y.added || []), ...(x.added || [])])] }; },
+    water: (x, y) => (!x || !y) ? x || y : { ml: Math.max(x.ml || 0, y.ml || 0), creatine: !!(x.creatine || y.creatine) },
+    dismissed: (x, y) => x || y
+  };
+  Object.entries(byDate).forEach(([k, both]) => {
+    const A = a[k] || {}, B = b[k] || {}, OO = O[k] || {}, r = {};
+    new Set([...Object.keys(A), ...Object.keys(B), ...Object.keys(OO)]).forEach(d => { const v = pick(OO[d], A[d], B[d], both); if (v !== undefined) r[d] = deepClone(v); });
+    out[k] = r;
+  });
+  const union = key => (x, y) => { const seen = new Set((x || []).map(i => i[key])); return [...(x || []), ...(y || []).filter(i => !seen.has(i[key]))]; };
+  out.waist = deepClone(pick(O.waist, a.waist, b.waist, union('date')) || []);
+  out.foods = deepClone(pick(O.foods, a.foods, b.foods, union('id')) || []);
+  out.settings = deepClone(pick(O.settings, a.settings, b.settings, x => x));
+  const starts = [a.settings && a.settings.planStart, b.settings && b.settings.planStart].filter(Boolean).sort();
+  if (starts.length) out.settings.planStart = starts[0];
+  return out;
+}
+
+async function cloudApi(method, body, query = ''){
+  const r = await fetch('/api/sync' + query, { method, cache:'no-store',
+    headers: Object.assign({ Authorization: 'Bearer ' + cloud.token }, body ? { 'Content-Type':'application/json' } : {}),
+    body: body ? JSON.stringify(body) : undefined });
+  let data = null; try { data = await r.json(); } catch(e) {}
+  return { status: r.status, data };
+}
+const pushBody = () => ({ baseRev: cloud.rev || 0, state: S, device: deviceName(), day: todayStr() });
+function setCloud(status){ cloud.status = status; cloudSave(); if (ui.tab === 'setup') refreshSetup(); }
+function refreshSetup(){ const a = document.activeElement; if (!ui.sheet && !(a && /INPUT|SELECT|TEXTAREA/.test(a.tagName))) render(); }
+function scheduleSync(ms = 4000){ if (!cloud.token) return; clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, ms); }
+
+function syncNow(){
+  if (!cloud.token) return Promise.resolve();
+  if (syncing) { syncAgain = true; return syncing; }
+  clearTimeout(syncTimer); syncTimer = 0;
+  syncing = (async () => {
+    try {
+      const base = getBase(), dirty = !base || !sameJSON(base, S);
+      let res = dirty ? await cloudApi('PUT', pushBody()) : await cloudApi('GET', null, `?rev=${cloud.rev || 0}`);
+      if (res.status === 401) return setCloud('auth');
+      if (res.status === 503) return setCloud('setup');
+      if (res.status === 200 && res.data && (res.data.same || res.data.empty)) { if (res.data.empty) { cloud.rev = 0; setBase(null); syncAgain = true; } cloud.lastSync = Date.now(); return setCloud('ok'); }
+      if (res.status === 200 && dirty) { cloud.rev = res.data.rev; setBase(S); cloud.lastSync = Date.now(); cloud.lastFrom = deviceName(); return setCloud('ok'); }
+      if ((res.status === 200 || res.status === 409) && res.data && res.data.state) {
+        // the cloud moved on: fold its changes in, keep this device's, then send the result back if it differs
+        const theirs = res.data.state, merged = migrate(merge3(base, S, theirs));
+        cloud.rev = res.data.rev; cloud.lastFrom = res.data.device || cloud.lastFrom;
+        const showsChange = !sameJSON(merged, S);
+        S = merged; saveLocal(); setBase(theirs);
+        if (!sameJSON(merged, theirs)) {
+          const put = await cloudApi('PUT', pushBody());
+          if (put.status === 200) { cloud.rev = put.data.rev; setBase(S); cloud.lastFrom = deviceName(); } else syncAgain = true;
+        }
+        cloud.lastSync = Date.now(); setCloud('ok');
+        if (showsChange && ui.tab !== 'setup') refreshSetup();
+        return;
+      }
+      setCloud('error');
+    } catch(e) { setCloud(navigator.onLine === false ? 'offline' : 'error'); }
+    finally { syncing = null; if (syncAgain) { syncAgain = false; scheduleSync(1500); } }
+  })();
+  return syncing;
+}
+function cloudOff(){ clearTimeout(syncTimer); ['token','rev','lastSync','lastFrom','status'].forEach(k => delete cloud[k]); cloudSave(); setBase(null); }
+Object.assign(H, {
+  async cloudconnect(){
+    const v = ($('#cloudpass') && $('#cloudpass').value || '').trim();
+    if (!v) { toast('Enter the passphrase first'); return; }
+    cloud.token = v; cloud.rev = 0; delete cloud.status; setBase(null);
+    let res = null; try { res = await cloudApi('GET', null, '?rev=-1'); } catch(e) {}
+    const fail = m => { cloudOff(); toast(m); };
+    if (!res) return fail('No connection. Try again when you have signal.');
+    if (res.status === 401) return fail('That passphrase is not right');
+    if (res.status === 503) return fail('Cloud backup is not set up on the server yet');
+    if (res.status !== 200) return fail('The cloud did not answer. Try again later.');
+    if (res.data && res.data.state) {   // the cloud already has data: combine it with this device's
+      S = migrate(merge3(null, S, res.data.state)); saveLocal(); setBase(res.data.state); cloud.rev = res.data.rev; cloud.lastFrom = res.data.device;
+    }
+    cloudSave(); await syncNow(); render(); toast(cloud.status === 'ok' ? 'Cloud backup is on' : cloudLine());
+  },
+  cloudsync(){ if (!cloud.token) return; syncNow().then(() => toast(cloud.status === 'ok' ? 'Synced' : cloudLine())); },
+  clouddisconnect(){ askGlass('Turn off cloud backup here?', 'Your data stays on this device and in the cloud. This device just stops syncing.', 'Turn off').then(ok => {
+    if (!ok) return; cloudOff(); render(); toast('Cloud backup is off on this device'); }); }
+});
+window.addEventListener('online', () => syncNow());
+document.addEventListener('visibilitychange', () => { if (!cloud.token) return; if (document.hidden) { if (syncTimer) syncNow(); } else syncNow(); });
+
+if (typeof window !== 'undefined') window.__coach = { S: () => S, setS: v => { S = v; }, ui, render, getPlan, suggest, suggestGap, H, dayType, sumMacros, addEntry, foodById, mergeHistory, saveState: () => saveState(), cloud, syncNow, merge3 };
 render();
+if (cloud.token) syncNow();
 </script>
 </body>
 </html>

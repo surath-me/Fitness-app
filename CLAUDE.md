@@ -1,17 +1,20 @@
 # Coach: personal training and food tracker
 
-A single-file web app for one person (Surath). It tracks meals and macros, lift weights, and plans each day's workout, carrying missed sessions forward. It is hosted as a static site on Vercel from this repo. There is no backend, no build step and no framework.
+A single-file web app for one person (Surath). It tracks meals and macros, lift weights, and plans each day's workout, carrying missed sessions forward. It is hosted as a static site on Vercel from this repo, with one small serverless function for optional cloud backup. There is no build step and no framework.
 
 ## Files
 
 - `index.html`: the whole app (HTML, CSS, JavaScript). Vercel serves it from the repo root.
 - `apple-touch-icon.png` (180), `icon-192.png`, `icon-512.png`, `favicon-32.png`: the app icon (blue gradient, glass dumbbell). Must sit next to `index.html`.
 - `manifest.webmanifest`: name, standalone display, icons.
+- `api/sync.js`: the cloud backup function (Vercel Node function, no npm packages, Node built-ins and `fetch` only). It stores the app's data in Upstash Redis.
+- `vercel.json`: runs the function in Frankfurt (`fra1`), next to the database.
+- `.gitignore`: keeps the local `.vercel` link out of git.
 - `CLAUDE.md`: this file.
 
 ## How to work on it
 
-- Edit `index.html` directly. Keep it one file, vanilla JavaScript, no dependencies, no CDN links, no web fonts.
+- Edit `index.html` directly. Keep it one file, vanilla JavaScript, no dependencies, no CDN links, no web fonts. `api/sync.js` also stays dependency-free.
 - Deploy by pushing to `main`. Vercel redeploys on its own. No build command, no framework preset.
 - Most requests are small edits to the config block at the top of the script (foods, lifts, sessions, targets). Do those first and leave everything else alone.
 - After a change, open the page and check each tab (Train, Eat, Progress, Setup) for console errors.
@@ -50,7 +53,11 @@ Do not name top-level functions or variables after browser globals (`history`, `
 
 ## Data and storage
 
-- Everything lives in `localStorage` under the key `coach-v1`, as one JSON object `S`. It never leaves the device. Setup has Export and Import for backups.
+- Everything lives in `localStorage` under the key `coach-v1`, as one JSON object `S`. The device is always the source of truth and the app works offline. Setup has Export and Import for backups.
+- **Cloud backup (optional, Setup, Your data, Cloud backup).** Each device connects once with a passphrase. `saveState` saves locally (`saveLocal`) and schedules a sync 4 s later (`scheduleSync`); the app also syncs when it opens, comes back to the foreground and comes back online (`syncNow`). The device keeps its sync details in `coach-sync` (passphrase, cloud revision, status) and the last synced copy in `coach-sync-base`.
+- When both the device and the cloud changed, `merge3` merges them against that last synced copy, date by date: a day changed on one side takes that side (deletions included); a day changed on both sides combines food entries by id, keeps the lift with more done sets, and takes the higher water. On first connect there is no base, so both sides are combined and nothing is replaced. Erase everything turns sync off on that device first, so it never wipes the cloud.
+- The function (`api/sync.js`) checks `Authorization: Bearer <COACH_TOKEN>`, keeps a revision number and answers 409 with the newer copy when a device is behind. Redis keys: `coach:meta` (rev, savedAt, device), `coach:state` and one `coach:snap:YYYY-MM-DD` per day kept for 31 days, all gzipped. `GET /api/sync?snapshots=1` lists snapshots and `?snapshot=DAY` returns one.
+- Vercel setup: project `fitness-app` under `surath-me`, Upstash for Redis resource `coach-sync` (Free plan, Frankfurt, auto-upgrade and eviction off, so it can never cost money), env vars `KV_REST_API_URL` and `KV_REST_API_TOKEN` from the integration, and `COACH_TOKEN` (sensitive, production). The passphrase is in `data/cloud-passphrase.txt` on Surath's Mac only. Never print it, commit it or put it in a URL.
 - Import also takes a history file (`kind: 'coach-history'`, built from the chat logs). It only fills gaps (`mergeHistory`): a food day is added only if nothing is logged that day, a lift session only if that lift has no sets that day, and nothing is overwritten. A normal backup still replaces everything.
 - Personal exports and history files live in `data/`, which is excluded from git (the repo is public). Never commit them.
 - Safari and an installed home-screen icon have separate storage. Say so if the user switches.
@@ -101,7 +108,7 @@ Do not name top-level functions or variables after browser globals (`history`, `
 
 ## Testing notes
 
-There is no test suite in the repo. In automated tests, stub `matchMedia` to report reduced motion so sheets and toggles run synchronously. For visual checks, drive the page with Playwright in WebKit and Chromium at 393×852. Headless WebKit does not draw `backdrop-filter` or the incoming page of a view transition, so judge the glass in Chromium or on the phone. When changing the planner or progression, check by hand with `window.__TODAY__` set before load (for example `window.__TODAY__='2026-10-27'`), covering these cases:
+There is no test suite in the repo. To test cloud sync without touching production, run `api/sync.js` behind a small local Node server with a fake Upstash REST endpoint (it only needs `GET`, `SET` with `EX`, `SCAN`, and the `/pipeline` and `/multi-exec` paths), then drive two browser contexts as two devices. In automated tests, stub `matchMedia` to report reduced motion so sheets and toggles run synchronously. For visual checks, drive the page with Playwright in WebKit and Chromium at 393×852. Headless WebKit does not draw `backdrop-filter` or the incoming page of a view transition, so judge the glass in Chromium or on the phone. When changing the planner or progression, check by hand with `window.__TODAY__` set before load (for example `window.__TODAY__='2026-10-27'`), covering these cases:
 
 1. Missed Monday, go on an off Tuesday: Monday's session appears, carried, trimmed to the time budget.
 2. Missed Monday, Wednesday has its own session: the two merge and compounds win.
