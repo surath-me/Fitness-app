@@ -138,7 +138,7 @@ body.under .edge.top{opacity:1}
 .tbtn.txt{width:auto;padding:0 17px;font-size:15px;font-weight:500}
 .tgroup{display:flex;border-radius:22px}
 .tbtn.lit{scale:1.12}
-.tbtn.morphing,.tgroup.morphing{opacity:0;transition:opacity .12s}
+.morphing{opacity:0!important;transition:opacity .12s}
 
 /* ---------- week strip (content, so no glass) ---------- */
 .wk-head{display:flex;align-items:center;gap:8px;margin:0 4px 4px}
@@ -261,6 +261,12 @@ body.under .edge.top{opacity:1}
 .ex.flash{animation:flash 1.1s var(--out)}
 
 /* ---------- eat ---------- */
+.dtrow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 0 14px}
+.dtpick{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 11px 0 10px;border-radius:99px;background:var(--accent-t);color:var(--accent);font-size:14px;font-weight:600;transition:transform .3s var(--spring)}
+.dtpick svg:first-child{width:17px;height:17px}
+.dtpick svg:last-child{width:8px;height:13px;opacity:.75}
+.dtpick:active{transform:scale(.95)}
+.dtt{font-size:13px;font-weight:500;color:var(--ink2)}
 .sum-top{display:flex;align-items:center;gap:16px}
 .rings{flex:none}
 .rings .arc{transition:stroke-dashoffset .9s var(--out)}
@@ -385,6 +391,8 @@ body.pushed .nb-inner{opacity:1;transform:none}
 .menu .mi:active{background:rgba(120,120,128,.16)}
 .menu .mic{width:22px;flex:none;display:grid;place-items:center}
 .menu .mic svg{width:19px;height:19px}
+.menu .mt{display:flex;flex-direction:column;line-height:1.2;padding:6px 0}
+.menu .mt small{font-size:13px;color:var(--ink2)}
 .menu .msep{height:.5px;background:var(--sep);margin:6px 20px}
 
 /* ---------- sheets: inset glass at partial height, edge to edge and opaque when tall ---------- */
@@ -519,7 +527,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.3';
+const APP_VERSION = '3.4';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1029,6 +1037,8 @@ const ICON = {
   plus:'<svg viewBox="0 0 24 24"><path d="M12 4.5v15M4.5 12h15" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
   minus:'<svg viewBox="0 0 24 24"><path d="M4.5 12h15" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
   close:'<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
+  moon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.6 8.6 0 1 0 11.3 11.3z"/></svg>',
+  updown:'<svg viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6l3-3 3 3M2 10l3 3 3-3"/></svg>',
   drop:'<svg viewBox="0 0 24 24"><path d="M12 2.8C9.1 6.8 5.6 10.7 5.6 14.7a6.4 6.4 0 0 0 12.8 0c0-4-3.5-7.9-6.4-11.9z" stroke-linejoin="round"/></svg>',
   target:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/></svg>',
   leaf:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4c-8 0-14 3.6-14 10.2 0 1.5.4 2.9 1.1 4.1L4.6 20.8l1.2 1.2 2.6-2.6c1.2.7 2.5 1.1 4 1.1C19 20.5 20 12 20 4z"/></svg>',
@@ -1230,19 +1240,19 @@ function viewEat(){
   const date = ui.date, entries = dayEntries(date), cur = sumMacros(entries), T = dayTarget(date), type = dayType(date);
   const left = T.kcal - cur.kcal, w = waterOf(date), pLeft = T.p - cur.p;
   let h = `<h1 class="lt">Eat</h1>` + weekStrip() + `<div class="daybody">`;
-  h += `<div class="group pad summary"><div class="sum-top">
+  h += `<div class="group pad summary"><div class="dtrow">
+      <button class="dtpick" data-act="menu" data-menu="daytype" aria-haspopup="menu" aria-label="Day type: ${type === 'training' ? 'training day' : 'rest day'}">${type === 'training' ? ICON.dumb : ICON.moon}<span>${type === 'training' ? 'Training day' : 'Rest day'}</span>${ICON.updown}</button>
+      <span class="dtt">Target ${fmtInt(T.kcal)} kcal</span></div>
+    <div class="sum-top">
       ${ringSVG([{ pct:cur.kcal/T.kcal, color:'var(--kcal)' }, { pct:cur.p/T.p, color:'var(--pro)' }], 118, 15, ui.anim)}
       <div class="grow">
         <div class="hero"><span class="num" id="heroLeft" data-v="${r0(Math.abs(left))}">${fmtInt(Math.abs(left))}</span></div>
         <div class="hl">${left >= 0 ? (date === todayStr() ? 'kcal left today' : 'kcal left') : 'kcal over target'}</div>
         <div class="hp" style="color:var(--pro-t)">${pLeft > 0 ? `${r0(pLeft)} g protein to go` : 'Protein floor reached'}</div>
       </div></div>
-    <div class="seg gap16" role="group" aria-label="Day type">
-      <button data-act="daytype" data-v="training" aria-pressed="${type==='training'}">Training day</button>
-      <button data-act="daytype" data-v="rest" aria-pressed="${type==='rest'}">Rest day</button></div>
     <div class="bars ${ui.anim ? 'anim' : ''}">${macroRow('Calories','--kcal',cur.kcal,T.kcal,'target') + macroRow('Protein','--pro',cur.p,T.p,'floor') + macroRow('Fat','--fat',cur.f,T.f,'ceiling','rgba(0,0,0,.78)') + macroRow('Carbs','--carb',cur.c,T.c,'target')}</div>
     <div class="caps" aria-label="Daily food limits">${capChips(date)}</div>
-    <p class="note" style="margin:12px 0 0">Target ${fmtInt(T.kcal)} kcal. Protein is a floor, fat is a ceiling.</p></div>`;
+    <p class="note" style="margin:12px 0 0">Protein is a floor, fat is a ceiling.</p></div>`;
 
   const cups = Math.round(w.ml / 250);
   h += `<div class="group"><div class="item"><div class="grow"><strong>Water</strong><div class="small muted">${(w.ml/1000).toFixed(2).replace(/0$/,'')} of 3 L. Tap a drop to set it.</div></div></div>
@@ -1553,13 +1563,14 @@ function viewHTML(){
   return warn + (ui.tab === 'train' ? viewTrain() : ui.tab === 'eat' ? viewEat() : ui.tab === 'progress' ? viewProgress() : viewSetup());
 }
 function render(opts = {}){
-  const app = $('#app'), snap = opts.day && !reduced() ? meterSnap() : null;
+  const app = $('#app'), snap = (opts.day || opts.meters) && !reduced() ? meterSnap() : null;
   app.innerHTML = viewHTML(); afterRender(opts);
   if (reduced()) return;
   if (opts.day) {   // a new day: the title and week strip stay put, the day's content slides in and the meters glide
     const body = $('.daybody'); if (body) { body.style.setProperty('--dir', String(opts.dir || 1)); body.classList.add('enter'); }
     meterMorph(snap);
-  } else if (opts.transition) {   // a new tab fades in, a pushed page slides in from its side
+  } else if (opts.meters) meterMorph(snap);
+  else if (opts.transition) {   // a new tab fades in, a pushed page slides in from its side
     app.style.setProperty('--dir', String(opts.dir || 1));
     app.classList.remove('enter', 'swap'); void app.offsetWidth; app.classList.add(opts.tab ? 'swap' : 'enter');
   }
@@ -1652,13 +1663,18 @@ function menuSpec(kind){
     if (S.dismissed[date]) more.push({ act:'unskip', label:"Bring today's session back", icon:'undo' });
     if (plan.owed && plan.owed.length) more.push({ act:'dropcarried', label:'Drop carried exercises', icon:'xcirc' });
     if (more.length) out.push({ sep:true }, ...more);
+  } else if (kind === 'daytype') {
+    const cur = dayType(ui.date), T = S.settings.targets;
+    out.push({ head:'This day is a' },
+      { act:'daytype', v:'training', label:'Training day', sub:`${fmtInt(T.training.kcal)} kcal, ${T.training.c} g carbs`, on: cur === 'training' },
+      { act:'daytype', v:'rest', label:'Rest day', sub:`${fmtInt(T.rest.kcal)} kcal, ${T.rest.c} g carbs`, on: cur === 'rest' });
   } else if (kind === 'eat') {
     out.push({ act:'quickentry', label:'Quick entry', icon:'num' }, { act:'copyday', label:'Copy meals from another day', icon:'copy' });
   }
   return out;
 }
 const menuHTML = items => items.map(it => it.head ? `<div class="mh">${esc(it.head)}</div>` : it.sep ? '<div class="msep" role="separator"></div>' :
-  `<button class="mi" role="${it.on === undefined ? 'menuitem' : 'menuitemradio'}"${it.on === undefined ? '' : ` aria-checked="${it.on}"`} data-act="${it.act}"${it.t === undefined ? '' : ` data-t="${it.t}"`}><span class="mic">${it.on ? ICON.check : it.icon ? ICON[it.icon] : ''}</span><span>${esc(it.label)}</span></button>`).join('');
+  `<button class="mi" role="${it.on === undefined ? 'menuitem' : 'menuitemradio'}"${it.on === undefined ? '' : ` aria-checked="${it.on}"`} data-act="${it.act}"${it.t === undefined ? '' : ` data-t="${it.t}"`}${it.v === undefined ? '' : ` data-v="${it.v}"`}><span class="mic">${it.on ? ICON.check : it.icon ? ICON[it.icon] : ''}</span><span class="mt">${esc(it.label)}${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span></button>`).join('');
 function openMenu(btn, kind){
   const m = $('#menu'), r = btn.getBoundingClientRect();
   ui.menu = { src:btn, host: btn.closest('.tgroup') || btn };   // the whole glass group becomes the menu
@@ -1840,7 +1856,7 @@ const H = {
   addex(){ openSheet({ type:'exercise' }); },
   pickex(t){ const wk = ensureWk(ui.date); if (!wk.added) wk.added = []; if (!wk.added.includes(t.dataset.id)) wk.added.push(t.dataset.id);
     const key = ui.date + '|' + t.dataset.id; ui.open[key] = true; ui.justOpen = key; ui.flashEx = key; saveState(); closeSheet(); render(); },
-  daytype(t){ const d = S.days[ui.date] || (S.days[ui.date] = { entries:[] }); d.type = t.dataset.v; saveState(); ui.anim = true; render(); },
+  daytype(t){ const d = S.days[ui.date] || (S.days[ui.date] = { entries:[] }); if (dayType(ui.date) === t.dataset.v) return; d.type = t.dataset.v; saveState(); render({ meters:true }); },
   slot(t){ ui.slot = t.dataset.v; $$('[data-act="slot"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === ui.slot))); },
   quick(t){ const q = QUICK[+t.dataset.i]; addAndFlash(q.items.map(([id, qty]) => [foodById(id), qty]), ui.slot); render(); toast(`${q.label} added`); },
   gapadd(t){ const p = ui.gap[+t.dataset.i]; if (!p) return; addAndFlash([[p.food, p.qty]], ui.slot); render(); toast(`Added to ${slotName(ui.slot)}`); },
