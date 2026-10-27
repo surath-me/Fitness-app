@@ -562,7 +562,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.6';
+const APP_VERSION = '3.7';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2145,6 +2145,7 @@ const SYNC_KEY = 'coach-sync', SYNC_BASE = 'coach-sync-base';
 const cloud = (() => { try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || {}; } catch(e) { return {}; } })();   // token, rev, lastSync, lastFrom, status
 let syncBase, syncing = null, syncAgain = false, syncTimer = 0;
 const sameJSON = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const entrySig = e => JSON.stringify([e.name, e.slot, e.unit, e.qty, e.kcal, e.p, e.f, e.c]);
 function cloudSave(){ try { localStorage.setItem(SYNC_KEY, JSON.stringify(cloud)); } catch(e) {} }
 function getBase(){ if (syncBase === undefined) { try { syncBase = JSON.parse(localStorage.getItem(SYNC_BASE)); } catch(e) { syncBase = null; } } return syncBase; }
 function setBase(st){ syncBase = st ? deepClone(st) : null; try { st ? localStorage.setItem(SYNC_BASE, JSON.stringify(syncBase)) : localStorage.removeItem(SYNC_BASE); } catch(e) {} }
@@ -2165,8 +2166,12 @@ function merge3(base, a, b){
   const pick = (ov, av, bv, both) => sameJSON(av, bv) ? av : sameJSON(av, ov) ? bv : sameJSON(bv, ov) ? av : both(av, bv);
   const byDate = {
     days: (x, y) => { if (!x || !y) return x || y;
-      const ids = new Set(x.entries.map(e => e.id));
-      return { ...y, ...x, entries: [...x.entries, ...y.entries.filter(e => !ids.has(e.id))] }; },
+      // real logged food beats an imported day total (an estimate from the chat logs) for the same day
+      const real = d => d.entries.some(e => e.slot !== 'imported');
+      if (real(x) !== real(y)) return real(x) ? x : y;
+      // the same food logged identically on both sides (like the starter day totals every install creates) is kept once
+      const ids = new Set(x.entries.map(e => e.id)), sigs = new Set(x.entries.map(entrySig));
+      return { ...y, ...x, entries: [...x.entries, ...y.entries.filter(e => !ids.has(e.id) && !sigs.has(entrySig(e)))] }; },
     workouts: (x, y) => { if (!x || !y) return x || y;
       const ex = { ...y.ex };
       Object.entries(x.ex || {}).forEach(([id, sets]) => { const done = l => (l || []).filter(s => +s.r > 0).length; if (!ex[id] || done(sets) >= done(ex[id])) ex[id] = sets; });
@@ -2179,9 +2184,9 @@ function merge3(base, a, b){
     new Set([...Object.keys(A), ...Object.keys(B), ...Object.keys(OO)]).forEach(d => { const v = pick(OO[d], A[d], B[d], both); if (v !== undefined) r[d] = deepClone(v); });
     out[k] = r;
   });
-  const union = key => (x, y) => { const seen = new Set((x || []).map(i => i[key])); return [...(x || []), ...(y || []).filter(i => !seen.has(i[key]))]; };
-  out.waist = deepClone(pick(O.waist, a.waist, b.waist, union('date')) || []);
-  out.foods = deepClone(pick(O.foods, a.foods, b.foods, union('id')) || []);
+  const union = key => (x, y) => { const seen = new Set((x || []).map(key)); return [...(x || []), ...(y || []).filter(i => !seen.has(key(i)))]; };
+  out.waist = deepClone(pick(O.waist, a.waist, b.waist, union(w => w.date)) || []);
+  out.foods = deepClone(pick(O.foods, a.foods, b.foods, union(f => JSON.stringify([f.name, f.unit, f.kcal, f.p, f.f, f.c]))) || []);
   out.settings = deepClone(pick(O.settings, a.settings, b.settings, x => x));
   const starts = [a.settings && a.settings.planStart, b.settings && b.settings.planStart].filter(Boolean).sort();
   if (starts.length) out.settings.planStart = starts[0];
