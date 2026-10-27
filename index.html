@@ -268,16 +268,20 @@ body.under .edge.top{opacity:1}
 .hero .num{font-size:46px;line-height:1}
 .hl{font-size:15px;font-weight:600;color:var(--ink2);margin-top:2px}
 .hp{font-size:14px;font-weight:600;margin-top:6px}
-.macro{display:grid;grid-template-columns:84px 1fr 104px;gap:10px;align-items:center;margin:13px 0 0}
-.macro .lab{font-weight:600;font-size:15px;display:flex;align-items:center;gap:7px}
-.macro .lab i{width:10px;height:10px;border-radius:50%;background:var(--c);flex:none}
-.bar{height:10px;border-radius:99px;background:var(--fill);overflow:hidden}
-.bar>i{display:block;height:100%;border-radius:99px;background:var(--c);transition:width .8s var(--out)}
-.bars.anim .bar>i{animation:barIn 1s var(--out) both}
-.bar.over>i{background:var(--red)}
-.macro .val{text-align:right;font-size:22px;line-height:1}
-.macro .val .of{font-family:var(--font);font-weight:500;font-size:13px;color:var(--ink2);letter-spacing:0}
-.macro .val small{display:block;font-family:var(--font);font-weight:500;font-size:12px;color:var(--ink2);margin-top:3px;letter-spacing:0}
+/* macro bars in the style of Health's comparison bars: a big number, then a thick bar with its name inside.
+   The name is drawn twice, dark on the track and light on the fill, so it reads wherever the fill ends. */
+.macro{margin:18px 0 0;--on:#fff}
+.mtop{display:flex;align-items:baseline;gap:6px;margin:0 0 7px}
+.mtop .num{font-size:30px;line-height:1}
+.mtop .u{font-size:15px;font-weight:600;color:var(--ink2)}
+.mtop .st{margin-left:auto;font-size:14px;font-weight:500;color:var(--ink2)}
+.mbar{position:relative;height:32px;border-radius:9px;background:rgba(120,120,128,.14);overflow:hidden}
+.mbar .ml{position:absolute;left:12px;top:0;line-height:32px;font-size:16px;font-weight:600;white-space:nowrap;color:rgba(0,0,0,.78)}
+.mbar>i{position:absolute;left:0;top:0;bottom:0;border-radius:9px;background:var(--c);overflow:hidden;font-style:normal;transition:width .8s var(--out)}
+.mbar>i .ml{color:var(--on)}
+.bars.anim .mbar>i{animation:barIn 1s var(--out) both}
+.mbar.over>i{background:var(--red)}
+.mbar.over>i .ml{color:#fff}
 .caps{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0 0}
 .cap{font-size:13px;font-weight:600;padding:5px 11px;border-radius:99px;background:var(--fill2);color:var(--ink2);transition:background .3s,color .3s}
 .cap.full{background:var(--accent-t);color:var(--accent)}
@@ -318,46 +322,48 @@ body.under .edge.top{opacity:1}
 .stat{display:flex;justify-content:space-between;gap:12px}
 .stat .num{font-size:32px;line-height:1}
 
-/* ---------- setup ---------- */
-details{background:var(--card);border-radius:var(--r-card);margin:0 0 12px;overflow:hidden}
-summary{list-style:none;cursor:pointer;min-height:58px;padding:0 18px;display:flex;align-items:center;gap:12px;font-weight:600;font-size:17px;transition:background .2s}
-summary::-webkit-details-marker{display:none}
-summary .ico{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:#fff;flex:none}
-summary .ico svg{width:18px;height:18px}
-summary .t{flex:1}
-summary::after{content:"";width:9px;height:9px;border-right:2.5px solid var(--ink3);border-bottom:2.5px solid var(--ink3);transform:rotate(-45deg);transition:transform .4s var(--spring);margin-right:3px}
-details[open] summary::after{transform:rotate(45deg)}
-details[open] .form{animation:fadeUp .4s var(--out)}
-.form{display:grid;gap:12px;padding:2px 18px 18px}
-.fl{display:grid;grid-template-columns:1fr 96px;gap:10px;align-items:center;font-size:16px}
-.fl .field{height:42px;font-size:17px}
-.fl.sel{grid-template-columns:1fr 190px}
-.fl select{height:42px;border-radius:12px;border:0;background:var(--fill2);padding:0 10px;font-size:16px}
-.exset{display:grid;grid-template-columns:1fr 54px 54px 54px 54px;gap:6px;align-items:center;font-size:14px}
+/* ---------- setup: laid out like the Health profile ---------- */
+.prof{text-align:center;padding:6px 0 24px}
+.prof img{display:block;width:96px;height:96px;border-radius:50%;margin:0 auto 14px;box-shadow:0 6px 18px rgba(0,0,0,.14)}
+.prof h1{margin:0 0 8px;font-size:32px}
+.prof p{margin:0;font-size:15px;color:var(--ink2)}
+.prof .link{font-size:15px;font-weight:400}
+h2.first{margin-top:6px}
+/* rows that open a page: label, optional value, chevron; separators inset from the leading edge */
+.srow{position:relative;display:flex;align-items:center;gap:10px;width:100%;min-height:58px;padding:0 16px;font-size:17px;text-align:left;cursor:pointer;transition:background .2s}
+.srow+.srow::before,.frow+.frow::before{content:"";position:absolute;top:0;left:16px;right:0;height:.5px;background:var(--sep)}
+.srow .v{color:var(--ink2)}
+.srow svg{width:13px;height:13px;flex:none;color:var(--ink3)}
+.srow:active{background:rgba(120,120,128,.1)}
+.srow.act{color:var(--accent)}
+.srow.danger{color:var(--red)}
+.frow{position:relative;display:flex;align-items:center;gap:12px;min-height:56px;padding:6px 16px;font-size:17px}
+.frow .field{width:96px;height:40px;font-size:17px;flex:none}
+/* the iOS menu picker look; tapping it opens Safari's own picker */
+.pick{appearance:none;-webkit-appearance:none;border:0;background:transparent;color:var(--ink2);font-size:17px;text-align:right;text-align-last:right;padding:8px 22px 8px 8px;max-width:62%;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='16' viewBox='0 0 10 16' fill='none' stroke='%238E8E93' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M2 6l3-3 3 3M2 10l3 3 3-3'/></svg>");background-repeat:no-repeat;background-position:right 2px center}
+.pick:focus-visible{outline-offset:0}
+.stack{display:grid;gap:12px}
+.exgroup{padding:6px 0}
+.exset{display:grid;grid-template-columns:1fr 54px 54px 54px 54px;gap:6px;align-items:center;font-size:14px;padding:6px 16px}
 .exset .field{height:38px;font-size:15px;padding:0 4px}
 .exset.h{font-size:12px;color:var(--ink2);text-align:center}
+body.pushed .nb-inner{opacity:1;transform:none}
 
-/* ---------- tab bar: floating glass capsule, liquid selection, minimises on scroll ---------- */
+/* ---------- tab bar: floating glass capsule with a liquid selection; it always stays full size ---------- */
 .dock{position:fixed;z-index:20;left:max(21px,calc(50% - 200px));right:max(21px,calc(50% - 200px));bottom:max(12px,calc(env(safe-area-inset-bottom) - 10px));height:62px;pointer-events:none}
-.tabbar{position:absolute;left:0;bottom:0;width:100%;height:62px;padding:4px;border-radius:31px;display:flex;pointer-events:auto;touch-action:none;
-  transition:width .6s var(--spring),height .6s var(--spring),border-radius .6s var(--spring)}
+.tabbar{position:absolute;left:0;bottom:0;width:100%;height:62px;padding:4px;border-radius:31px;display:flex;pointer-events:auto;touch-action:none}
 .tab{position:relative;z-index:1;flex:1 1 0;min-width:0;overflow:hidden;border-radius:27px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
-  font-size:10px;font-weight:600;letter-spacing:.01em;color:var(--ink);white-space:nowrap;transition:color .25s,flex-grow .6s var(--spring),opacity .25s}
+  font-size:10px;font-weight:600;letter-spacing:.01em;color:var(--ink);white-space:nowrap;transition:color .25s}
 .tab svg{width:28px;height:28px;flex:none;fill:currentColor;transition:scale .45s var(--spring)}
-.tab .tl{transition:opacity .2s}
 .tab[aria-current=page]{color:var(--accent)}
 .tab.mag svg{scale:1.2}
 .tab-ind{position:absolute;z-index:0;top:4px;bottom:4px;left:calc(4px + (100% - 8px) * var(--i,0) / 4);width:calc((100% - 8px) / 4);border-radius:27px;
-  background:rgba(120,120,128,.14);transition:background .25s,box-shadow .25s,opacity .3s,scale .5s var(--spring)}
+  background:rgba(120,120,128,.14);transition:background .25s,box-shadow .25s,scale .5s var(--spring)}
 .tab-ind.lens{scale:1.12 1.24}
-body.min .tabbar{width:52px;height:52px;border-radius:26px}
-body.min .tab:not([aria-current=page]){flex-grow:0;opacity:0;pointer-events:none}
-body.min .tab .tl{opacity:0;position:absolute}
-body.min .tab-ind{opacity:0}
-/* the tab bar accessory (rest timer), like the Music mini player; moves inline when the bar minimises */
+/* the tab bar accessory (rest timer), like the Music mini player */
 .accessory{position:absolute;left:0;right:0;bottom:70px;height:52px;border-radius:26px;display:flex;align-items:center;gap:10px;padding:0 7px 0 9px;pointer-events:auto;
-  transition:left .6s var(--spring),bottom .6s var(--spring),scale .6s var(--spring),background-color .35s var(--out),box-shadow .35s var(--out),-webkit-backdrop-filter .35s var(--out),backdrop-filter .35s var(--out)}
-body.min .accessory{left:60px;bottom:0}
+  transition:scale .6s var(--spring),background-color .35s var(--out),box-shadow .35s var(--out),-webkit-backdrop-filter .35s var(--out),backdrop-filter .35s var(--out)}
 .tring{width:34px;height:34px;flex:none}
 .tring circle{fill:none;stroke-width:4}
 .tring .trk{stroke:rgba(120,120,128,.2)}
@@ -510,7 +516,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.0';
+const APP_VERSION = '3.1';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1163,17 +1169,16 @@ function viewTrain(){
 /* =====================================================================
    EAT VIEW
    ===================================================================== */
-function macroRow(label, cssVar, val, target, kind){
+function macroRow(label, cssVar, val, target, kind, on){
   const pct = Math.max(0, Math.min(100, target ? val/target*100 : 0));
   const over = kind === 'ceiling' && val > target;
-  const g = label === 'kcal' ? '' : ' g';
+  const g = label === 'Calories' ? ' kcal' : ' g';
   const sub = kind === 'floor' ? (val >= target ? 'floor reached' : `${r0(target - val)}${g} to go`)
             : kind === 'ceiling' ? (val > target ? `${r0(val - target)}${g} over` : `${r0(target - val)}${g} room`)
-            : (val > target ? `${r0(val - target)}${g} over` : `${r0(target - val)}${g} left`);
-  return `<div class="macro" style="--c:var(${cssVar})">
-    <div class="lab"><i></i>${label}</div>
-    <div class="bar ${over ? 'over' : ''}" role="img" aria-label="${label} ${r0(val)} of ${target}"><i style="width:${pct}%"></i></div>
-    <div class="val num">${r0(val)}${label === 'kcal' ? '' : `<span class="of"> / ${target}</span>`}<small>${label === 'kcal' ? `of ${target}` : sub}</small></div>
+            : (val > target ? `${fmtInt(val - target)}${g} over` : `${fmtInt(target - val)}${g} left`);
+  return `<div class="macro" style="--c:var(${cssVar})${on ? `;--on:${on}` : ''}">
+    <div class="mtop"><span class="num">${fmtInt(val)}</span><span class="u">/ ${fmtInt(target)}${g}</span><span class="st">${sub}</span></div>
+    <div class="mbar ${over ? 'over' : ''}" role="img" aria-label="${label} ${r0(val)} of ${target}${g}"><span class="ml" aria-hidden="true">${label}</span><i style="width:${pct}%"><span class="ml" aria-hidden="true">${label}</span></i></div>
   </div>`;
 }
 function capChips(date){
@@ -1214,7 +1219,7 @@ function viewEat(){
     <div class="seg gap16" role="group" aria-label="Day type">
       <button data-act="daytype" data-v="training" aria-pressed="${type==='training'}">Training day</button>
       <button data-act="daytype" data-v="rest" aria-pressed="${type==='rest'}">Rest day</button></div>
-    <div class="bars ${ui.anim ? 'anim' : ''}">${macroRow('kcal','--kcal',cur.kcal,T.kcal,'target') + macroRow('Protein','--pro',cur.p,T.p,'floor') + macroRow('Fat','--fat',cur.f,T.f,'ceiling') + macroRow('Carbs','--carb',cur.c,T.c,'target')}</div>
+    <div class="bars ${ui.anim ? 'anim' : ''}">${macroRow('Calories','--kcal',cur.kcal,T.kcal,'target') + macroRow('Protein','--pro',cur.p,T.p,'floor') + macroRow('Fat','--fat',cur.f,T.f,'ceiling','rgba(0,0,0,.78)') + macroRow('Carbs','--carb',cur.c,T.c,'target')}</div>
     <div class="caps" aria-label="Daily food limits">${capChips(date)}</div>
     <p class="note" style="margin:12px 0 0">Target ${fmtInt(T.kcal)} kcal. Protein is a floor, fat is a ceiling.</p></div>`;
 
@@ -1304,46 +1309,48 @@ function viewProgress(){
 /* =====================================================================
    SETUP VIEW
    ===================================================================== */
-function field(label, path, val){
-  return `<label class="fl"><span>${label}</span><input class="field" type="text" inputmode="decimal" data-set="${path}" value="${esc(val)}" aria-label="${esc(label)}"></label>`;
+function field(label, path, val, unit){
+  return `<label class="frow"><span class="grow">${label}${unit ? ` <span class="muted">${unit}</span>` : ''}</span><input class="field" type="text" inputmode="decimal" data-set="${path}" value="${esc(val)}" aria-label="${esc(label)}${unit ? ' ' + unit : ''}"></label>`;
 }
-const sum = (title, color, icon) => `<summary><span class="ico" style="background:${color}">${icon}</span><span class="t">${title}</span></summary>`;
-function viewSetup(){
+/* Setup is laid out like the Health profile: a header, then grouped rows that open their own page */
+const SETUP_PAGES = { targets:'Daily targets', caps:'Food limits', split:'Weekly split', lifts:'Lift settings', foods:'My foods' };
+const srow = (page, value) => `<button class="srow" data-act="setuppage" data-p="${page}"><span class="grow">${SETUP_PAGES[page]}</span>${value ? `<span class="v">${value}</span>` : ''}${ICON.chevR}</button>`;
+function setupPage(p){
   const st = S.settings, T = st.targets, C = st.caps;
-  let h = `<h1 class="lt">Setup</h1>`;
-  if (!storageOk) h += `<p class="why" style="color:var(--red-ink)">This browser is blocking storage, so changes are lost when you close the tab. Turn off private browsing.</p>`;
-  h += `<details>${sum('Daily targets','#FF9500',ICON.target)}<div class="form">
-    <h3 style="margin:4px 0 0">Training day</h3>${field('Calories','targets.training.kcal',T.training.kcal)}${field('Protein floor, g','targets.training.p',T.training.p)}${field('Fat ceiling, g','targets.training.f',T.training.f)}${field('Carbs, g','targets.training.c',T.training.c)}
-    <h3 style="margin:8px 0 0">Rest day</h3>${field('Calories','targets.rest.kcal',T.rest.kcal)}${field('Protein floor, g','targets.rest.p',T.rest.p)}${field('Fat ceiling, g','targets.rest.f',T.rest.f)}${field('Carbs, g','targets.rest.c',T.rest.c)}
-  </div></details>`;
-  h += `<details>${sum('Food limits','#34C759',ICON.leaf)}<div class="form">
-    ${field('Eggs per day','caps.egg',C.egg)}${field('Whey scoops per day','caps.whey',C.whey)}${field('Quark g per day','caps.quark',C.quark)}${field('Chicken breast g cooked per day','caps.chicken',C.chicken)}${field('Protein puddings per week','caps.pudding',C.pudding)}
-  </div></details>`;
-  const order = [1,2,3,4,5,6,0];
-  h += `<details>${sum('Weekly split','#007AFF',ICON.cal)}<div class="form">
-    ${order.map(d => `<label class="fl sel"><span>${WD[d]}</span><select data-set="schedule.${d}" aria-label="${WD[d]}"><option value="">Off</option>${Object.keys(TEMPLATES).map(t => `<option value="${t}" ${st.schedule[d]===t?'selected':''}>${esc(TEMPLATES[t].name)}</option>`).join('')}</select></label>`).join('')}
-    <p class="note" style="margin:0">Sessions you miss are carried into your next training day, up to 7 days back. Compounds are kept first when time is short, and lifts wait if that muscle was trained yesterday.</p>
-  </div></details>`;
-  h += `<details>${sum('Lift settings','#5856D6',ICON.dumb)}<div class="form">
-    <div class="exset h"><span></span><span>Sets</span><span>Reps from</span><span>Reps to</span><span>Jump kg</span></div>
+  if (p === 'targets') return `<h2 class="first">Training day</h2><div class="group">${field('Calories','targets.training.kcal',T.training.kcal,'kcal')}${field('Protein floor','targets.training.p',T.training.p,'g')}${field('Fat ceiling','targets.training.f',T.training.f,'g')}${field('Carbs','targets.training.c',T.training.c,'g')}</div>
+    <h2>Rest day</h2><div class="group">${field('Calories','targets.rest.kcal',T.rest.kcal,'kcal')}${field('Protein floor','targets.rest.p',T.rest.p,'g')}${field('Fat ceiling','targets.rest.f',T.rest.f,'g')}${field('Carbs','targets.rest.c',T.rest.c,'g')}</div>
+    <p class="note">Protein is a floor and fat is a ceiling. Changes apply straight away.</p>`;
+  if (p === 'caps') return `<div class="group">${field('Whole eggs','caps.egg',C.egg,'a day')}${field('Whey scoops','caps.whey',C.whey,'a day')}${field('Quark','caps.quark',C.quark,'g a day')}${field('Chicken breast, cooked','caps.chicken',C.chicken,'g a day')}${field('Protein puddings','caps.pudding',C.pudding,'a week')}</div>
+    <p class="note">The limit chips on Eat and the foods suggested to land on target use these.</p>`;
+  if (p === 'split') return `<div class="group">${[1,2,3,4,5,6,0].map(d => `<label class="frow"><span class="grow">${WD[d]}</span><select class="pick" data-set="schedule.${d}" aria-label="${WD[d]}"><option value="">Off</option>${Object.keys(TEMPLATES).map(t => `<option value="${t}" ${st.schedule[d]===t?'selected':''}>${esc(TEMPLATES[t].name)}</option>`).join('')}</select></label>`).join('')}</div>
+    <p class="note">Sessions you miss are carried into your next training day, up to 7 days back. Compounds are kept first when time is short, and lifts wait if that muscle was trained yesterday.</p>`;
+  if (p === 'lifts') return `<div class="group exgroup"><div class="exset h"><span></span><span>Sets</span><span>Reps from</span><span>Reps to</span><span>Jump kg</span></div>
     ${Object.keys(EX).map(id => { const c = cfg(id); return `<div class="exset"><span>${esc(c.name)}</span>
-      ${['sets','low','high','inc'].map(f => `<input class="field" type="text" inputmode="decimal" data-set="exCfg.${id}.${f}" value="${esc(c[f])}" aria-label="${esc(c.name)} ${f}">`).join('')}</div>`; }).join('')}
-  </div></details>`;
-  h += `<details>${sum('My foods','#FF2D55',ICON.basket)}<div class="form">
-    ${(S.foods||[]).length ? `<div class="group" style="background:var(--bg);margin:0">` + S.foods.map(f => `<div class="lift"><div><strong>${esc(f.name)}</strong><div class="small muted">${f.unit==='g' ? 'per 100 g' : 'per '+esc(f.unit)}: ${f.kcal} kcal, ${f.p} P, ${f.f} F, ${f.c} C</div></div><span></span><button class="link" data-act="delfood" data-id="${f.id}">Remove</button></div>`).join('') + `</div>` : '<p class="note" style="margin:0">Foods you save while logging appear here. The built-in list has '+FOODS.length+' items.</p>'}
-    <h3 style="margin:8px 0 0">Add a food</h3>
-    <input id="nf-name" class="field" style="text-align:left;font-family:var(--font);font-weight:400" placeholder="Name" aria-label="Food name">
-    <div class="seg" role="group" aria-label="Per"><button data-act="nfunit" data-v="g" aria-pressed="${ui.nfUnit!=='pc'}">Per 100 g</button><button data-act="nfunit" data-v="pc" aria-pressed="${ui.nfUnit==='pc'}">Per piece</button></div>
-    <div class="row"><input id="nf-k" class="field" inputmode="decimal" placeholder="kcal" aria-label="kcal"><input id="nf-p" class="field" inputmode="decimal" placeholder="P" aria-label="Protein"><input id="nf-f" class="field" inputmode="decimal" placeholder="F" aria-label="Fat"><input id="nf-c" class="field" inputmode="decimal" placeholder="C" aria-label="Carbs"></div>
-    <button class="btn" data-act="addfoodcustom">Save food</button>
-  </div></details>`;
-  h += `<details>${sum('Your data','#8E8E93',ICON.box)}<div class="form">
-    <p class="note" style="margin:0">Everything is stored on this device only. Export a backup now and then, and before clearing Safari data.</p>
-    <button class="btn" data-act="export">Export backup</button>
-    <label class="btn tinted" style="cursor:pointer;display:flex">Import backup<input id="importfile" type="file" accept="application/json" hidden></label>
-    <button class="btn danger" data-act="reset">Erase everything</button>
-    <p class="note" style="margin:0">Version ${APP_VERSION}. Planning starts counting from ${dateLabel(st.planStart)}.</p>
-  </div></details>`;
+      ${['sets','low','high','inc'].map(f => `<input class="field" type="text" inputmode="decimal" data-set="exCfg.${id}.${f}" value="${esc(c[f])}" aria-label="${esc(c.name)} ${f}">`).join('')}</div>`; }).join('')}</div>
+    <p class="note">When every set reaches the top of the range, the next session adds the jump.</p>`;
+  if (p === 'foods') return ((S.foods||[]).length ? `<div class="group">` + S.foods.map(f => `<div class="lift"><div><strong>${esc(f.name)}</strong><div class="small muted">${f.unit==='g' ? 'per 100 g' : 'per '+esc(f.unit)}: ${f.kcal} kcal, ${f.p} P, ${f.f} F, ${f.c} C</div></div><span></span><button class="link" data-act="delfood" data-id="${f.id}">Remove</button></div>`).join('') + `</div>`
+      : `<p class="note" style="margin-top:0">Foods you save while logging appear here. The built-in list has ${FOODS.length} items.</p>`) +
+    `<h2>Add a food</h2><div class="group pad stack">
+      <input id="nf-name" class="field" style="text-align:left;font-family:var(--font);font-weight:400" placeholder="Name" aria-label="Food name">
+      <div class="seg" role="group" aria-label="Per"><button data-act="nfunit" data-v="g" aria-pressed="${ui.nfUnit!=='pc'}">Per 100 g</button><button data-act="nfunit" data-v="pc" aria-pressed="${ui.nfUnit==='pc'}">Per piece</button></div>
+      <div class="row"><input id="nf-k" class="field" inputmode="decimal" placeholder="kcal" aria-label="kcal"><input id="nf-p" class="field" inputmode="decimal" placeholder="P" aria-label="Protein"><input id="nf-f" class="field" inputmode="decimal" placeholder="F" aria-label="Fat"><input id="nf-c" class="field" inputmode="decimal" placeholder="C" aria-label="Carbs"></div>
+      <button class="btn" data-act="addfoodcustom">Save food</button></div>`;
+  return '';
+}
+function viewSetup(){
+  if (ui.setupPage) return setupPage(ui.setupPage);
+  const st = S.settings, sessions = Object.values(st.schedule).filter(Boolean).length;
+  let h = `<div class="prof"><img src="apple-touch-icon.png" alt="" width="96" height="96"><h1 class="lt">Coach</h1>
+    <p>Last backup: ${st.lastExport ? dateLabel(st.lastExport) : 'never'} • <button class="link" data-act="export">Back up now</button></p></div>`;
+  if (!storageOk) h += `<p class="why" style="color:var(--red-ink)">This browser is blocking storage, so changes are lost when you close the tab. Turn off private browsing.</p>`;
+  h += `<div class="group">${srow('targets', `${fmtInt(st.targets.training.kcal)} kcal`)}${srow('caps')}</div>`;
+  h += `<h2>Training</h2><div class="group">${srow('split', `${sessions} session${sessions === 1 ? '' : 's'}`)}${srow('lifts')}</div>`;
+  h += `<h2>Food</h2><div class="group">${srow('foods', (S.foods||[]).length ? String(S.foods.length) : '')}</div>`;
+  h += `<h2>Your data</h2><div class="group">
+    <button class="srow act" data-act="export">Export backup</button>
+    <label class="srow act">Import backup<input id="importfile" type="file" accept="application/json" hidden></label>
+    <button class="srow act danger" data-act="reset">Erase everything</button></div>
+    <p class="note">Everything is stored on this device only. Export a backup now and then, and before clearing Safari data. Version ${APP_VERSION}. Planning starts counting from ${dateLabel(st.planStart)}.</p>`;
   return h;
 }
 
@@ -1579,15 +1586,12 @@ function placeIndicator(fromX){
   lensFlash(ind, 380);
   const dest = $$('#tabs .tab')[idx]; if (dest) { dest.classList.add('mag'); setTimeout(() => dest.classList.remove('mag'), 300); }
 }
-function setMin(on){
-  if (!!ui.min === on) return;
-  ui.min = on; document.body.classList.toggle('min', on);
-}
 
 /* ---------- toolbar: glass buttons in the navigation bar ---------- */
 function toolbarHTML(){
   const t = ui.tab, dated = t === 'train' || t === 'eat';
-  const l = dated && ui.date !== todayStr() ? `<button class="tbtn txt glass" data-act="today">Today</button>` : '';
+  const l = t === 'setup' && ui.setupPage ? `<button class="tbtn glass" data-act="setupback" aria-label="Back to Setup">${ICON.chevL}</button>`
+    : dated && ui.date !== todayStr() ? `<button class="tbtn txt glass" data-act="today">Today</button>` : '';
   let r = '';
   if (t === 'train') r = `<div class="tgroup glass"><button class="tbtn" data-act="addex" aria-label="Add an exercise">${ICON.plus}</button>${getPlan(ui.date).past ? '' : `<button class="tbtn" data-act="menu" data-menu="train" aria-label="More" aria-haspopup="menu">${ICON.more}</button>`}</div>`;
   if (t === 'eat') r = `<div class="tgroup glass"><button class="tbtn" data-act="addfood" aria-label="Add food">${ICON.plus}</button><button class="tbtn" data-act="menu" data-menu="eat" aria-label="More" aria-haspopup="menu">${ICON.more}</button></div>`;
@@ -1695,23 +1699,19 @@ function tweenHero(){
     el.textContent = fmtInt(from + (to - from) * e); if (p < 1) requestAnimationFrame(step); };
   requestAnimationFrame(step);
 }
-/* scroll: the edge effect appears once content passes under the bar, the large title hands over to the
-   inline one, and the tab bar minimises while scrolling down and comes back when scrolling up */
-let lastY = 0, scrollAcc = 0;
+/* scroll: the edge effect appears once content passes under the bar, and the large title hands over to the inline one */
 function onScroll(){
-  const y = Math.max(0, window.scrollY || 0), dy = y - lastY, max = document.documentElement.scrollHeight - innerHeight; lastY = y;
+  const y = Math.max(0, window.scrollY || 0);
   document.body.classList.toggle('under', y > 2);
   document.body.classList.toggle('scrolled', y > 44);
-  if (y < 40) { scrollAcc = 0; setMin(false); return; }
-  if (ui.sheet || y > max - 4) return;
-  scrollAcc = (dy > 0) === (scrollAcc > 0) ? scrollAcc + dy : dy;
-  if (scrollAcc > 28) setMin(true); else if (scrollAcc < -28) setMin(false);
 }
 function afterRender(opts){
   $$('#tabs .tab').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ui.tab ? 'page' : 'false'));
   placeIndicator(opts.fromX);
   setToolbar(); initSegs();
-  $('#nbtitle').textContent = TAB_TITLES[ui.tab];
+  const pushed = ui.tab === 'setup' && !!ui.setupPage;   // a page opened from Setup: inline title, back button
+  document.body.classList.toggle('pushed', pushed);
+  $('#nbtitle').textContent = pushed ? SETUP_PAGES[ui.setupPage] : TAB_TITLES[ui.tab];
   $('#nbsub').textContent = ui.tab === 'train' || ui.tab === 'eat' ? longDate(ui.date) : '';
   if (ui.justOpen) {
     const host = findEx(ui.justOpen), wrap = host && $('.sets-wrap', host); ui.justOpen = null;
@@ -1770,8 +1770,11 @@ function removeEntryAnimated(id){
 const H = {
   tab(t, e, fromX){ const to = t.dataset.tab;
     if (fromX === undefined && Date.now() - (ui.tabDragAt || 0) < 400) return;
-    if (ui.min) { setMin(false); return; }
-    if (to === ui.tab) { if (fromX === undefined) window.scrollTo({ top:0, behavior: reduced() ? 'auto' : 'smooth' }); else placeIndicator(fromX); return; }
+    if (to === ui.tab) {
+      if (fromX !== undefined) placeIndicator(fromX);
+      else if (to === 'setup' && ui.setupPage) H.setupback();   // tapping the current tab goes back to its first page
+      else window.scrollTo({ top:0, behavior: reduced() ? 'auto' : 'smooth' });
+      return; }
     const dir = TAB_ORDER.indexOf(to) > TAB_ORDER.indexOf(ui.tab) ? 1 : -1;
     const x = fromX !== undefined ? fromX : $('#tabind').offsetLeft;
     ui.tab = to; closeSheet(); closeMenu(); ui.anim = true; window.scrollTo(0, 0); render({ transition:true, tab:true, dir, fromX:x }); },
@@ -1872,7 +1875,10 @@ const H = {
     saveState(); render(); toast(`${name} saved`); },
   delfood(t){ S.foods = S.foods.filter(f => f.id !== t.dataset.id); saveState(); render(); },
   export(){ const blob = new Blob([JSON.stringify(S, null, 2)], { type:'application/json' }), a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = `coach-backup-${todayStr()}.json`; document.body.appendChild(a); a.click(); a.remove(); toast('Backup downloaded'); },
+    a.href = URL.createObjectURL(blob); a.download = `coach-backup-${todayStr()}.json`; document.body.appendChild(a); a.click(); a.remove();
+    S.settings.lastExport = todayStr(); saveState(); if (ui.tab === 'setup') render(); toast('Backup downloaded'); },
+  setuppage(t){ ui.setupPage = t.dataset.p; window.scrollTo(0, 0); render({ transition:true, dir:1 }); },
+  setupback(){ if (!ui.setupPage) return; ui.setupPage = null; window.scrollTo(0, 0); render({ transition:true, dir:-1 }); },
   reset(){ askGlass('Erase everything?', 'All logs, foods and settings on this device will be deleted. This cannot be undone.', 'Erase').then(ok => {
     if (!ok) return; try { localStorage.removeItem(LS_KEY); } catch(e) {} S = freshState(); saveState(); render(); toast('Everything erased'); }); },
   timeradd(){ RT.end = Math.max(RT.end, Date.now()) + 15000; RT.total += 15000; $('#timer').classList.remove('done'); $('#timerl').textContent = 'Rest';
@@ -1918,7 +1924,7 @@ document.addEventListener('pointercancel', endGesture);
 
 /* ---------- Liquid Glass touch: light from the fingertip, lenses you can drag, week swipe ---------- */
 const LIT = '.btn,.qchip,.tbtn,.closeb,.accessory .tb,.glass';
-let lit = [], td = null, sg = null, wk = null;
+let lit = [], td = null, sg = null, wk = null, eb = null;
 function unlight(){ lit.forEach(g => g.classList.remove('lit')); lit = []; }
 function lightUp(g, e){
   const r = g.getBoundingClientRect();
@@ -1939,7 +1945,7 @@ document.addEventListener('pointerdown', e => {
     lightUp(g, e);
     const grp = g.parentElement && g.parentElement.closest('.tgroup'); if (grp) lightUp(grp, e);   // the glow spreads to the shared glass
   }
-  if (e.target.closest('#tabs') && !ui.min) td = { id:e.pointerId, x0:e.clientX, drag:false };
+  if (e.target.closest('#tabs')) td ={ id:e.pointerId, x0:e.clientX, drag:false };
   const seg = e.target.closest('.seg');
   if (seg) {
     const btns = $$('button', seg), i = btns.findIndex(b => b.getAttribute('aria-pressed') === 'true');
@@ -1947,6 +1953,7 @@ document.addEventListener('pointerdown', e => {
     seg.classList.add('lens'); clearTimeout(seg._lt);
   }
   if (e.target.closest('.week')) wk = { id:e.pointerId, x0:e.clientX, y0:e.clientY };
+  if (ui.tab === 'setup' && ui.setupPage && e.clientX < 28 && !ui.sheet) eb = { id:e.pointerId, x0:e.clientX, y0:e.clientY };   // swipe from the left edge to go back
 }, { passive:true });
 document.addEventListener('pointermove', e => {
   if (td && e.pointerId === td.id) {
@@ -1987,6 +1994,10 @@ function endLiquid(e){
       const seg2 = s.seg.isConnected ? s.seg : $$('.seg').find(x => (x.getAttribute('aria-label') || '') === key);
       if (seg2) { settleFrom($('.seg-thumb', seg2), from); lensFlash(seg2, 260); setTimeout(() => seg2.classList.remove('drag'), 540); }
     } else lensFlash(s.seg, 220);
+  }
+  if (eb && e.pointerId === eb.id) {
+    const dx = e.clientX - eb.x0, dy = e.clientY - eb.y0; eb = null;
+    if (e.type === 'pointerup' && dx > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) H.setupback();
   }
   if (wk && e.pointerId === wk.id) {
     const w = wk, dx = e.clientX - w.x0, dy = e.clientY - w.y0; wk = null;
