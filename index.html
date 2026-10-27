@@ -153,6 +153,7 @@ body.under .edge.top{opacity:1}
 .wd .dots{display:flex;gap:3px;height:5px}
 .wd .dots b{width:5px;height:5px;border-radius:50%;background:var(--accent)}
 .wd .dots b.f{background:var(--ink3)}
+.capsule{height:34px;padding:0 14px;border-radius:99px;font-size:13px;font-weight:600;color:var(--accent);background:var(--accent-t);transition:transform .3s var(--spring)}
 .icb{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:var(--accent);background:rgba(120,120,128,.12);transition:transform .3s var(--spring)}
 .icb svg{width:18px;height:18px}
 
@@ -448,6 +449,8 @@ body.lock{overflow:hidden}
    API is not used: its snapshots paint above every fixed bar, and naming the bars stops their glass blurring. */
 .app.enter{animation:pageIn .42s var(--out) backwards}
 .app.swap{animation:tabIn .28s var(--out) backwards}
+.daybody.enter{animation:dayIn .34s var(--out) backwards}
+@keyframes dayIn{from{opacity:.3;transform:translateX(calc(var(--dir,1) * 16px))}}
 @keyframes pageIn{from{opacity:0;transform:translateX(calc(var(--dir,1) * 26px))}}
 @keyframes tabIn{from{opacity:0;transform:scale(.985)}}
 
@@ -516,7 +519,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.2';
+const APP_VERSION = '3.3';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1048,6 +1051,7 @@ function weekStrip(){
   const sd = parseD(sel), label = `${MONTHS[sd.getMonth()]} ${sd.getFullYear()}`;
   return `<div class="wk-head">
       <span class="m">${label}</span>
+      ${sel !== t ? `<button class="capsule" data-act="today">Today</button>` : ''}
       <button class="icb" data-act="day" data-n="-7" aria-label="Previous week">${ICON.chevL}</button>
       <button class="icb" data-act="day" data-n="7" aria-label="Next week">${ICON.chevR}</button>
     </div>
@@ -1172,7 +1176,7 @@ function refreshSession(date){
 
 function viewTrain(){
   const date = ui.date, plan = getPlan(date);
-  let h = `<h1 class="lt">Train</h1>` + weekStrip() + sessionCard(plan, date);
+  let h = `<h1 class="lt">Train</h1>` + weekStrip() + `<div class="daybody">` + sessionCard(plan, date);
   if (plan.items.length) h += `<div class="group">${plan.items.map(it => exRow(it, date)).join('')}</div>`;
   else h += `<div class="group"><div class="empty">${plan.past ? 'Nothing was logged on this day.' : `Nothing is scheduled or owed today.<br><button class="btn tinted small" data-act="menu" data-menu="train" aria-haspopup="menu">Choose a session</button>`}</div></div>`;
   if (plan.deferred.length) {
@@ -1180,7 +1184,7 @@ function viewTrain(){
       plan.deferred.map(d => `<div class="lift"><div><strong>${esc(cfg(d.id).name)}</strong><div class="small muted">${esc(d.reason)}</div></div><span></span><span></span></div>`).join('') + `</div>`;
   }
   if (!plan.past && plan.items.length) h += `<p class="note" style="margin:0 4px">Use ${'⋯'} at the top to train a different session, skip today or drop carried exercises.</p>`;
-  return h;
+  return h + `</div>`;
 }
 
 /* =====================================================================
@@ -1225,7 +1229,7 @@ function slotBlock(key, label, date){
 function viewEat(){
   const date = ui.date, entries = dayEntries(date), cur = sumMacros(entries), T = dayTarget(date), type = dayType(date);
   const left = T.kcal - cur.kcal, w = waterOf(date), pLeft = T.p - cur.p;
-  let h = `<h1 class="lt">Eat</h1>` + weekStrip();
+  let h = `<h1 class="lt">Eat</h1>` + weekStrip() + `<div class="daybody">`;
   h += `<div class="group pad summary"><div class="sum-top">
       ${ringSVG([{ pct:cur.kcal/T.kcal, color:'var(--kcal)' }, { pct:cur.p/T.p, color:'var(--pro)' }], 118, 15, ui.anim)}
       <div class="grow">
@@ -1258,7 +1262,7 @@ function viewEat(){
   h += `<h2>Meals</h2><div class="cols legend" aria-hidden="true"><span></span><span class="h" style="color:var(--kcal-t)">kcal</span><span class="h" style="color:var(--pro-t)">P</span><span class="h" style="color:var(--fat-t)">F</span><span class="h" style="color:var(--carb-t)">C</span></div>`;
   h += SLOTS.map(([k,l]) => slotBlock(k, l, date)).join('') + slotBlock('imported', 'Imported day total', date);
   h += `<p class="note" style="margin:0 4px 12px">Swipe a food left to delete it, or tap it to change the amount. Quick entry and copying meals from another day are under ${'⋯'} at the top.</p>`;
-  return h;
+  return h + `</div>`;
 }
 
 /* =====================================================================
@@ -1450,32 +1454,15 @@ function copySheet(){
     <input id="copyd" type="date" class="field" style="margin:14px 0" value="${addDays(ui.date, -1)}" aria-label="Day to copy">
     <button class="btn block" data-act="confirmcopy">Copy meals</button>`;
 }
-/* A sheet opened from a toolbar button zooms out of that button and back into it; any other sheet slides up. */
-function morphSource(){ const s = ui.sheetSrc; return s && s.isConnected && s.closest('.navbar') && !reduced() ? s : null; }
-function morphSheet(el, src, opening){
-  const r = src.getBoundingClientRect(), F = el.getBoundingClientRect();
-  const sx = r.width / F.width, sy = r.height / F.height, rad = r.height / 2;
-  const small = { transform:`translate(${r.left - F.left}px,${r.top - F.top}px) scale(${sx},${sy})`, borderRadius:`${rad / sx}px / ${rad / sy}px` };
-  const big = { transform:'none', borderRadius:getComputedStyle(el).borderRadius };
-  el.style.transformOrigin = '0 0'; el.style.transition = 'none'; src.classList.add('morphing');
-  const a = el.animate(opening ? [small, big] : [big, small], { duration: opening ? 620 : 380, easing: opening ? EASE.spring : 'cubic-bezier(.4,0,.2,1)', fill:'both' });
-  Array.from(el.children).forEach(k => k.animate(opening ? [{ opacity:0 }, { opacity:0, offset:.25 }, { opacity:1 }] : [{ opacity:1 }, { opacity:0, offset:.45 }, { opacity:0 }], { duration: opening ? 460 : 380, fill:'both' }));
-  return a.finished.then(() => { if (opening) { el.getAnimations({ subtree:true }).forEach(x => x.cancel()); el.style.transition = ''; el.style.transformOrigin = ''; } });
-}
+/* Sheets always slide up from the bottom edge and back down */
 function drawSheet(){
   const el = $('#sheet'), sc = $('#scrim');
   if (!ui.sheet) {
     if (el.hidden) return;
-    sc.classList.remove('open'); document.body.classList.remove('lock');
+    el.classList.remove('open'); sc.classList.remove('open'); document.body.classList.remove('lock');
     clearTimeout(ui.sheetT);
-    const src = morphSource();
-    const fin = () => { if (ui.sheet) return;
-      el.getAnimations({ subtree:true }).forEach(x => x.cancel()); el.classList.remove('open');
-      el.hidden = true; sc.hidden = true; el.innerHTML = ''; el.style.transform = ''; el.style.transition = ''; el.style.transformOrigin = ''; sc.style.opacity = '';
-      $$('.morphing').forEach(b => b.classList.remove('morphing')); };
-    if (reduced()) fin();
-    else if (src) morphSheet(el, src, false).then(fin, fin);
-    else { el.classList.remove('open'); ui.sheetT = setTimeout(fin, 480); }
+    const fin = () => { if (!ui.sheet) { el.hidden = true; sc.hidden = true; el.innerHTML = ''; el.style.transform = ''; sc.style.opacity = ''; } };
+    if (reduced()) fin(); else ui.sheetT = setTimeout(fin, 480);
     return;
   }
   clearTimeout(ui.sheetT);
@@ -1485,14 +1472,9 @@ function drawSheet(){
   el.innerHTML = t === 'food' ? foodSheet() : t === 'entry' ? entrySheet() : t === 'exercise' ? exerciseSheet() : t === 'copyday' ? copySheet() : '';
   el.classList.toggle('full', el.scrollHeight > innerHeight * .78);
   initSegs(el);
-  if (opening) {
-    el.scrollTop = 0; el.style.transform = '';
-    const src = morphSource();
-    if (src) { el.style.transition = 'none'; el.classList.add('open'); void el.offsetHeight; sc.classList.add('open'); morphSheet(el, src, true); }
-    else { void el.offsetHeight; requestAnimationFrame(() => { el.classList.add('open'); sc.classList.add('open'); }); }
-  }
+  if (opening) { el.scrollTop = 0; el.style.transform = ''; void el.offsetHeight; requestAnimationFrame(() => { el.classList.add('open'); sc.classList.add('open'); }); }
 }
-const openSheet = s => { if (!ui.sheet) ui.sheetSrc = ui.src || null; ui.sheet = s; drawSheet(); };
+const openSheet = s => { ui.sheet = s; drawSheet(); };
 const closeSheet = () => { ui.sheet = null; drawSheet(); };
 
 /* =====================================================================
@@ -1571,12 +1553,29 @@ function viewHTML(){
   return warn + (ui.tab === 'train' ? viewTrain() : ui.tab === 'eat' ? viewEat() : ui.tab === 'progress' ? viewProgress() : viewSetup());
 }
 function render(opts = {}){
-  const app = $('#app');
+  const app = $('#app'), snap = opts.day && !reduced() ? meterSnap() : null;
   app.innerHTML = viewHTML(); afterRender(opts);
-  if (opts.transition && !reduced()) {   // a new tab fades in, a new day slides in from its side
+  if (reduced()) return;
+  if (opts.day) {   // a new day: the title and week strip stay put, the day's content slides in and the meters glide
+    const body = $('.daybody'); if (body) { body.style.setProperty('--dir', String(opts.dir || 1)); body.classList.add('enter'); }
+    meterMorph(snap);
+  } else if (opts.transition) {   // a new tab fades in, a pushed page slides in from its side
     app.style.setProperty('--dir', String(opts.dir || 1));
     app.classList.remove('enter', 'swap'); void app.offsetWidth; app.classList.add(opts.tab ? 'swap' : 'enter');
   }
+}
+/* On a day change the rings and macro bars glide from the old day's values instead of refilling from empty */
+function meterSnap(){ return { bars: $$('.mbar>i').map(i => i.style.width), arcs: $$('.rings .arc').map(a => a.getAttribute('stroke-dashoffset')) }; }
+function meterMorph(s){
+  const bars = $$('.mbar>i'), arcs = $$('.rings .arc');
+  if (!s || bars.length !== s.bars.length || arcs.length !== s.arcs.length) return;
+  const bTo = bars.map(i => i.style.width), aTo = arcs.map(a => [a.getAttribute('stroke-dashoffset'), a.getAttribute('opacity')]);
+  bars.forEach((i, k) => { i.style.transition = 'none'; i.style.width = s.bars[k]; });
+  arcs.forEach((a, k) => { a.style.transition = 'none'; a.setAttribute('stroke-dashoffset', s.arcs[k]); a.setAttribute('opacity', 1); });
+  void document.body.offsetWidth;
+  bars.forEach((i, k) => { i.style.transition = ''; i.style.width = bTo[k]; });
+  arcs.forEach((a, k) => { a.style.transition = ''; a.setAttribute('stroke-dashoffset', aTo[k][0]); });
+  setTimeout(() => arcs.forEach((a, k) => a.setAttribute('opacity', aTo[k][1])), 950);   // an empty ring hides its end cap again
 }
 /* springs for scripted animations, read from the CSS so both stay in step */
 const EASE = (() => {
@@ -1606,9 +1605,8 @@ function placeIndicator(fromX){
 
 /* ---------- toolbar: glass buttons in the navigation bar ---------- */
 function toolbarHTML(){
-  const t = ui.tab, dated = t === 'train' || t === 'eat';
-  const l = t === 'setup' && ui.setupPage ? `<button class="tbtn glass" data-act="setupback" aria-label="Back to Setup">${ICON.chevL}</button>`
-    : dated && ui.date !== todayStr() ? `<button class="tbtn txt glass" data-act="today">Today</button>` : '';
+  const t = ui.tab;
+  const l = t === 'setup' && ui.setupPage ? `<button class="tbtn glass" data-act="setupback" aria-label="Back to Setup">${ICON.chevL}</button>` : '';
   let r = '';
   if (t === 'train') r = `<div class="tgroup glass"><button class="tbtn" data-act="addex" aria-label="Add an exercise">${ICON.plus}</button>${getPlan(ui.date).past ? '' : `<button class="tbtn" data-act="menu" data-menu="train" aria-label="More" aria-haspopup="menu">${ICON.more}</button>`}</div>`;
   if (t === 'eat') r = `<div class="tgroup glass"><button class="tbtn" data-act="addfood" aria-label="Add food">${ICON.plus}</button><button class="tbtn" data-act="menu" data-menu="eat" aria-label="More" aria-haspopup="menu">${ICON.more}</button></div>`;
@@ -1708,7 +1706,7 @@ function initSegs(root = document){
 }
 function tweenHero(){
   const el = $('#heroLeft'); if (!el) return;
-  const to = +el.dataset.v, from = ui.lastLeft, sameDay = ui.lastLeftDate === ui.date;
+  const to = +el.dataset.v, from = ui.lastLeft, sameDay = ui.lastLeftDate === ui.date || ui.dayMorph;
   ui.lastLeft = to; ui.lastLeftDate = ui.date;
   if (from === null || !sameDay || from === to || reduced()) return;
   const t0 = performance.now(), dur = 550;
@@ -1745,7 +1743,7 @@ function afterRender(opts){
    ===================================================================== */
 const num = s => { const v = parseFloat(String(s).replace(',', '.')); return isNaN(v) ? null : v; };
 const TAB_ORDER = ['train','eat','progress','setup'];
-function go(date){ if (date === ui.date) return; const dir = date > ui.date ? 1 : -1; ui.date = date; ui.anim = true; render({ transition:true, dir }); }
+function go(date){ if (date === ui.date) return; const dir = date > ui.date ? 1 : -1; ui.date = date; ui.dayMorph = true; render({ day:true, dir }); ui.dayMorph = false; }
 
 function onSetInput(el){
   const { date, ex, i, f } = el.dataset, rows = materialize(date, ex), row = rows[+i]; if (!row) return;
@@ -1931,7 +1929,7 @@ document.addEventListener('pointermove', e => {
 }, { passive:true });
 function endGesture(){
   if (sd) { const el = $('#sheet'), dy = sd.dy; sd = null; el.classList.remove('dragging'); $('#scrim').style.opacity = '';
-    if (dy > 110) { el.style.transform = 'translateY(calc(100% + 40px))'; ui.sheet = null; ui.sheetSrc = null; $$('.morphing').forEach(b => b.classList.remove('morphing')); drawSheet(); } else el.style.transform = ''; }
+    if (dy > 110) { el.style.transform = 'translateY(calc(100% + 40px))'; ui.sheet = null; drawSheet(); } else el.style.transform = ''; }
   if (sw) { const s = sw; sw = null; if (!s.active) return; ui.swipeAt = Date.now(); s.row.classList.remove('dragging');
     if (s.raw < -230) { s.fg.style.transform = 'translateX(-100%)'; removeEntryAnimated(s.row.dataset.id); return; }
     if (s.x < -46) { s.row.classList.add('opened'); s.fg.style.transform = 'translateX(-92px)'; } else { s.row.classList.remove('opened'); s.fg.style.transform = ''; } }
@@ -2030,11 +2028,9 @@ document.addEventListener('pointercancel', endLiquid);
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-act]');
   if (!t || !H[t.dataset.act] || t.tagName === 'INPUT') return;
-  const inMenu = !!t.closest('#menu');
-  ui.src = inMenu && ui.menu ? ui.menu.src : t;    // what a sheet zooms out of
-  if (inMenu) closeMenu();
+  if (t.closest('#menu')) closeMenu();
   H[t.dataset.act](t, e);
-  ui.src = null; initSegs();
+  initSegs();
 });
 document.addEventListener('input', e => {
   const t = e.target;
