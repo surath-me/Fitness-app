@@ -132,7 +132,8 @@ body.under .edge.top{opacity:1}
   background:linear-gradient(rgba(242,242,247,0),rgba(242,242,247,.7) 62%,rgba(242,242,247,.9));
   -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);-webkit-mask:linear-gradient(transparent,#000 45%);mask:linear-gradient(transparent,#000 45%)}
 /* toolbar buttons: label colour, glass circles and capsules */
-.tbtn{width:44px;height:44px;border-radius:22px;display:grid;place-items:center;color:var(--ink);transition:scale .55s var(--spring)}
+.tbtn{width:44px;height:44px;border-radius:22px;display:grid;place-items:center;color:var(--ink);
+  transition:scale .55s var(--spring),background-color .35s var(--out),box-shadow .35s var(--out),-webkit-backdrop-filter .35s var(--out),backdrop-filter .35s var(--out)}
 .tbtn svg{width:21px;height:21px}
 .tbtn.txt{width:auto;padding:0 17px;font-size:17px;font-weight:500}
 .tgroup{display:flex;border-radius:22px}
@@ -429,7 +430,7 @@ body.lock{overflow:hidden}
 .alert .row .btn{flex:1;min-height:48px;padding:0 12px}
 
 /* ---------- toast (glass banner from the top) ---------- */
-.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 8px);z-index:40;display:flex;align-items:center;gap:8px;max-width:92vw;white-space:nowrap;padding:11px 18px 11px 12px;border-radius:99px;font-weight:600;font-size:15px;
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 58px);z-index:40;display:flex;align-items:center;gap:8px;max-width:92vw;white-space:nowrap;padding:11px 18px 11px 12px;border-radius:99px;font-weight:600;font-size:15px;
   translate:-50% 0;transition:translate .6s var(--spring),scale .6s var(--spring),background-color .35s var(--out),box-shadow .35s var(--out),-webkit-backdrop-filter .35s var(--out),backdrop-filter .35s var(--out)}
 .toast.ghost{translate:-50% -16px}
 .toast>span:not(.ok){overflow:hidden;text-overflow:ellipsis}
@@ -437,16 +438,12 @@ body.lock{overflow:hidden}
 .toast .ok svg{width:13px;height:13px}
 
 /* ---------- page transitions ---------- */
-/* Only the content slides. The bars stay live in the root layer: naming them would make them a backdrop
-   root, and their glass would stop seeing (and blurring) the page behind it. */
-#app{view-transition-name:main}
-::view-transition-old(root){animation:none;opacity:0}
-::view-transition-new(root){animation:none}
-::view-transition-old(main){animation:vtOut .22s var(--io) both}
-::view-transition-new(main){animation:vtIn .4s var(--out) both}
-@keyframes vtOut{to{opacity:0;transform:translateX(calc(var(--vt-dir,1) * -22px))}}
-@keyframes vtIn{from{opacity:0;transform:translateX(calc(var(--vt-dir,1) * 26px))}}
-.app.enter{animation:vtIn .4s var(--out) both}
+/* Only the new content animates, underneath the bars, so the bars always stay on top. The View Transitions
+   API is not used: its snapshots paint above every fixed bar, and naming the bars stops their glass blurring. */
+.app.enter{animation:pageIn .42s var(--out) backwards}
+.app.swap{animation:tabIn .28s var(--out) backwards}
+@keyframes pageIn{from{opacity:0;transform:translateX(calc(var(--dir,1) * 26px))}}
+@keyframes tabIn{from{opacity:0;transform:scale(.985)}}
 
 /* ---------- keyframes ---------- */
 @keyframes pop{0%{transform:scale(.55)}55%{transform:scale(1.16)}100%{transform:scale(1)}}
@@ -472,7 +469,6 @@ body.lock{overflow:hidden}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
-  ::view-transition-old(main),::view-transition-new(main){animation:none!important}
 }
 </style>
 </head>
@@ -1551,14 +1547,11 @@ function viewHTML(){
   return warn + (ui.tab === 'train' ? viewTrain() : ui.tab === 'eat' ? viewEat() : ui.tab === 'progress' ? viewProgress() : viewSetup());
 }
 function render(opts = {}){
-  const app = $('#app'), html = viewHTML();
-  const apply = () => { app.innerHTML = html; afterRender(opts); };
-  if (opts.transition && !reduced() && document.startViewTransition) {
-    document.documentElement.style.setProperty('--vt-dir', String(opts.dir || 1));
-    document.startViewTransition(apply);
-  } else {
-    apply();
-    if (opts.transition && !reduced()) { app.classList.remove('enter'); void app.offsetWidth; app.classList.add('enter'); }
+  const app = $('#app');
+  app.innerHTML = viewHTML(); afterRender(opts);
+  if (opts.transition && !reduced()) {   // a new tab fades in, a new day slides in from its side
+    app.style.setProperty('--dir', String(opts.dir || 1));
+    app.classList.remove('enter', 'swap'); void app.offsetWidth; app.classList.add(opts.tab ? 'swap' : 'enter');
   }
 }
 /* springs for scripted animations, read from the CSS so both stay in step */
@@ -1600,12 +1593,30 @@ function toolbarHTML(){
   if (t === 'eat') r = `<div class="tgroup glass"><button class="tbtn" data-act="addfood" aria-label="Add food">${ICON.plus}</button><button class="tbtn" data-act="menu" data-menu="eat" aria-label="More" aria-haspopup="menu">${ICON.more}</button></div>`;
   return [l, r];
 }
+/* The toolbar is one floating plane: when the next screen has the same glass, only the buttons on it change.
+   Glass that is no longer needed dematerialises, and new glass materialises. */
 function setToolbar(){
   const [l, r] = toolbarHTML();
   [['#nbl', l], ['#nbr', r]].forEach(([sel, html]) => {
-    const el = $(sel); if (el._html === html) return;
-    el._html = html; el.innerHTML = html;
-    if (!reduced()) $$('.glass', el).forEach(g => { g.classList.add('mat'); setTimeout(() => g.classList.remove('mat'), 650); });
+    const side = $(sel); if (side._html === html) return;
+    side._html = html;
+    const cur = $$('.glass', side).find(g => !g.classList.contains('ghost'));
+    if (!html) {
+      if (cur) { cur.classList.add('ghost'); setTimeout(() => { if (cur.classList.contains('ghost')) cur.remove(); }, reduced() ? 0 : 400); }
+      return;
+    }
+    const tmp = document.createElement('div'); tmp.innerHTML = html;
+    const next = tmp.firstElementChild;
+    if (cur && cur.className.replace(/\s*\b(lit|mat|morphing)\b/g, '') === next.className) {
+      const w0 = cur.offsetWidth;
+      Array.from(next.attributes).forEach(a => cur.setAttribute(a.name, a.value));
+      cur.innerHTML = next.innerHTML;
+      const w1 = cur.offsetWidth;
+      if (w0 !== w1 && !reduced()) cur.animate([{ width:w0 + 'px' }, { width:w1 + 'px' }], { duration:450, easing:EASE.spring });
+      return;
+    }
+    side.replaceChildren(next);
+    if (!reduced()) { next.classList.add('mat'); setTimeout(() => next.classList.remove('mat'), 650); }
   });
 }
 
@@ -1763,7 +1774,7 @@ const H = {
     if (to === ui.tab) { if (fromX === undefined) window.scrollTo({ top:0, behavior: reduced() ? 'auto' : 'smooth' }); else placeIndicator(fromX); return; }
     const dir = TAB_ORDER.indexOf(to) > TAB_ORDER.indexOf(ui.tab) ? 1 : -1;
     const x = fromX !== undefined ? fromX : $('#tabind').offsetLeft;
-    ui.tab = to; closeSheet(); closeMenu(); ui.anim = true; window.scrollTo(0, 0); render({ transition:true, dir, fromX:x }); },
+    ui.tab = to; closeSheet(); closeMenu(); ui.anim = true; window.scrollTo(0, 0); render({ transition:true, tab:true, dir, fromX:x }); },
   pickday(t){ if (Date.now() - (ui.weekAt || 0) < 400) return; go(t.dataset.d); },
   menu(t){ if (ui.menu) closeMenu(); else openMenu(t, t.dataset.menu); },
   closemenu(){ closeMenu(); },
