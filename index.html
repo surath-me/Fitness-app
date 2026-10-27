@@ -261,12 +261,12 @@ body.under .edge.top{opacity:1}
 .ex.flash{animation:flash 1.1s var(--out)}
 
 /* ---------- eat ---------- */
-.dtrow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 0 14px}
-.dtpick{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 11px 0 10px;border-radius:99px;background:var(--accent-t);color:var(--accent);font-size:14px;font-weight:600;transition:transform .3s var(--spring)}
-.dtpick svg:first-child{width:17px;height:17px}
-.dtpick svg:last-child{width:8px;height:13px;opacity:.75}
-.dtpick:active{transform:scale(.95)}
-.dtt{font-size:13px;font-weight:500;color:var(--ink2)}
+/* the day type: a quiet pop-up button like the Weekly split picker, grey with up/down chevrons, top right of the card */
+.dtrow{display:flex;justify-content:flex-end;margin:-10px -6px 2px 0}
+.dtpick{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 6px;color:var(--ink2);font-size:14px;font-weight:500;transition:opacity .15s}
+.dtpick svg:first-child{width:15px;height:15px}
+.dtpick svg:last-child{width:8px;height:13px}
+.dtpick:active{opacity:.45}
 .sum-top{display:flex;align-items:center;gap:16px}
 .rings{flex:none}
 .rings .arc{transition:stroke-dashoffset .9s var(--out)}
@@ -1241,8 +1241,7 @@ function viewEat(){
   const left = T.kcal - cur.kcal, w = waterOf(date), pLeft = T.p - cur.p;
   let h = `<h1 class="lt">Eat</h1>` + weekStrip() + `<div class="daybody">`;
   h += `<div class="group pad summary"><div class="dtrow">
-      <button class="dtpick" data-act="menu" data-menu="daytype" aria-haspopup="menu" aria-label="Day type: ${type === 'training' ? 'training day' : 'rest day'}">${type === 'training' ? ICON.dumb : ICON.moon}<span>${type === 'training' ? 'Training day' : 'Rest day'}</span>${ICON.updown}</button>
-      <span class="dtt">Target ${fmtInt(T.kcal)} kcal</span></div>
+      <button class="dtpick" data-act="menu" data-menu="daytype" aria-haspopup="menu" aria-label="Day type: ${type === 'training' ? 'training day' : 'rest day'}">${type === 'training' ? ICON.dumb : ICON.moon}<span>${type === 'training' ? 'Training day' : 'Rest day'}</span>${ICON.updown}</button></div>
     <div class="sum-top">
       ${ringSVG([{ pct:cur.kcal/T.kcal, color:'var(--kcal)' }, { pct:cur.p/T.p, color:'var(--pro)' }], 118, 15, ui.anim)}
       <div class="grow">
