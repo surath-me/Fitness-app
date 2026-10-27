@@ -727,6 +727,23 @@ function freshState(){
   }));
   return s;
 }
+/* A history file (kind 'coach-history', made from the chat logs) only fills gaps: a food day is added if the
+   app has nothing logged that day, a lift session if that lift has no sets that day. Nothing is overwritten. */
+function mergeHistory(h){
+  const n = { days:0, sessions:0 };
+  Object.entries(h.days || {}).forEach(([date, d]) => {
+    const cur = S.days[date];
+    if (!cur || !cur.entries || !cur.entries.length) { S.days[date] = { ...(cur || {}), ...deepClone(d), entries: d.entries.map(e => ({ ...deepClone(e), id:uid() })) }; n.days++; }
+    else if (d.type && !cur.type) cur.type = d.type;
+  });
+  Object.entries(h.workouts || {}).forEach(([date, w]) => Object.entries(w.ex || {}).forEach(([id, sets]) => {
+    if (!EX[id] || setsDone(S.workouts[date], id).length) return;
+    const wk = S.workouts[date] || (S.workouts[date] = { ex:{}, added:[] });
+    wk.ex[id] = sets.map(s => ({ w:s.w, r:s.r })); n.sessions++;
+  }));
+  (h.waist || []).forEach(x => { if (!S.waist.some(y => y.date === x.date)) S.waist.push({ ...x }); });
+  return n;
+}
 function migrate(s){
   const d = defaultSettings();
   s.settings = Object.assign(d, s.settings || {});
@@ -2033,9 +2050,11 @@ document.addEventListener('change', e => {
   else if (t.dataset.set) setPath(t.dataset.set, t.value);
   else if (t.id === 'importfile' && t.files && t.files[0]) {
     const rd = new FileReader();
-    rd.onload = () => { try { const obj = JSON.parse(rd.result); if (!obj || !obj.settings || !obj.workouts) throw new Error('bad'); S = migrate(obj); saveState(); render(); toast('Backup imported'); }
+    rd.onload = () => { try { const obj = JSON.parse(rd.result);
+        if (obj && obj.kind === 'coach-history') { const n = mergeHistory(obj); saveState(); render(); toast(`Added ${n.days} days and ${n.sessions} sessions`); return; }
+        if (!obj || !obj.settings || !obj.workouts) throw new Error('bad'); S = migrate(obj); saveState(); render(); toast('Backup imported'); }
       catch(err) { toast('That file is not a Coach backup'); } };
-    rd.readAsText(t.files[0]);
+    rd.readAsText(t.files[0]); t.value = '';
   }
 });
 document.addEventListener('keydown', e => {
@@ -2057,7 +2076,7 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden && !$('#timer').classList.contains('ghost')) tickRest();
 });
 
-if (typeof window !== 'undefined') window.__coach = { S: () => S, setS: v => { S = v; }, ui, render, getPlan, suggest, suggestGap, H, dayType, sumMacros, addEntry, foodById };
+if (typeof window !== 'undefined') window.__coach = { S: () => S, setS: v => { S = v; }, ui, render, getPlan, suggest, suggestGap, H, dayType, sumMacros, addEntry, foodById, mergeHistory, saveState: () => saveState() };
 render();
 </script>
 </body>

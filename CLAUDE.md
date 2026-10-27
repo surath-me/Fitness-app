@@ -50,6 +50,8 @@ Do not name top-level functions or variables after browser globals (`history`, `
 ## Data and storage
 
 - Everything lives in `localStorage` under the key `coach-v1`, as one JSON object `S`. It never leaves the device. Setup has Export and Import for backups.
+- Import also takes a history file (`kind: 'coach-history'`, built from the chat logs). It only fills gaps (`mergeHistory`): a food day is added only if nothing is logged that day, a lift session only if that lift has no sets that day, and nothing is overwritten. A normal backup still replaces everything.
+- Personal exports and history files live in `data/`, which is excluded from git (the repo is public). Never commit them.
 - Safari and an installed home-screen icon have separate storage. Say so if the user switches.
 - `S` holds: `days[date].entries`, `workouts[date].ex[liftId] = [{w, r}]`, `dismissed`, `foods` (custom foods), `waist`, `water`, and `settings` (targets, caps, schedule, `timeBudget`, `returning`, `exCfg`, `planStart`).
 - Dates are local `YYYY-MM-DD` strings. Weekday 0 is Sunday.
