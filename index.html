@@ -281,11 +281,12 @@ body.under .edge.top{opacity:1}
 /* ---------- lifts ---------- */
 .ex{margin-left:16px;border-top:.5px solid var(--sep)}
 .ex:first-child{border-top:0}
-.ex-head{display:grid;grid-template-columns:66px 1fr auto;gap:12px;align-items:center;width:calc(100% + 16px);margin-left:-16px;padding:14px 16px 14px 16px;min-height:78px;transition:background .2s}
-.wt{font-size:32px;line-height:.95;text-align:right}
-.wt small{display:block;font-family:var(--font);font-weight:500;font-size:10px;color:var(--ink2);margin-top:4px;letter-spacing:0}
-.ex-name{font-weight:600;font-size:15px;line-height:1.2}
-.ex-sub{font-size:12px;line-height:1.3;color:var(--ink2);margin-top:3px}
+.ex-head{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;width:calc(100% + 16px);margin-left:-16px;padding:12px 16px;min-height:64px;transition:background .2s}
+.ex-name{font-weight:600;font-size:17px;line-height:1.25}
+.ex-target{font-size:14px;line-height:1.3;color:var(--ink2);margin-top:3px}
+.ex-target b{font-family:var(--rounded);font-weight:700;font-size:15px;color:var(--ink);font-variant-numeric:tabular-nums}
+.ex-target .tag{display:inline;margin:0 0 0 8px}
+.ex-why{font-size:13px;line-height:1.4;color:var(--ink2);margin:0 0 8px}
 .sets-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .45s var(--smooth)}
 .sets-wrap>div{overflow:hidden;min-height:0}
 .sets-wrap.open{grid-template-rows:1fr}
@@ -349,8 +350,8 @@ body.under .edge.top{opacity:1}
 .legend{padding:0 16px;margin:0 0 6px}
 .slot{margin-bottom:14px}
 .slothead{padding:14px 16px 10px}
-.slothead .nm{font-weight:700;font-size:15px}
-.slothead .t{text-align:right;font-weight:700;font-size:12px;font-variant-numeric:tabular-nums;font-family:var(--rounded)}
+.slothead .nm{font-weight:700;font-size:17px}
+.slothead .t{text-align:right;font-weight:700;font-size:16px;font-variant-numeric:tabular-nums;font-family:var(--rounded);color:var(--ink)}   /* the meal's totals are the headline */
 .swipe{position:relative;margin-left:16px;border-top:.5px solid var(--sep);overflow:hidden;transition:height .3s var(--out),opacity .3s}
 /* swipe to delete as in iOS lists: the red action fills everything the row uncovers, so it grows with the swipe and never
    leaves a gap; its label rides next to the row's edge */
@@ -361,9 +362,9 @@ body.under .edge.top{opacity:1}
 .swipe.dragging .swipe-fg,.swipe.opened .swipe-fg{background:var(--card)}   /* no tap highlight while swiping */
 .swipe.flash .swipe-fg{animation:rowIn .55s var(--out),flashFg 1.2s var(--out)}
 .entry{width:100%;padding:10px 16px 10px 0;min-height:56px}
-.entry .nm{font-size:14px;font-weight:500;line-height:1.2}
-.entry .q{font-size:11px;color:var(--ink2)}
-.entry .t{text-align:right;font-size:12px;font-variant-numeric:tabular-nums;font-family:var(--rounded);font-weight:600}
+.entry .nm{font-size:15px;font-weight:400;line-height:1.25}
+.entry .q{font-size:12px;color:var(--ink2)}
+.entry .t{text-align:right;font-size:12px;font-variant-numeric:tabular-nums;font-family:var(--rounded);font-weight:500;color:var(--ink2)}   /* each food's macros stay quiet */
 .addline{display:flex;align-items:center;gap:10px;min-height:52px;width:calc(100% - 16px);margin-left:16px;padding:0 16px 0 0;border-top:.5px solid var(--sep);color:var(--accent);font-weight:600;font-size:14px}
 .addline .pl{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff}
 .addline .pl svg{width:14px;height:14px}
@@ -581,7 +582,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.11';
+const APP_VERSION = '3.12';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1367,30 +1368,35 @@ function materialize(date, id){
   return wk.ex[id];
 }
 
+const repRange = sug => `${sug.sets} × ${sug.low === sug.high ? sug.high : `${sug.low}–${sug.high}`}`;
 function exHead(it, date){
   const c = cfg(it.id), sug = it.sug, wk = S.workouts[date];
   const done = setsDone(wk, it.id), key = date + '|' + it.id;
-  let chip, sub, wShow = sug.w;
+  let chip, target;
   if (done.length) {
-    const nxt = suggest(it.id, addDays(date, 1));
     chip = done.length >= sug.sets ? `<span class="chip done">${ICON.check}Done</span>` : `<span class="chip part">${done.length} of ${sug.sets}</span>`;
-    sub = `Logged ${done.map(s => `${fmtW(s.w)}×${s.r}`).join(', ')}. Next time: ${nxt.text}`;
-    wShow = Math.max(...done.map(s => +s.w || 0));
+    target = `<b>${fmtW(Math.max(...done.map(s => +s.w || 0)))} ${esc(c.unit)}</b> · ${done.length} set${done.length === 1 ? '' : 's'} done`;
   } else {
     const cls = { go:'chip go', hold:'chip', low:'chip low', new:'chip new' }[sug.status];
     const lab = { go:'Add weight', hold:'Hold', low:'Lighter', new:'New' }[sug.status];
     chip = `<span class="${cls}">${lab}</span>`;
-    sub = sug.text + (sug.last ? ` Last: ${sug.last}.` : '');
+    target = sug.w != null ? `<b>${fmtW(sug.w)} ${esc(c.unit)}</b> · ${repRange(sug)}` : `${repRange(sug)} · start light`;
   }
-  const tag = it.origin === 'carried' ? `<span class="tag">Carried from ${WD[wdOf(it.from)]}</span>` : it.origin === 'added' ? `<span class="tag">Added</span>` : '';
+  const tag = it.origin === 'carried' ? `<span class="tag">Carried from ${WD3[wdOf(it.from)]}</span>` : it.origin === 'added' ? `<span class="tag">Added</span>` : '';
   return `<button class="ex-head" data-act="openex" data-key="${esc(key)}" aria-expanded="${!!ui.open[key]}">
-    <div class="wt num">${fmtW(wShow)}<small>${esc(c.unit)}</small></div>
-    <div><div class="ex-name">${esc(c.name)}</div>${tag}<div class="ex-sub">${esc(sub)}</div></div>
+    <div><div class="ex-name">${esc(c.name)}</div><div class="ex-target">${target}${tag}</div></div>
     <div>${chip}</div></button>`;
+}
+/* the reasoning behind the target and what was logged, shown only once the exercise is opened */
+function exWhy(it, date){
+  const sug = it.sug, done = setsDone(S.workouts[date], it.id);
+  if (done.length) return `Logged ${done.map(s => `${fmtW(s.w)}×${s.r}`).join(', ')}. Next time: ${suggest(it.id, addDays(date, 1)).text}`;
+  return sug.text + (sug.last ? ` Last time (${dateLabel(sug.lastDate)}): ${sug.last}.` : '');
 }
 function setsEditor(it, date){
   const c = cfg(it.id), key = date + '|' + it.id, rows = getRows(date, it.id, it.sug);
   return `<div class="sets-inner">
+    <p class="ex-why">${esc(exWhy(it, date))}</p>
     ${c.cue ? `<p class="cue">${esc(c.cue)}${c.single ? ' Left leads, right matches the reps.' : ''}</p>` : ''}
     <div class="setlab"><span>Set</span><span>${esc(c.unit)}</span><span>${c.single ? 'Reps each side' : 'Reps'}</span><span></span></div>
     ${rows.map((r, i) => { const on = +r.r > 0; return `<div class="setrow ${on ? 'on' : ''}">
@@ -1500,8 +1506,9 @@ function slotBlock(key, label, date){
   const list = dayEntries(date).filter(e => e.slot === key);
   if (key === 'imported' && !list.length) return '';
   const t = sumMacros(list);
+  const tot = list.length ? `<span class="t">${r0(t.kcal)}</span><span class="t">${r0(t.p)}</span><span class="t">${r0(t.f)}</span><span class="t">${r0(t.c)}</span>` : '';   // an empty meal shows no row of zeros
   return `<section class="group slot"><div class="cols slothead"><span class="nm">${label}</span>
-    <span class="t">${r0(t.kcal)}</span><span class="t">${r0(t.p)}</span><span class="t">${r0(t.f)}</span><span class="t">${r0(t.c)}</span></div>
+    ${tot}</div>
     ${list.map(entryRow).join('')}
     ${key === 'imported' ? '' : sugBlock(key) + `<button class="addline" data-act="addfood" data-slot="${key}"><span class="pl">${ICON.plus}</span>Add food</button>`}</section>`;
 }
