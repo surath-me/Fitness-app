@@ -31,13 +31,14 @@
   --rounded:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
   /* Liquid Glass. Regular glass adapts to what is behind it and stays legible; it is only used
      for the navigation layer that floats above the content (bars, buttons, menus, sheets). */
-  --glass:rgba(255,255,255,.52);
-  --glass-thick:rgba(255,255,255,.76);
-  --glass-fx:blur(12px) saturate(190%) brightness(1.04);
+  --glass:rgba(255,255,255,.3);
+  --glass-thick:rgba(255,255,255,.6);
+  --glass-fx:blur(7px) saturate(185%) brightness(1.05);
   --glass-shadow:0 8px 30px rgba(0,0,0,.11),0 1px 4px rgba(0,0,0,.05);
-  --glass-edge:inset 0 0 0 .5px rgba(0,0,0,.06),inset 0 1px 1px rgba(255,255,255,.8),inset 0 0 18px rgba(255,255,255,.3);
-  --glass-solid:rgba(249,249,251,.96); --sheet-glass:rgba(255,255,255,.62); --menu-glass:rgba(255,255,255,.8);
-  --spec:.55; --rim:1;   /* strength of the top highlight and of the light on the rim */
+  --glass-edge:inset 0 0 0 .5px rgba(0,0,0,.06),inset 0 1px 1px rgba(255,255,255,.8),inset 0 0 18px rgba(255,255,255,.2);
+  --glass-solid:rgba(249,249,251,.96); --sheet-glass:rgba(255,255,255,.46); --menu-glass:rgba(255,255,255,.66);
+  --sheet-fx:blur(20px) saturate(190%); --menu-fx:blur(20px) saturate(190%);
+  --spec:.45; --rim:1;   /* strength of the top highlight and of the light on the rim */
   /* surfaces and fills that differ between light and dark */
   --bg-rgb:242 242 247; --sheet-rgb:242 242 247; --card-elev:#FFFFFF; --thumb:#FFFFFF;
   --chip:rgba(255,255,255,.8); --chip-top:#FFFFFF; --tinted:rgba(255,255,255,.72); --tinted-top:rgba(255,255,255,.7);
@@ -60,11 +61,11 @@
   --green:#30D158; --green-t:rgba(48,209,88,.22); --green-ink:#30D158;
   --kcal:#0091FF; --pro:#6D7CFF; --fat:#FFD600; --carb:#30D158;
   --kcal-t:#4DB0FF; --pro-t:#9AA4FF; --fat-t:#FFD600; --carb-t:#30D158;
-  --glass:rgba(40,40,44,.55); --glass-thick:rgba(38,38,42,.8); --glass-solid:rgba(34,34,38,.97);
-  --glass-fx:blur(12px) saturate(170%) brightness(.92);
+  --glass:rgba(34,34,38,.36); --glass-thick:rgba(38,38,42,.64); --glass-solid:rgba(34,34,38,.97);
+  --glass-fx:blur(7px) saturate(170%) brightness(.9);
   --glass-shadow:0 8px 30px rgba(0,0,0,.5),0 1px 4px rgba(0,0,0,.3);
   --glass-edge:inset 0 0 0 .5px rgba(255,255,255,.1),inset 0 1px 1px rgba(255,255,255,.14),inset 0 0 18px rgba(255,255,255,.04);
-  --sheet-glass:rgba(28,28,30,.72); --menu-glass:rgba(40,40,44,.82);
+  --sheet-glass:rgba(28,28,30,.56); --menu-glass:rgba(40,40,44,.68);
   --spec:.14; --rim:.38;
   --bg-rgb:0 0 0; --sheet-rgb:28 28 30; --card-elev:#2C2C2E; --thumb:#636366;
   --chip:rgba(44,44,46,.92); --chip-top:rgba(255,255,255,.06); --tinted:rgba(120,120,128,.24); --tinted-top:rgba(255,255,255,.05);
@@ -95,7 +96,7 @@ svg{display:block}
   .glass{background:var(--glass);-webkit-backdrop-filter:var(--glass-fx);backdrop-filter:var(--glass-fx)}
   .toast.glass,.alert.glass{background:var(--glass-thick)}
   /* large glass is thicker and more opaque than small glass */
-  .menu.glass{background:var(--menu-glass);-webkit-backdrop-filter:blur(24px) saturate(190%);backdrop-filter:blur(24px) saturate(190%)}
+  .menu.glass{background:var(--menu-glass);-webkit-backdrop-filter:var(--menu-fx);backdrop-filter:var(--menu-fx)}
 }
 /* light that reacts to touch: a glow spreads from the point of contact (--px, --py) */
 .btn,.qchip,.tbtn,.closeb,.accessory .tb{position:relative;isolation:isolate}
@@ -155,28 +156,27 @@ p{margin:0 0 8px}
 body.scrolled .nb-inner{opacity:1;transform:none}
 h1.lt{transition:opacity .2s var(--out)}
 body.scrolled h1.lt{opacity:0}
-/* scroll edge effect: content softly blurs and fades as it passes under the bars */
+/* scroll edge effect: content softly blurs and fades as it passes under the navigation bar (none at the bottom) */
 .edge{position:fixed;left:0;right:0;z-index:18;pointer-events:none}
 .edge.top{top:0;height:calc(env(safe-area-inset-top) + 82px);opacity:0;transition:opacity .3s var(--out);
   background:linear-gradient(rgb(var(--bg-rgb) / .97),rgb(var(--bg-rgb) / .9) 50%,rgb(var(--bg-rgb) / 0));
   -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);-webkit-mask:linear-gradient(#000 58%,transparent);mask:linear-gradient(#000 58%,transparent)}
 body.under .edge.top{opacity:1}
-.edge.bottom{bottom:0;height:calc(env(safe-area-inset-bottom) + 96px);
-  background:linear-gradient(rgb(var(--bg-rgb) / 0),rgb(var(--bg-rgb) / .7) 62%,rgb(var(--bg-rgb) / .9));
-  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);-webkit-mask:linear-gradient(transparent,#000 45%);mask:linear-gradient(transparent,#000 45%)}
 /* toolbar buttons: label colour, glass circles and capsules */
 .tbtn{width:44px;height:44px;border-radius:22px;display:grid;place-items:center;color:var(--ink);
   transition:scale .55s var(--spring),background-color .35s var(--out),box-shadow .35s var(--out),-webkit-backdrop-filter .35s var(--out),backdrop-filter .35s var(--out)}
 .tbtn svg{width:21px;height:21px}
 .tbtn.txt{width:auto;padding:0 17px;font-size:15px;font-weight:500}
-.tgroup{display:flex;border-radius:22px}
 .tbtn.lit{scale:1.12}
 .morphing{opacity:0!important;transition:opacity .12s}
 
 /* ---------- week strip (content, so no glass) ---------- */
 .wk-head{display:flex;align-items:center;gap:8px;margin:0 4px 4px}
 .wk-head .m{font-size:13px;font-weight:600;color:var(--ink2);flex:1}
-.week{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin:0 -4px 14px;padding:4px 0;touch-action:pan-y}
+/* the strip pages like a scroll view: last week, this week and next week sit side by side and slide with the finger */
+.week{overflow:hidden;margin:-4px -4px 10px;touch-action:pan-y}
+.wk-track{display:flex;transform:translateX(-100%)}
+.wk-page{flex:0 0 100%;display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:8px 0}
 .wd{display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 0 3px;border-radius:18px;transition:transform .3s var(--spring)}
 .wd .l{font-size:10px;font-weight:600;color:var(--ink2)}
 .wd .n{font-family:var(--rounded);font-size:16px;font-weight:600;width:38px;height:38px;display:grid;place-items:center;border-radius:50%;transition:background .3s var(--out),color .3s var(--out),box-shadow .3s}
@@ -460,7 +460,7 @@ body.pushed .nb-inner{opacity:1;transform:none}
 /* full height has a fixed top, so a short result list stays under the search field instead of dropping behind the keyboard */
 .sheet.full{left:0;right:0;top:calc(env(safe-area-inset-top) + 12px);bottom:var(--kb, 0px);max-height:none;max-width:560px;border-radius:38px 38px 0 0}
 @supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-  .sheet.glass{background:var(--sheet-glass);-webkit-backdrop-filter:blur(26px) saturate(190%);backdrop-filter:blur(26px) saturate(190%)}
+  .sheet.glass{background:var(--sheet-glass);-webkit-backdrop-filter:var(--sheet-fx);backdrop-filter:var(--sheet-fx)}
   .sheet.glass.full{background:rgb(var(--sheet-rgb) / .97)}}
 .sheet-head{position:sticky;top:0;z-index:2;touch-action:none;cursor:grab;margin:0 -16px;padding:7px 14px 10px}
 .sheet.full .sheet-head{background:linear-gradient(rgb(var(--sheet-rgb) / .97) 72%,rgb(var(--sheet-rgb) / 0))}
@@ -512,8 +512,12 @@ body.lock{overflow:hidden}
    API is not used: its snapshots paint above every fixed bar, and naming the bars stops their glass blurring. */
 .app.enter{animation:pageIn .42s var(--out) backwards}
 .app.swap{animation:tabIn .28s var(--out) backwards}
-.daybody.enter{animation:dayIn .34s var(--out) backwards}
-@keyframes dayIn{from{opacity:.3;transform:translateX(calc(var(--dir,1) * 16px))}}
+/* a new day: the old content fades away while the new content fades in and zooms up to size from the middle of the screen */
+.daybody.enter{animation:dayIn .38s var(--smooth) .08s backwards}
+.dayout{position:absolute;z-index:1;margin:0;pointer-events:none;animation:dayOut .16s var(--out) forwards}
+.dayout *{animation:none!important;transition:none!important}
+@keyframes dayIn{from{opacity:0;transform:scale(.955)}}
+@keyframes dayOut{to{opacity:0;transform:scale(1.015)}}
 @keyframes pageIn{from{opacity:0;transform:translateX(calc(var(--dir,1) * 26px))}}
 @keyframes tabIn{from{opacity:0;transform:scale(.985)}}
 
@@ -556,7 +560,6 @@ body.lock{overflow:hidden}
   </div>
 </header>
 <main id="app" class="app"></main>
-<div class="edge bottom" aria-hidden="true"></div>
 <div id="dock" class="dock">
   <div id="timer" class="accessory glass ghost" hidden role="timer" aria-live="polite">
     <svg class="tring" viewBox="0 0 36 36" aria-hidden="true"><circle class="trk" cx="18" cy="18" r="15"/><circle class="prg" id="tprg" cx="18" cy="18" r="15" stroke-dasharray="94.25" stroke-dashoffset="0"/></svg>
@@ -584,7 +587,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.14';
+const APP_VERSION = '3.15';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1297,9 +1300,20 @@ const ICON = {
 };
 
 /* ---------- week strip (replaces the old date bar) ---------- */
-function weekStrip(){
-  const sel = ui.date, t = todayStr(), start = addDays(sel, -((wdOf(sel) + 6) % 7));
+const weekStart = d => addDays(d, -((wdOf(d) + 6) % 7));   // weeks start on Monday
+/* One week of days. The neighbouring weeks are drawn too, so a swipe shows them coming in; they mark the same weekday
+   as selected, which is where the selection lands when the week changes. */
+function weekPage(start, pos){
+  const sel = ui.date, t = todayStr(), si = (wdOf(sel) + 6) % 7, here = pos === 0;
   const days = Array.from({ length:7 }, (_, i) => addDays(start, i));
+  return `<div class="wk-page"${here ? ' role="tablist" aria-label="Pick a day"' : ' aria-hidden="true" inert'}>${days.map((d, i) => {
+      const w = loggedIds(S.workouts[d]).length > 0, f = dayEntries(d).length > 0;
+      return `<button class="wd ${i===si?'sel':''} ${d===t?'today':''}" role="tab" aria-selected="${i===si}" data-act="pickday" data-d="${d}" aria-label="${longDate(d)}">
+        <span class="l">${'MTWTFSS'[i]}</span><span class="n">${parseD(d).getDate()}</span><span class="dots">${w?'<b></b>':''}${f?'<b class="f"></b>':''}</span></button>`;
+    }).join('')}</div>`;
+}
+function weekStrip(){
+  const sel = ui.date, t = todayStr(), start = weekStart(sel);
   const sd = parseD(sel), label = `${MONTHS[sd.getMonth()]} ${sd.getFullYear()}`;
   return `<div class="wk-head">
       <span class="m">${label}</span>
@@ -1307,11 +1321,7 @@ function weekStrip(){
       <button class="icb" data-act="day" data-n="-7" aria-label="Previous week">${ICON.chevL}</button>
       <button class="icb" data-act="day" data-n="7" aria-label="Next week">${ICON.chevR}</button>
     </div>
-    <div class="week" role="tablist" aria-label="Pick a day">${days.map((d, i) => {
-      const w = loggedIds(S.workouts[d]).length > 0, f = dayEntries(d).length > 0;
-      return `<button class="wd ${d===sel?'sel':''} ${d===t?'today':''}" role="tab" aria-selected="${d===sel}" data-act="pickday" data-d="${d}" aria-label="${longDate(d)}">
-        <span class="l">${'MTWTFSS'[i]}</span><span class="n">${parseD(d).getDate()}</span><span class="dots">${w?'<b></b>':''}${f?'<b class="f"></b>':''}</span></button>`;
-    }).join('')}</div>`;
+    <div class="week"><div class="wk-track">${[-7, 0, 7].map(n => weekPage(addDays(start, n), n)).join('')}</div></div>`;
 }
 
 /* ---------- meal suggestions (Eat) ----------
@@ -1720,7 +1730,7 @@ function foodSheet(){
     return sheetHead(`Add to ${slotName(sh.slot)}`) + tabs + `<p class="note">Type the totals for what you ate. Good for canteen meals and eating out.</p>
       <input id="qe-name" class="field" style="text-align:left;font-family:var(--font);font-weight:400;margin:12px 0 10px" placeholder="What was it? (optional)" aria-label="Name">
       <div class="row"><input id="qe-k" class="field" inputmode="decimal" placeholder="kcal" aria-label="kcal"><input id="qe-p" class="field" inputmode="decimal" placeholder="P" aria-label="Protein g"><input id="qe-f" class="field" inputmode="decimal" placeholder="F" aria-label="Fat g"><input id="qe-c" class="field" inputmode="decimal" placeholder="C" aria-label="Carbs g"></div>
-      <div class="group gap16" style="margin-bottom:14px"><label class="switch"><input type="checkbox" id="qe-save">Also save to my foods</label></div>
+      <div class="group" style="margin:16px 0 14px"><label class="switch"><input type="checkbox" id="qe-save">Also save to my foods</label></div>
       <button class="btn block" data-act="confirmquick">Add to ${slotName(sh.slot)}</button>`;
   }
   return sheetHead(`Add to ${slotName(sh.slot)}`) + tabs + `<input id="q" class="search" style="margin-top:12px" type="search" placeholder="Search your foods" autocomplete="off" aria-label="Search foods" value="${esc(sh.q || '')}"><div id="foodlist">${foodListHTML()}</div>`;
@@ -1849,11 +1859,15 @@ function viewHTML(){
   return warn + (ui.tab === 'train' ? viewTrain() : ui.tab === 'eat' ? viewEat() : ui.tab === 'progress' ? viewProgress() : viewSetup());
 }
 function render(opts = {}){
-  const app = $('#app'), snap = (opts.day || opts.meters) && !reduced() ? meterSnap() : null;
+  const app = $('#app'), still = reduced(), snap = (opts.day || opts.meters) && !still ? meterSnap() : null;
+  const out = opts.day && !still ? dayLeaving($('.daybody')) : null;
   app.innerHTML = viewHTML(); afterRender(opts);
-  if (reduced()) return;
-  if (opts.day) {   // a new day: the title and week strip stay put, the day's content slides in and the meters glide
-    const body = $('.daybody'); if (body) { body.style.setProperty('--dir', String(opts.dir || 1)); body.classList.add('enter'); }
+  if (still) return;
+  if (opts.day) {   // a new day: the title stays put, the week strip pages if the week changed, the content fades and zooms, the meters glide
+    const body = $('.daybody');
+    if (body) { body.style.transformOrigin = `50% ${Math.round(innerHeight / 2 - body.getBoundingClientRect().top)}px`; body.classList.add('enter'); }
+    if (out) { document.body.append(out); out.addEventListener('animationend', () => out.remove()); setTimeout(() => out.remove(), 600); }
+    if (opts.week) slideWeek(opts.dir, opts.dx || 0);
     meterMorph(snap);
   } else if (opts.meters) meterMorph(snap);
   else if (opts.transition) {   // a new tab fades in, a pushed page slides in from its side
@@ -1861,10 +1875,25 @@ function render(opts = {}){
     app.classList.remove('enter', 'swap'); void app.offsetWidth; app.classList.add(opts.tab ? 'swap' : 'enter');
   }
 }
+/* The day that is leaving: a copy of it stays where it was and fades out over the new day */
+function dayLeaving(el){
+  if (!el) return null;
+  const r = el.getBoundingClientRect(), c = el.cloneNode(true);
+  c.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+  c.className = 'daybody dayout'; c.setAttribute('aria-hidden', 'true'); c.inert = true;
+  Object.assign(c.style, { left:r.left + scrollX + 'px', top:r.top + scrollY + 'px', width:r.width + 'px', transformOrigin:`50% ${Math.round(innerHeight / 2 - r.top)}px` });
+  return c;
+}
+/* The week strip pages from where it was (or from where the finger let go) to the new week */
+function slideWeek(dir, dx){
+  const tr = $('.wk-track'); if (!tr) return;
+  const W = tr.offsetWidth;
+  tr.animate([{ transform:`translateX(${-W + dir * W + dx}px)` }, { transform:`translateX(${-W}px)` }], { duration:520, easing:EASE.smooth });
+}
 /* On a day change the rings and macro bars glide from the old day's values instead of refilling from empty */
-function meterSnap(){ return { bars: $$('.mbar>i').map(i => i.style.width), arcs: $$('.rings .arc').map(a => a.getAttribute('stroke-dashoffset')) }; }
+function meterSnap(){ const app = $('#app'); return { bars: $$('.mbar>i', app).map(i => i.style.width), arcs: $$('.rings .arc', app).map(a => a.getAttribute('stroke-dashoffset')) }; }
 function meterMorph(s){
-  const bars = $$('.mbar>i'), arcs = $$('.rings .arc');
+  const app = $('#app'), bars = $$('.mbar>i', app), arcs = $$('.rings .arc', app);
   if (!s || bars.length !== s.bars.length || arcs.length !== s.arcs.length) return;
   const bTo = bars.map(i => i.style.width), aTo = arcs.map(a => [a.getAttribute('stroke-dashoffset'), a.getAttribute('opacity')]);
   bars.forEach((i, k) => { i.style.transition = 'none'; i.style.width = s.bars[k]; });
@@ -1905,34 +1934,42 @@ function toolbarHTML(){
   const t = ui.tab;
   const l = t === 'setup' && ui.setupPage ? `<button class="tbtn glass" data-act="setupback" aria-label="Back to Setup">${ICON.chevL}</button>` : '';
   let r = '';
-  if (t === 'train') r = `<div class="tgroup glass"><button class="tbtn" data-act="addex" aria-label="Add an exercise">${ICON.plus}</button>${getPlan(ui.date).past ? '' : `<button class="tbtn" data-act="menu" data-menu="train" aria-label="More" aria-haspopup="menu">${ICON.more}</button>`}</div>`;
-  if (t === 'eat') r = `<div class="tgroup glass"><button class="tbtn" data-act="addfood" aria-label="Add food">${ICON.plus}</button><button class="tbtn" data-act="menu" data-menu="eat" aria-label="More" aria-haspopup="menu">${ICON.more}</button></div>`;
+  if (t === 'train') r = `<button class="tbtn glass" data-act="addex" aria-label="Add an exercise">${ICON.plus}</button>${getPlan(ui.date).past ? '' : `<button class="tbtn glass" data-act="menu" data-menu="train" aria-label="More" aria-haspopup="menu">${ICON.more}</button>`}`;
+  if (t === 'eat') r = `<button class="tbtn glass" data-act="addfood" aria-label="Add food">${ICON.plus}</button><button class="tbtn glass" data-act="menu" data-menu="eat" aria-label="More" aria-haspopup="menu">${ICON.more}</button>`;
   return [l, r];
 }
-/* The toolbar is one floating plane: when the next screen has the same glass, only the buttons on it change.
-   Glass that is no longer needed dematerialises, and new glass materialises. */
+/* Each toolbar button is its own floating glass. When the next screen has a button in the same place, the glass stays
+   and only what is on it changes. Glass that is no longer needed dematerialises while its neighbour slides into the gap,
+   and new glass materialises. */
 function setToolbar(){
-  const [l, r] = toolbarHTML();
+  const [l, r] = toolbarHTML(), still = reduced();
   [['#nbl', l], ['#nbr', r]].forEach(([sel, html]) => {
     const side = $(sel); if (side._html === html) return;
     side._html = html;
-    const cur = $$('.glass', side).find(g => !g.classList.contains('ghost'));
-    if (!html) {
-      if (cur) { cur.classList.add('ghost'); setTimeout(() => { if (cur.classList.contains('ghost')) cur.remove(); }, reduced() ? 0 : 400); }
-      return;
-    }
     const tmp = document.createElement('div'); tmp.innerHTML = html;
-    const next = tmp.firstElementChild;
-    if (cur && cur.className.replace(/\s*\b(lit|mat|morphing)\b/g, '') === next.className) {
-      const w0 = cur.offsetWidth;
-      Array.from(next.attributes).forEach(a => cur.setAttribute(a.name, a.value));
-      cur.innerHTML = next.innerHTML;
-      const w1 = cur.offsetWidth;
-      if (w0 !== w1 && !reduced()) cur.animate([{ width:w0 + 'px' }, { width:w1 + 'px' }], { duration:450, easing:EASE.spring });
-      return;
-    }
-    side.replaceChildren(next);
-    if (!reduced()) { next.classList.add('mat'); setTimeout(() => next.classList.remove('mat'), 650); }
+    const next = [...tmp.children], cur = [...side.children].filter(g => !g.classList.contains('ghost'));
+    const shared = next.length && cur.length;   // a neighbour stays, so the size change is animated too
+    cur.slice(next.length).forEach(g => {
+      g.classList.add('ghost');
+      if (shared && !still) g.animate([{ width:g.offsetWidth + 'px', marginLeft:'0px' }, { width:'0px', marginLeft:'-8px' }], { duration:420, easing:EASE.smooth, fill:'forwards' });
+      setTimeout(() => { if (g.classList.contains('ghost')) g.remove(); }, still ? 0 : 420);
+    });
+    next.forEach((n, i) => {
+      const g = cur[i];
+      if (g) {
+        const w0 = g.offsetWidth;
+        [...g.attributes].forEach(a => { if (a.name !== 'style' && !n.hasAttribute(a.name)) g.removeAttribute(a.name); });
+        [...n.attributes].forEach(a => g.setAttribute(a.name, a.value));
+        g.innerHTML = n.innerHTML;
+        const w1 = g.offsetWidth;
+        if (w0 !== w1 && !still) g.animate([{ width:w0 + 'px' }, { width:w1 + 'px' }], { duration:450, easing:EASE.spring });
+        return;
+      }
+      const ghost = side.querySelector('.ghost'); ghost ? ghost.before(n) : side.append(n);
+      if (still) return;
+      n.classList.add('mat'); setTimeout(() => n.classList.remove('mat'), 650);
+      if (shared) n.animate([{ width:'0px', marginLeft:'-8px' }, { width:n.offsetWidth + 'px', marginLeft:'0px' }], { duration:450, easing:EASE.smooth });
+    });
   });
 }
 
@@ -1963,7 +2000,7 @@ const menuHTML = items => items.map(it => it.head ? `<div class="mh">${esc(it.he
   `<button class="mi" role="${it.on === undefined ? 'menuitem' : 'menuitemradio'}"${it.on === undefined ? '' : ` aria-checked="${it.on}"`} data-act="${it.act}"${it.t === undefined ? '' : ` data-t="${it.t}"`}${it.v === undefined ? '' : ` data-v="${it.v}"`}><span class="mic">${it.on ? ICON.check : it.icon ? ICON[it.icon] : ''}</span><span class="mt">${esc(it.label)}${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span></button>`).join('');
 function openMenu(btn, kind){
   const m = $('#menu'), r = btn.getBoundingClientRect();
-  ui.menu = { src:btn, host: btn.closest('.tgroup') || btn };   // the whole glass group becomes the menu
+  ui.menu = { src:btn, host:btn };   // the button's glass becomes the menu
   m.innerHTML = `<div class="menu-in">${menuHTML(menuSpec(kind))}</div>`;
   m.classList.remove('ghost'); m.hidden = false; $('#menuscrim').hidden = false;
   const W = m.offsetWidth, Hh = m.offsetHeight, vw = innerWidth, vh = innerHeight;
@@ -2046,7 +2083,11 @@ function afterRender(opts){
    ===================================================================== */
 const num = s => { const v = parseFloat(String(s).replace(',', '.')); return isNaN(v) ? null : v; };
 const TAB_ORDER = ['train','eat','progress','setup'];
-function go(date){ if (date === ui.date) return; const dir = date > ui.date ? 1 : -1; ui.date = date; ui.dayMorph = true; render({ day:true, dir }); ui.dayMorph = false; }
+function go(date, dx = 0){
+  if (date === ui.date) return;
+  const dir = date > ui.date ? 1 : -1, week = weekStart(date) !== weekStart(ui.date);
+  ui.date = date; ui.dayMorph = true; render({ day:true, dir, week, dx }); ui.dayMorph = false;
+}
 
 function onSetInput(el){
   const { date, ex, i, f } = el.dataset, rows = materialize(date, ex), row = rows[+i]; if (!row) return;
@@ -2276,10 +2317,7 @@ document.addEventListener('touchstart', () => {}, { passive:true });   // lets :
 document.addEventListener('pointerdown', e => {
   unlight();
   const g = e.target.closest(LIT);
-  if (g && !g.closest('.tabbar') && !g.matches('.menu,.sheet,.alert')) {
-    lightUp(g, e);
-    const grp = g.parentElement && g.parentElement.closest('.tgroup'); if (grp) lightUp(grp, e);   // the glow spreads to the shared glass
-  }
+  if (g && !g.closest('.tabbar') && !g.matches('.menu,.sheet,.alert')) lightUp(g, e);
   if (e.target.closest('#tabs')) td ={ id:e.pointerId, x0:e.clientX, drag:false };
   const seg = e.target.closest('.seg');
   if (seg) {
@@ -2287,7 +2325,7 @@ document.addEventListener('pointerdown', e => {
     sg = { seg, btns, i, id:e.pointerId, x0:e.clientX, onSel: e.target.closest('button') === btns[i], drag:false, dx:0 };
     seg.classList.add('lens'); clearTimeout(seg._lt);
   }
-  if (e.target.closest('.week')) wk = { id:e.pointerId, x0:e.clientX, y0:e.clientY };
+  if (e.target.closest('.week')) wk = { id:e.pointerId, x0:e.clientX, y0:e.clientY, drag:false };
   if (ui.tab === 'setup' && ui.setupPage && e.clientX < 28 && !ui.sheet) eb = { id:e.pointerId, x0:e.clientX, y0:e.clientY };   // swipe from the left edge to go back
 }, { passive:true });
 document.addEventListener('pointermove', e => {
@@ -2306,6 +2344,17 @@ document.addEventListener('pointermove', e => {
     th.style.transform = `translateX(${sg.dx}px)`;
     const c = th.offsetLeft + sg.dx + th.offsetWidth / 2;
     sg.btns.forEach(b => b.classList.toggle('mag', Math.abs(b.offsetLeft + b.offsetWidth / 2 - c) < th.offsetWidth * .5));
+  }
+  if (wk && e.pointerId === wk.id) {   // the week strip follows the finger, with last and next week coming in from the sides
+    const dx = e.clientX - wk.x0, dy = e.clientY - wk.y0, now = performance.now();
+    if (!wk.drag && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+      wk.tr = $('.wk-track'); wk.W = wk.tr ? wk.tr.offsetWidth : 0;
+      if (wk.tr) { wk.drag = true; wk.x0 = e.clientX; wk.lx = 0; wk.t = now; wk.v = 0; wk.tr.getAnimations().forEach(a => a.cancel()); unlight(); }
+    } else if (wk.drag) {
+      const x = e.clientX - wk.x0;
+      if (now > wk.t) { wk.v = (x - wk.lx) / (now - wk.t); wk.lx = x; wk.t = now; }
+      wk.tr.style.transform = `translateX(${-wk.W + x}px)`;
+    }
   }
 }, { passive:true });
 function endLiquid(e){
@@ -2335,8 +2384,16 @@ function endLiquid(e){
     if (e.type === 'pointerup' && dx > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) H.setupback();
   }
   if (wk && e.pointerId === wk.id) {
-    const w = wk, dx = e.clientX - w.x0, dy = e.clientY - w.y0; wk = null;
-    if (e.type === 'pointerup' && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) { ui.weekAt = Date.now(); go(addDays(ui.date, dx < 0 ? 7 : -7)); }
+    const w = wk; wk = null;
+    if (w.drag) {
+      ui.weekAt = Date.now();
+      const dx = e.clientX - w.x0, flick = Math.abs(w.v) > .35 && Math.sign(w.v) === Math.sign(dx);
+      if (e.type === 'pointerup' && (Math.abs(dx) > w.W * .25 || flick)) go(addDays(ui.date, dx < 0 ? 7 : -7), dx);
+      else {   // not far enough: spring back to this week
+        w.tr.style.transform = '';
+        if (!reduced()) w.tr.animate([{ transform:`translateX(${-w.W + dx}px)` }, { transform:`translateX(${-w.W}px)` }], { duration:420, easing:EASE.smooth });
+      }
+    }
   }
 }
 document.addEventListener('pointerup', endLiquid);
