@@ -285,6 +285,9 @@ body.under .edge.top{opacity:1}
 .wt{font-size:32px;line-height:.95;text-align:right}
 .wt small{display:block;font-family:var(--font);font-weight:500;font-size:10px;color:var(--ink2);margin-top:4px;letter-spacing:0}
 .ex-name{font-weight:600;font-size:17px;line-height:1.25}
+.ex-reps{font-size:14px;line-height:1.3;color:var(--ink2);margin-top:2px}
+.ex-reps b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.ex-reps .tag{display:inline;margin:0 0 0 8px}
 .ex-why{font-size:13px;line-height:1.4;color:var(--ink2);margin:0 0 8px}
 .sets-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .45s var(--smooth)}
 .sets-wrap>div{overflow:hidden;min-height:0}
@@ -581,7 +584,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.13';
+const APP_VERSION = '3.14';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -610,12 +613,12 @@ const EX = {
   shoulder_press:   { name:'Machine shoulder press',       muscle:'shoulders', kind:'compound', low:8,  high:12, sets:3, inc:2.5, unit:'kg', prio:2, ord:15, cue:'Order-dependent: do it before the arms.' },
   pec_deck:         { name:'Pec deck',                     muscle:'chest',     kind:'iso',      low:10, high:12, sets:3, inc:4,   unit:'kg', prio:8, ord:20, cue:'Not the same machine as the pec fly.' },
   pec_fly:          { name:'Pec fly',                      muscle:'chest',     kind:'iso',      low:10, high:12, sets:3, inc:2.5, unit:'kg', prio:5, ord:21, cue:'Separate machine from the pec deck.' },
-  lat_raise:        { name:'Dumbbell lateral raise',     muscle:'shoulders', kind:'iso',      low:10, high:12, sets:3, inc:2,   unit:'kg each hand', prio:6, ord:22, cue:'Light and controlled, lead with the elbow.' },
+  lat_raise:        { name:'Dumbbell lateral raise',     muscle:'shoulders', kind:'iso',      low:10, high:12, sets:3, inc:2,   unit:'kg/hand', prio:6, ord:22, cue:'Light and controlled, lead with the elbow.' },
   cable_lat_raise:  { name:'Cable lateral raise',          muscle:'shoulders', kind:'iso',      low:10, high:12, sets:3, inc:1,   unit:'kg', prio:7, ord:23, single:true, cue:'One arm, straight arm, up to shoulder height.' },
   face_pull:        { name:'Face pull',                    muscle:'shoulders', kind:'iso',      low:12, high:15, sets:3, inc:2.5, unit:'kg', prio:6, ord:24, cue:'Elbows high and wide.' },
   overhead_ext:     { name:'Overhead triceps extension',   muscle:'triceps',   kind:'iso',      low:10, high:12, sets:3, inc:2,   unit:'kg', prio:4, ord:30, start:8, single:true, cue:'Long head: elbow up, full stretch. Do it first in the arm block.' },
   pushdown:         { name:'Single-arm cable pushdown',   muscle:'triceps',   kind:'iso',      low:10, high:12, sets:3, inc:2.5, unit:'kg', prio:6, ord:31, start:5, single:true, cue:'Neutral grip, elbow slightly forward of the ribs.' },
-  db_curl:          { name:'Single-arm dumbbell curl',    muscle:'biceps',    kind:'iso',      low:10, high:12, sets:3, inc:2,   unit:'kg each hand', prio:5, ord:32, single:true, cue:'Left arm leads, right matches the reps.' },
+  db_curl:          { name:'Single-arm dumbbell curl',    muscle:'biceps',    kind:'iso',      low:10, high:12, sets:3, inc:2,   unit:'kg/hand', prio:5, ord:32, single:true, cue:'Left arm leads, right matches the reps.' },
   cable_curl:       { name:'Cable curl',                   muscle:'biceps',    kind:'iso',      low:10, high:12, sets:3, inc:2.5, unit:'kg', prio:7, ord:33, cue:'No swinging.' },
   barbell_curl:     { name:'Straight barbell curl',        muscle:'biceps',    kind:'iso',      low:8,  high:12, sets:3, inc:2.5, unit:'kg', prio:9, ord:34, start:20, cue:'Light finisher only, harder on the elbows than an EZ bar.' },
   calf_raise:       { name:'Standing calf raise',          muscle:'calves',    kind:'iso',      low:10, high:12, sets:3, inc:10,  unit:'kg', prio:7, ord:40, cue:'Full stretch, full squeeze.' },
@@ -1379,11 +1382,12 @@ function exHead(it, date){
     const lab = { go:'Add weight', hold:'Hold', low:'Lighter', new:'New' }[sug.status];
     chip = `<span class="${cls}">${lab}</span>`;
   }
-  const tag = it.origin === 'carried' ? `<span class="tag">Carried from ${WD[wdOf(it.from)]}</span>` : it.origin === 'added' ? `<span class="tag">Added</span>` : '';
-  // closed: the weight to load, the lift and its status; what was logged and what to do sit inside (exWhy)
+  const tag = it.origin === 'carried' ? `<span class="tag">Carried from ${WD3[wdOf(it.from)]}</span>` : it.origin === 'added' ? `<span class="tag">Added</span>` : '';
+  const reps = `<b>${sug.sets} × ${sug.low === sug.high ? sug.high : `${sug.low}–${sug.high}`}</b> reps${c.single ? '/side' : ''}`;
+  // closed: the weight to load, the lift, the reps needed and its status; what was logged and the reasoning sit inside (exWhy)
   return `<button class="ex-head" data-act="openex" data-key="${esc(key)}" aria-expanded="${!!ui.open[key]}">
     <div class="wt num">${fmtW(wShow)}<small>${esc(c.unit)}</small></div>
-    <div><div class="ex-name">${esc(c.name)}</div>${tag}</div>
+    <div><div class="ex-name">${esc(c.name)}</div><div class="ex-reps">${reps}${tag}</div></div>
     <div>${chip}</div></button>`;
 }
 /* the reasoning behind the target and what was logged, shown only once the exercise is opened */
@@ -1397,7 +1401,7 @@ function setsEditor(it, date){
   return `<div class="sets-inner">
     <p class="ex-why">${esc(exWhy(it, date))}</p>
     ${c.cue ? `<p class="cue">${esc(c.cue)}${c.single ? ' Left leads, right matches the reps.' : ''}</p>` : ''}
-    <div class="setlab"><span>Set</span><span>${esc(c.unit)}</span><span>${c.single ? 'Reps each side' : 'Reps'}</span><span></span></div>
+    <div class="setlab"><span>Set</span><span>${esc(c.unit)}</span><span>${c.single ? 'Reps/side' : 'Reps'}</span><span></span></div>
     ${rows.map((r, i) => { const on = +r.r > 0; return `<div class="setrow ${on ? 'on' : ''}">
       <span class="n">${i+1}</span>
       <input type="text" inputmode="decimal" enterkeyhint="next" autocomplete="off" aria-label="Set ${i+1} weight" data-bind="set" data-f="w" data-date="${date}" data-ex="${it.id}" data-i="${i}" value="${esc(r.w ?? '')}">
