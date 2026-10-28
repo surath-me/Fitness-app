@@ -18,7 +18,7 @@ A single-file web app for one person (Surath). It tracks meals and macros, lift 
 - Deploy by pushing to `main`. Vercel redeploys on its own. No build command, no framework preset.
 - Most requests are small edits to the config block at the top of the script (foods, lifts, sessions, targets). Do those first and leave everything else alone.
 - After a change, open the page and check each tab (Train, Eat, Progress, Setup) for console errors.
-- **Always pull up the local preview after a change** so Surath can try it right away: start `coach` from `.claude/launch.json` (localhost:4173), set the Browser pane tab to light mode, reload it and leave it on the screen that changed. Do this before asking whether to push.
+- **Always pull up the local preview after a change** so Surath can try it right away: start `coach` from `.claude/launch.json` (it opens http://127.0.0.1:4173, a clean copy started on 28 Oct 2026; the older copy at localhost:4173 only holds leftover test taps), set the Browser pane tab to light mode, reload it and leave it on the screen that changed. Do this before asking whether to push.
 - Keep the version in `APP_VERSION` up to date when behaviour changes.
 
 ## Design rules
