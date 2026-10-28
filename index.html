@@ -246,17 +246,15 @@ body.under .edge.top{opacity:1}
   background:var(--chip) linear-gradient(180deg,var(--chip-top),transparent 70%);box-shadow:var(--raise);transition:scale .55s var(--spring),background-color .2s}
 .qchip.lit{scale:1.07}
 .qchip.on{background-color:var(--accent);color:#fff}
-.plan .plan-sum,.plan .plan-foot{font-size:12px;line-height:1.4;color:var(--ink2);margin:0;padding:12px 16px}
-.plan .plan-sum{padding-bottom:4px}
-.pslot{position:relative;padding:12px 16px 14px}
-.pslot+.pslot::before,.plan .plan-foot::before{content:"";position:absolute;top:0;left:16px;right:0;height:.5px;background:var(--sep)}
-.plan .plan-foot{position:relative}
-.pslot-h{display:flex;align-items:baseline;gap:8px}
-.pslot-h .nm{font-weight:700;font-size:15px}
-.pslot-h .mm{margin-left:auto;font-size:12px;font-weight:500;color:var(--ink2);font-variant-numeric:tabular-nums}
-.pfoods{font-size:14px;line-height:1.35;margin:4px 0 0}
-.preason{font-size:12px;color:var(--ink2);margin-top:3px}
-.pslot .row{margin-top:10px}
+/* a suggestion inside a meal card: grey rows in the same columns as logged food */
+.sug{position:relative;margin-left:16px;padding:10px 16px 12px 0;border-top:.5px solid var(--sep)}
+.sug-h{display:flex;align-items:flex-start;gap:6px;font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:4px}
+.sug-h svg{width:13px;height:13px;flex:none;margin-top:1px;color:var(--accent)}
+.sugrow{padding:5px 0;color:var(--ink2)}
+.sugrow .nm{font-size:14px;font-weight:500;line-height:1.2}
+.sugrow .q{font-size:12px;color:var(--ink3)}
+.sugrow .t{text-align:right;font-size:12px;font-variant-numeric:tabular-nums;font-family:var(--rounded);font-weight:600;color:var(--ink3)}
+.sug-act{margin-top:8px}
 .gaps .qchip{background:var(--accent-t);color:var(--accent);box-shadow:inset 0 0 0 .5px var(--accent-t);text-align:left;padding:9px 16px}
 .gaps .qchip small{display:block;font-size:10.5px;font-weight:500;opacity:.8}
 
@@ -1301,32 +1299,29 @@ function weekStrip(){
     }).join('')}</div>`;
 }
 
-/* ---------- meal plan card (Eat) ---------- */
-const itemLabel = ({ food, qty }) => esc(food.name.replace(/\s*\(.*?\)/g, '')) + (food.unit === 'g' ? ` ${fmtW(qty)} g` : qty === 1 ? '' : ` ×${fmtW(qty)}`);
-const macroLine = m => `+${fmtInt(m.kcal)} kcal, ${r0(m.p)} g protein`;
-function planSection(date){
-  if (date < todayStr()) return '';
-  const plan = planDay(date, ui.planAlt[date] || {}); ui.plan = plan;
-  const title = date === todayStr() ? 'Plan the rest of today' : `Plan for ${dateLabel(date)}`;
-  if (!plan.slots.length) {   // every meal is logged, or the day is already on target: fall back to single foods
-    const gap = suggestGap(date); ui.gap = gap.picks;
-    let h = `<h2>To land on target</h2>`;
-    if (gap.picks.length) h += `<div class="chips gaps">${gap.picks.map((p,i) => `<button class="qchip" data-act="gapadd" data-i="${i}">${esc(p.food.name)}, ${p.food.unit==='g' ? fmtW(p.qty)+' g' : '×'+fmtW(p.qty)}<small>+${r0(p.m.p)} g protein, +${r0(p.m.kcal)} kcal</small></button>`).join('')}</div>
-      <p class="note">Picked from your own foods, inside your limits and the fat ceiling.</p>`;
-    else h += `<p class="why" style="margin:0 4px">${esc(gap.note)}</p>`;
-    return h;
-  }
-  const L = plan.left, t = plan.total;
-  return `<h2>${title}</h2><div class="group plan">
-    <p class="plan-sum">Left: ${fmtInt(Math.max(0, L.kcal))} kcal, ${r0(Math.max(0, L.p))} g protein, ${r0(Math.max(0, L.c))} g carbs, fat room ${r0(Math.max(0, L.f))} g.</p>
-    ${plan.slots.map(({ slot, meal, options }) => `<div class="pslot">
-      <div class="pslot-h"><span class="nm">${slotName(slot)}</span><span class="mm">${macroLine(meal.m)}</span></div>
-      <div class="pfoods">${meal.items.map(itemLabel).join(', ')}</div>
-      ${meal.reason ? `<div class="preason">${esc(meal.reason)}</div>` : ''}
-      <div class="row"><button class="btn tinted small" data-act="planadd" data-slot="${slot}">Add to ${slotName(slot).toLowerCase()}</button>${options > 1 ? `<button class="btn plain small" data-act="planalt" data-slot="${slot}">Another idea</button>` : ''}</div>
-    </div>`).join('')}
-    <p class="plan-foot">With this plan the day ends at ${fmtInt(t.kcal)} kcal, ${r0(t.p)} g protein, ${r0(t.f)} g fat and ${r0(t.c)} g carbs${t.p < plan.T.p - 3 ? ', still under the protein floor' : ''}${plan.fourth ? '' : ', still without a fourth protein source'}.</p>
-  </div>`;
+/* ---------- meal suggestions (Eat) ----------
+   The meals not logged yet show the planner's suggestion inside their own card, as grey rows, so logging one meal
+   re-plans the ones after it. Once every meal is logged and the day is still short, single-food top-ups appear instead. */
+const SPARK = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9zM18.5 15l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z"/></svg>';
+function sugBlock(slot){
+  const p = ui.plan && ui.plan.slots.find(x => x.slot === slot); if (!p) return '';
+  const meal = p.meal, qty = ({ food, qty }) => food.unit === 'g' ? `${fmtW(qty)} g` : `${fmtW(qty)} × ${esc(food.unit)}`;
+  return `<div class="sug"><div class="sug-h">${SPARK}<span>Suggested${meal.reason ? `. ${esc(meal.reason)}` : ''}</span></div>
+    ${meal.items.map(i => `<div class="cols sugrow"><span><span class="nm">${esc(i.food.name.replace(/\s*\(.*?\)/g, ''))}</span><br><span class="q">${qty(i)}</span></span>
+      <span class="t">${r0(i.m.kcal)}</span><span class="t">${r0(i.m.p)}</span><span class="t">${r0(i.m.f)}</span><span class="t">${r0(i.m.c)}</span></div>`).join('')}
+    <div class="row sug-act"><button class="btn tinted small" data-act="planadd" data-slot="${slot}">Add these</button>${p.options > 1 ? `<button class="btn plain small" data-act="planalt" data-slot="${slot}">Another idea</button>` : ''}</div></div>`;
+}
+function planNote(){
+  const plan = ui.plan; if (!plan || !plan.slots.length) return '';
+  const t = plan.total;
+  return `<p class="note" style="margin:0 4px 12px">With the suggestions in grey the day ends at ${fmtInt(t.kcal)} kcal, ${r0(t.p)} g protein, ${r0(t.f)} g fat and ${r0(t.c)} g carbs${t.p < plan.T.p - 3 ? ', still under the protein floor' : ''}${plan.fourth ? '' : ', still without a fourth protein source'}.</p>`;
+}
+function topUps(date){
+  if (date < todayStr() || (ui.plan && ui.plan.slots.length)) return '';
+  const gap = suggestGap(date); ui.gap = gap.picks;
+  if (!gap.picks.length) return '';
+  return `<h2>To land on target</h2><div class="chips gaps">${gap.picks.map((p,i) => `<button class="qchip" data-act="gapadd" data-i="${i}">${esc(p.food.name)}, ${p.food.unit==='g' ? fmtW(p.qty)+' g' : '×'+fmtW(p.qty)}<small>+${r0(p.m.p)} g protein, +${r0(p.m.kcal)} kcal</small></button>`).join('')}</div>
+    <p class="note">Picked from your own foods, inside your limits and the fat ceiling.</p>`;
 }
 
 /* ---------- rings ---------- */
@@ -1491,7 +1486,7 @@ function slotBlock(key, label, date){
   return `<section class="group slot"><div class="cols slothead"><span class="nm">${label}</span>
     <span class="t">${r0(t.kcal)}</span><span class="t">${r0(t.p)}</span><span class="t">${r0(t.f)}</span><span class="t">${r0(t.c)}</span></div>
     ${list.map(entryRow).join('')}
-    ${key === 'imported' ? '' : `<button class="addline" data-act="addfood" data-slot="${key}"><span class="pl">${ICON.plus}</span>Add food</button>`}</section>`;
+    ${key === 'imported' ? '' : sugBlock(key) + `<button class="addline" data-act="addfood" data-slot="${key}"><span class="pl">${ICON.plus}</span>Add food</button>`}</section>`;
 }
 function viewEat(){
   const date = ui.date, entries = dayEntries(date), cur = sumMacros(entries), T = dayTarget(date), type = dayType(date);
@@ -1518,10 +1513,11 @@ function viewEat(){
   h += `<h2>Quick add</h2><div class="seg" role="group" aria-label="Add to">${SLOTS.map(([k,l]) => `<button data-act="slot" data-v="${k}" aria-pressed="${ui.slot===k}">${l}</button>`).join('')}</div>
     <div class="hscroll">${QUICK.map((q,i) => `<button class="qchip" data-act="quick" data-i="${i}">${esc(q.label)}</button>`).join('')}</div>`;
 
-  h += planSection(date);
+  ui.plan = date >= todayStr() ? planDay(date, ui.planAlt[date] || {}) : null;
 
   h += `<h2>Meals</h2><div class="cols legend" aria-hidden="true"><span></span><span class="h" style="color:var(--kcal-t)">kcal</span><span class="h" style="color:var(--pro-t)">P</span><span class="h" style="color:var(--fat-t)">F</span><span class="h" style="color:var(--carb-t)">C</span></div>`;
   h += SLOTS.map(([k,l]) => slotBlock(k, l, date)).join('') + slotBlock('imported', 'Imported day total', date);
+  h += planNote() + topUps(date);
   h += `<p class="note" style="margin:0 4px 12px">Swipe a food left to delete it, or tap it to change the amount. Quick entry and copying meals from another day are under ${'⋯'} at the top.</p>`;
   return h + `</div>`;
 }

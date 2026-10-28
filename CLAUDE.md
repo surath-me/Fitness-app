@@ -79,13 +79,14 @@ Do not name top-level functions or variables after browser globals (`history`, `
 - Past days show only what was logged. Future days show only the schedule.
 - Buttons: skip today's session, drop carried exercises, train a different session, add an exercise by hand.
 
-## Meal planner (`planDay`, Eat, "Plan the rest of today")
+## Meal suggestions (`planDay`, shown inside the Eat meal cards)
 
-- Runs on the device, no AI and nothing sent anywhere. It plans every meal after the last one logged that day (a meal not logged yet is still planned, so it is one tap to log), on today and future days, never on past days. With every meal logged it falls back to the single-food top-ups (`suggestGap`).
+- Runs on the device, no AI and nothing sent anywhere. It plans every meal after the last one logged that day (a meal not logged yet is still planned, so it is one tap to log), on today and future days, never on past days.
+- Suggestions live inside the meal cards under Meals, not in a separate section: each meal not logged yet shows its suggested foods as grey rows in the same columns as logged food (`sugBlock`), with a short reason, "Add these" and "Another idea". Logging any food in a meal re-plans the meals after it. A note under the meals says where the day ends with the suggestions (`planNote`). With every meal logged and the day still short, the single-food top-ups (`suggestGap`, `topUps`) appear instead.
 - Ideas come from `MEALS` (per slot; `flex` is the food whose amount is tuned, `office` meals are canteen lunches, `usual` marks a standing habit: eggs and whey at breakfast, chicken and rice at dinner) plus meals logged at least twice in the last 60 days (`learnedMeals`, with his real portions).
 - Rules are hard filters, never traded off: the daily limits (capped foods are trimmed to the room left or the meal is dropped), fruit only in the snack, no bread at breakfast, and only foods in his list.
 - It tries every combination of the remaining meals (12 best ideas per meal, a few ms), sizing each meal in order so what one meal leaves over goes to the next, and keeps the day that lands best: calories close to target, protein at the floor (each gram under weighs about 85 kcal off target) and not over 178 g, fat under the ceiling, one fourth protein source (`FOURTH_PROTEIN`), canteen lunch on `OFFICE_DAYS`, his usual and recent meals first, puddings only when clearly better (cost), a little variety from yesterday.
-- `SLOT_SHARE` says how a day is usually spread. "Another idea" moves that meal to its next idea and re-plans the others around it (`ui.planAlt`). "Add to lunch" logs all of a meal's foods in that slot.
+- `SLOT_SHARE` says how a day is usually spread. "Another idea" moves that meal to its next idea and re-plans the others around it (`ui.planAlt`). "Add these" logs all of a meal's foods in that slot.
 
 ## Progression rules (`suggest`)
 
