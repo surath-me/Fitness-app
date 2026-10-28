@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -21,7 +21,7 @@
 :root{
   --bg:#F2F2F7; --card:#FFFFFF; --ink:#000; --ink2:#6C6C70; --ink3:#AEAEB2;
   --sep:rgba(60,60,67,.14); --fill:rgba(120,120,128,.16); --fill2:rgba(120,120,128,.10);
-  --accent:#0088FF; --accent-press:#006FD6; --accent-t:rgba(0,136,255,.12); --accent-glow:rgba(0,136,255,.32);
+  --accent:#0088FF; --accent-press:#006FD6; --accent-t:rgba(0,136,255,.12); --accent-glow:rgba(0,136,255,.32); --accent-ink:#007AEB;
   --red:#FF383C; --red-t:rgba(255,56,60,.12); --red-ink:#D70015;
   --green:#34C759; --green-t:rgba(52,199,89,.16); --green-ink:#1F8A3B;
   /* macro colours: data only */
@@ -44,7 +44,7 @@
   --chip:rgba(255,255,255,.8); --chip-top:#FFFFFF; --tinted:rgba(255,255,255,.72); --tinted-top:rgba(255,255,255,.7);
   --closeb:rgba(255,255,255,.6); --closeb-top:rgba(255,255,255,.8);
   --raise:inset 0 0 0 .5px rgba(0,0,0,.06),inset 0 1px 1px #fff,0 2px 8px rgba(0,0,0,.08);
-  --track:rgba(120,120,128,.14); --track-ink:rgba(0,0,0,.78); --press:rgba(120,120,128,.1);
+  --track:rgba(120,120,128,.14); --track-ink:rgba(0,0,0,.78); --press:rgba(120,120,128,.1); --tab-sel:rgba(120,120,128,.14);
   --scrim:rgba(0,0,0,.2); --flash-row:#E3F1FF; --grab:rgba(60,60,67,.3);
   /* motion: the same springs as SwiftUI .bouncy, .smooth and .snappy */
   --spring:cubic-bezier(.34,1.4,.64,1); --smooth:cubic-bezier(.22,1,.36,1); --snappy:cubic-bezier(.3,1.25,.6,1);
@@ -56,22 +56,22 @@
 @media (prefers-color-scheme:dark){:root{
   --bg:#000000; --card:#1C1C1E; --ink:#FFFFFF; --ink2:#98989F; --ink3:#5B5B60;
   --sep:rgba(84,84,88,.6); --fill:rgba(120,120,128,.36); --fill2:rgba(120,120,128,.24);
-  --accent:#0091FF; --accent-press:#3AA7FF; --accent-t:rgba(0,145,255,.22); --accent-glow:rgba(0,145,255,.38);
+  --accent:#0091FF; --accent-press:#3AA7FF; --accent-t:rgba(0,145,255,.22); --accent-glow:rgba(0,145,255,.38); --accent-ink:#45ADFF;
   --red:#FF4245; --red-t:rgba(255,66,69,.2); --red-ink:#FF6B6E;
   --green:#30D158; --green-t:rgba(48,209,88,.22); --green-ink:#30D158;
   --kcal:#0091FF; --pro:#6D7CFF; --fat:#FFD600; --carb:#30D158;
   --kcal-t:#4DB0FF; --pro-t:#9AA4FF; --fat-t:#FFD600; --carb-t:#30D158;
-  --glass:rgba(34,34,38,.36); --glass-thick:rgba(38,38,42,.64); --glass-solid:rgba(34,34,38,.97);
+  --glass:rgba(96,96,100,.36); --glass-thick:rgba(52,52,56,.64); --glass-solid:rgba(38,38,40,.97);
   --glass-fx:blur(7px) saturate(170%) brightness(.9);
   --glass-shadow:0 8px 30px rgba(0,0,0,.5),0 1px 4px rgba(0,0,0,.3);
-  --glass-edge:inset 0 0 0 .5px rgba(255,255,255,.1),inset 0 1px 1px rgba(255,255,255,.14),inset 0 0 18px rgba(255,255,255,.04);
+  --glass-edge:inset 0 0 0 .5px rgba(255,255,255,.08),inset 0 1px 1px rgba(255,255,255,.07),inset 0 0 18px rgba(255,255,255,.015);
   --sheet-glass:rgba(28,28,30,.56); --menu-glass:rgba(40,40,44,.68);
-  --spec:.14; --rim:.38;
+  --spec:.05; --rim:.2;
   --bg-rgb:0 0 0; --sheet-rgb:28 28 30; --card-elev:#2C2C2E; --thumb:#636366;
   --chip:rgba(44,44,46,.92); --chip-top:rgba(255,255,255,.06); --tinted:rgba(120,120,128,.24); --tinted-top:rgba(255,255,255,.05);
   --closeb:rgba(120,120,128,.3); --closeb-top:rgba(255,255,255,.06);
   --raise:inset 0 0 0 .5px rgba(255,255,255,.08),inset 0 1px 1px rgba(255,255,255,.08),0 2px 8px rgba(0,0,0,.4);
-  --track:rgba(120,120,128,.3); --track-ink:rgba(255,255,255,.88); --press:rgba(120,120,128,.24);
+  --track:rgba(120,120,128,.3); --track-ink:rgba(255,255,255,.88); --press:rgba(120,120,128,.24); --tab-sel:rgba(0,0,0,.62);
   --scrim:rgba(0,0,0,.5); --flash-row:#0B2A47; --grab:rgba(235,235,245,.3);
   color-scheme:dark;
 }}
@@ -80,7 +80,7 @@
   --smooth:linear(0,0.041,0.137,0.257,0.382,0.5,0.606,0.696,0.771,0.831,0.879,0.915,0.942,0.962,0.977,0.987,0.994,0.998,1.001,1.002,1.003,1.003,1.003,1.003,1.002,1.002,1.002,1.001,1);
   --snappy:linear(0,0.068,0.217,0.39,0.554,0.694,0.803,0.884,0.94,0.976,0.998,1.01,1.014,1.015,1.014,1.011,1.009,1.006,1.004,1.003,1.001,1.001,1,1,1)}}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html{-webkit-text-size-adjust:100%;background:var(--bg)}
+html{-webkit-text-size-adjust:100%;background:var(--bg);touch-action:pan-x pan-y}   /* the app never zooms: no pinch, no double tap */
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.35 var(--font);-webkit-font-smoothing:antialiased;overscroll-behavior-y:none}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:inherit;-webkit-user-select:none;user-select:none}
 input,select{font:inherit;color:inherit}
@@ -226,6 +226,7 @@ body.under .edge.top{opacity:1}
 .btn.tinted{color:var(--accent);background:var(--tinted) linear-gradient(180deg,var(--tinted-top),transparent 60%);box-shadow:var(--raise)}
 .group .btn.tinted,.sheet .btn.tinted{background-color:var(--fill2)}
 .btn.plain{background:transparent;color:var(--accent);box-shadow:none}
+.btn.soft{color:var(--accent-ink);background:var(--accent-t);box-shadow:none}   /* tinted fill on a solid card, like Fitness's Get Started */
 .btn.danger{color:var(--red-ink);background:var(--red-t);box-shadow:inset 0 0 0 .5px rgba(255,56,60,.12)}
 .btn.block{display:flex;width:100%}
 .btn.small{min-height:38px;padding:0 16px;font-size:13px}
@@ -274,6 +275,14 @@ body.under .edge.top{opacity:1}
 .sring .lbl{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--rounded);font-weight:700;font-size:13px}
 .session-title{font-size:18px;font-weight:700;line-height:1.2;letter-spacing:-.01em}
 .session .meta{font-size:12px;color:var(--ink2);margin-top:2px}
+/* a day with nothing to train: one card in the style of Apple Fitness tips */
+.restcard{padding:20px 16px 16px}
+.rc{display:grid;grid-template-columns:44px 1fr;gap:14px;align-items:start;margin:0 4px 18px 2px}
+.rc:last-child{margin-bottom:4px}
+.rc-ic{width:44px;height:44px;color:var(--ink2)}
+.rc-ic svg{width:44px;height:44px}
+.rc-title{font-size:17px;font-weight:700;line-height:1.25;margin:1px 0 4px}
+.rc-text{font-size:14px;line-height:1.4;color:var(--ink2);margin:0}
 .collapse{display:grid;grid-template-rows:0fr;transition:grid-template-rows .4s var(--smooth)}
 .collapse>div{overflow:hidden}
 .collapse.open{grid-template-rows:1fr}
@@ -420,7 +429,7 @@ body.pushed .nb-inner{opacity:1;transform:none}
 .tab[aria-current=page]{color:var(--accent)}
 .tab.mag svg{scale:1.2}
 .tab-ind{position:absolute;z-index:0;top:4px;bottom:4px;left:calc(4px + (100% - 8px) * var(--i,0) / 4);width:calc((100% - 8px) / 4);border-radius:27px;
-  background:var(--track);transition:background .25s,box-shadow .25s,scale .5s var(--spring)}
+  background:var(--tab-sel);transition:background .25s,box-shadow .25s,scale .5s var(--spring)}
 .tab-ind.lens{scale:1.12 1.24}
 /* the tab bar accessory (rest timer), like the Music mini player */
 .accessory{position:absolute;left:0;right:0;bottom:70px;height:52px;border-radius:26px;display:flex;align-items:center;gap:10px;padding:0 7px 0 9px;pointer-events:auto;
@@ -587,7 +596,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.15';
+const APP_VERSION = '3.16';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1282,6 +1291,7 @@ const ICON = {
   minus:'<svg viewBox="0 0 24 24"><path d="M4.5 12h15" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
   close:'<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
   moon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.6 8.6 0 1 0 11.3 11.3z"/></svg>',
+  zzz:'<svg viewBox="0 0 44 44"><path fill="currentColor" d="M35 28A17 17 0 0 1 15.6 8.6a17 17 0 1 0 19.4 19.4z"/><path d="M24.5 7.5h6.5l-6.5 8h6.5M34 4h4.5L34 9.5h4.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   updown:'<svg viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6l3-3 3 3M2 10l3 3 3-3"/></svg>',
   drop:'<svg viewBox="0 0 24 24"><path d="M12 2.8C9.1 6.8 5.6 10.7 5.6 14.7a6.4 6.4 0 0 0 12.8 0c0-4-3.5-7.9-6.4-11.9z" stroke-linejoin="round"/></svg>',
   target:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/></svg>',
@@ -1442,7 +1452,19 @@ function refreshEx(date, id){
 }
 
 /* ---------- session card ---------- */
+/* A day with nothing to train gets one card instead of the session ring: what the day is, why, and one thing to do about it */
+function restCard(plan, date){
+  const isToday = date === todayStr(), sched = S.settings.schedule[wdOf(date)], name = t => t && TEMPLATES[t] ? TEMPLATES[t].name : 'the session';
+  const choose = `<button class="btn soft block" data-act="menu" data-menu="train" aria-haspopup="menu">Choose a session</button>`;
+  let icon = ICON.zzz, title = 'Rest day', text, btn = choose;
+  if (plan.past) { icon = ICON.dumb; title = 'No workout logged'; text = 'Nothing was logged on this day.'; btn = ''; }
+  else if (S.dismissed[date] && !ui.forceTpl[date]) { icon = ICON.skip; title = 'Session skipped'; text = `You skipped ${name(sched)} ${isToday ? 'today' : 'on this day'}. It does not carry over.`; btn = `<button class="btn soft block" data-act="unskip">Bring it back</button>`; }
+  else if (plan.tid) { title = 'Recovery day'; text = `${name(plan.tid)} is planned, but those muscles need more rest. Its exercises move to your next training day.`; }
+  else text = isToday ? 'Nothing planned and nothing to catch up on. Recover today, or choose a session if you feel like training.' : 'Nothing planned for this day. You can still choose a session for it.';
+  return `<div class="group session restcard"><div class="rc"><span class="rc-ic" aria-hidden="true">${icon}</span><div><div class="rc-title">${title}</div><p class="rc-text">${esc(text)}</p></div></div>${btn}</div>`;
+}
 function sessionCard(plan, date){
+  if (!plan.items.length) return restCard(plan, date);
   const wk = S.workouts[date];
   const total = plan.items.reduce((a, it) => a + Math.max(it.sug.sets, setsDone(wk, it.id).length), 0);
   const done = plan.items.reduce((a, it) => a + setsDone(wk, it.id).length, 0);
@@ -1476,7 +1498,6 @@ function viewTrain(){
   const date = ui.date, plan = getPlan(date);
   let h = `<h1 class="lt">Train</h1>` + weekStrip() + `<div class="daybody">` + sessionCard(plan, date);
   if (plan.items.length) h += `<div class="group">${plan.items.map(it => exRow(it, date)).join('')}</div>`;
-  else h += `<div class="group"><div class="empty">${plan.past ? 'Nothing was logged on this day.' : `Nothing is scheduled or owed today.<br><button class="btn tinted small" data-act="menu" data-menu="train" aria-haspopup="menu">Choose a session</button>`}</div></div>`;
   if (plan.deferred.length) {
     h += `<h2>Next session</h2><p class="why" style="margin:0 4px 10px">These stay on your list for 7 days.</p><div class="group">` +
       plan.deferred.map(d => `<div class="lift"><div><strong>${esc(cfg(d.id).name)}</strong><div class="small muted">${esc(d.reason)}</div></div><span></span><span></span></div>`).join('') + `</div>`;
@@ -2314,6 +2335,8 @@ function settleFrom(el, fromLeft){
   el.animate([{ transform:`translateX(${d}px)` }, { transform:'none' }], { duration:520, easing:EASE.spring });
 }
 document.addEventListener('touchstart', () => {}, { passive:true });   // lets :active work on iOS
+/* Safari ignores user-scalable=no, so cancel its pinch gesture too: the app never zooms */
+['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive:false }));
 document.addEventListener('pointerdown', e => {
   unlight();
   const g = e.target.closest(LIT);
