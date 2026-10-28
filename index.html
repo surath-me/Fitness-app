@@ -352,10 +352,13 @@ body.under .edge.top{opacity:1}
 .slothead .nm{font-weight:700;font-size:15px}
 .slothead .t{text-align:right;font-weight:700;font-size:12px;font-variant-numeric:tabular-nums;font-family:var(--rounded)}
 .swipe{position:relative;margin-left:16px;border-top:.5px solid var(--sep);overflow:hidden;transition:height .3s var(--out),opacity .3s}
-.swipe-del{position:absolute;top:0;right:0;bottom:0;width:92px;background:var(--red);color:#fff;font-weight:600;font-size:14px;text-align:center;visibility:hidden}
-.swipe.dragging .swipe-del,.swipe.opened .swipe-del{visibility:visible}
-.swipe-fg{position:relative;background:var(--card);touch-action:pan-y;transition:transform .45s var(--smooth)}
-.swipe.dragging .swipe-fg{transition:none}
+/* swipe to delete as in iOS lists: the red action fills everything the row uncovers, so it grows with the swipe and never
+   leaves a gap; its label rides next to the row's edge */
+.swipe-del{position:absolute;top:0;right:0;bottom:0;width:var(--rev, 0px);overflow:hidden;background:var(--red);color:#fff;font-weight:600;font-size:15px;transition:width .4s var(--smooth)}
+.swipe-del span{position:absolute;top:0;bottom:0;left:0;width:82px;display:grid;place-items:center}
+.swipe-fg{position:relative;background:var(--card);touch-action:pan-y;transition:transform .4s var(--smooth)}
+.swipe.dragging .swipe-fg,.swipe.dragging .swipe-del{transition:none}
+.swipe.dragging .swipe-fg,.swipe.opened .swipe-fg{background:var(--card)}   /* no tap highlight while swiping */
 .swipe.flash .swipe-fg{animation:rowIn .55s var(--out),flashFg 1.2s var(--out)}
 .entry{width:100%;padding:10px 16px 10px 0;min-height:56px}
 .entry .nm{font-size:14px;font-weight:500;line-height:1.2}
@@ -446,12 +449,13 @@ body.pushed .nb-inner{opacity:1;transform:none}
 /* ---------- sheets: inset glass at partial height, edge to edge and opaque when tall ---------- */
 .scrim{position:fixed;inset:0;background:var(--scrim);z-index:30;opacity:0;transition:opacity .4s var(--out)}
 .scrim.open{opacity:1}
-.sheet{position:fixed;left:8px;right:8px;bottom:8px;margin:0 auto;max-width:544px;max-height:calc(100% - env(safe-area-inset-top) - 24px);overflow:auto;border-radius:42px;
+.sheet{position:fixed;left:8px;right:8px;bottom:calc(8px + var(--kb, 0px));margin:0 auto;max-width:544px;max-height:calc(100% - env(safe-area-inset-top) - 24px - var(--kb, 0px));overflow:auto;border-radius:42px;
   padding:0 16px max(20px,env(safe-area-inset-bottom));z-index:31;overscroll-behavior:contain;transform:translateY(calc(100% + 40px));
   transition:transform .6s var(--smooth),left .45s var(--smooth),right .45s var(--smooth),bottom .45s var(--smooth),border-radius .45s var(--smooth),max-width .45s var(--smooth)}
 .sheet.open{transform:none}
 .sheet.dragging{transition:none}
-.sheet.full{left:0;right:0;bottom:0;max-width:560px;border-radius:38px 38px 0 0}
+/* full height has a fixed top, so a short result list stays under the search field instead of dropping behind the keyboard */
+.sheet.full{left:0;right:0;top:calc(env(safe-area-inset-top) + 12px);bottom:var(--kb, 0px);max-height:none;max-width:560px;border-radius:38px 38px 0 0}
 @supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   .sheet.glass{background:var(--sheet-glass);-webkit-backdrop-filter:blur(26px) saturate(190%);backdrop-filter:blur(26px) saturate(190%)}
   .sheet.glass.full{background:rgb(var(--sheet-rgb) / .97)}}
@@ -577,7 +581,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.9';
+const APP_VERSION = '3.10';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1487,7 +1491,7 @@ function capChips(date){
 }
 function entryRow(e){
   return `<div class="swipe ${ui.flash === e.id ? 'flash' : ''}" data-id="${e.id}">
-    <button class="swipe-del" data-act="swipedel" data-id="${e.id}" tabindex="-1" aria-hidden="true">Delete</button>
+    <button class="swipe-del" data-act="swipedel" data-id="${e.id}" tabindex="-1" aria-hidden="true"><span>Delete</span></button>
     <button class="entry cols swipe-fg" data-act="editentry" data-id="${e.id}">
       <span><span class="nm">${esc(e.name)}</span><br><span class="q">${esc(qtyText(e))}</span></span>
       <span class="t">${r0(e.kcal)}</span><span class="t">${r0(e.p)}</span><span class="t">${r0(e.f)}</span><span class="t">${r0(e.c)}</span></button></div>`;
@@ -1751,7 +1755,8 @@ function drawSheet(){
   el.hidden = false; sc.hidden = false; document.body.classList.add('lock');
   const t = ui.sheet.type;
   el.innerHTML = t === 'food' ? foodSheet() : t === 'entry' ? entrySheet() : t === 'exercise' ? exerciseSheet() : t === 'copyday' ? copySheet() : '';
-  el.classList.toggle('full', el.scrollHeight > innerHeight * .78);
+  const contentH = Array.from(el.children).reduce((a, c) => a + c.offsetHeight, 0) + 40;   // the content, not the sheet: a full sheet is stretched
+  el.classList.toggle('full', (t === 'food' && !ui.sheet.sel && ui.sheet.mode !== 'quick') || t === 'exercise' || contentH > innerHeight * .78);
   initSegs(el);
   if (opening) { el.scrollTop = 0; el.style.transform = ''; void el.offsetHeight; requestAnimationFrame(() => { el.classList.add('open'); sc.classList.add('open'); }); }
 }
@@ -2003,6 +2008,7 @@ function tweenHero(){
 }
 /* scroll: the edge effect appears once content passes under the bar, and the large title hands over to the inline one */
 function onScroll(){
+  if (!sw && $('.swipe.opened')) closeSwipes();   // scrolling closes an open row, as in iOS lists
   const y = Math.max(0, window.scrollY || 0);
   document.body.classList.toggle('under', y > 2);
   document.body.classList.toggle('scrolled', y > 44);
@@ -2196,34 +2202,47 @@ const H = {
 /* =====================================================================
    GESTURES: swipe to delete, drag sheet to dismiss
    ===================================================================== */
+/* swipe to delete, as in iOS lists: drag a row left and the red Delete grows from the trailing edge, attached to the row.
+   Let go short of halfway to close it, past halfway or with a flick to leave Delete open at its natural width, or past
+   60% of the row to delete straight away. Swiping right does nothing (there is no leading action). */
+const DEL_W = 82;
 let sw = null, sd = null;
-function closeSwipes(except){ $$('.swipe.opened').forEach(r => { if (r !== except) { r.classList.remove('opened'); $('.swipe-fg', r).style.transform = ''; } }); }
+function setSwipe(row, x, dragging){
+  row.classList.toggle('dragging', !!dragging);
+  $('.swipe-fg', row).style.transform = x ? `translateX(${x}px)` : '';
+  row.style.setProperty('--rev', `${-x}px`);
+}
+function closeSwipes(except){ $$('.swipe.opened').forEach(r => { if (r !== except) { r.classList.remove('opened', 'armed'); setSwipe(r, 0); } }); }
 document.addEventListener('pointerdown', e => {
   const head = e.target.closest('.sheet-head');
   if (head && !e.target.closest('button')) { sd = { y0:e.clientY, id:e.pointerId, dy:0 }; $('#sheet').classList.add('dragging'); return; }
   const fg = e.target.closest('.swipe-fg');
   if (!fg) { if (!e.target.closest('.swipe-del')) closeSwipes(); return; }
   const row = fg.parentElement; closeSwipes(row);
-  sw = { row, fg, x0:e.clientX, y0:e.clientY, base: row.classList.contains('opened') ? -92 : 0, raw:0, x:0, active:false, id:e.pointerId };
+  sw = { row, x0:e.clientX, y0:e.clientY, base: row.classList.contains('opened') ? -DEL_W : 0, x:0, v:0, lx:e.clientX, lt:performance.now(), t0:performance.now(), w:row.offsetWidth, active:false, id:e.pointerId };
 }, { passive:true });
 document.addEventListener('pointermove', e => {
   if (sd && e.pointerId === sd.id) { sd.dy = Math.max(0, e.clientY - sd.y0); $('#sheet').style.transform = `translateY(${sd.dy}px)`; $('#scrim').style.opacity = String(Math.max(0, 1 - sd.dy / 420)); return; }
   if (!sw || e.pointerId !== sw.id) return;
   const dx = e.clientX - sw.x0, dy = e.clientY - sw.y0;
   if (!sw.active) {
-    if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) { sw.active = true; sw.row.classList.add('dragging'); }
+    if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) sw.active = true;
     else if (Math.abs(dy) > 8) { sw = null; return; } else return;
   }
-  sw.raw = sw.base + dx;
-  let x = sw.raw; if (x > 0) x *= 0.25; if (x < -92) x = -92 + (x + 92) * 0.35;
-  sw.x = x; sw.fg.style.transform = `translateX(${x}px)`;
+  const now = performance.now(); sw.v = (e.clientX - sw.lx) / Math.max(8, now - sw.lt); sw.lx = e.clientX; sw.lt = now;
+  sw.x = Math.min(0, Math.max(-sw.w, sw.base + dx));
+  sw.row.classList.toggle('armed', -sw.x >= sw.w * .6);
+  setSwipe(sw.row, sw.x, true);
 }, { passive:true });
 function endGesture(){
   if (sd) { const el = $('#sheet'), dy = sd.dy; sd = null; el.classList.remove('dragging'); $('#scrim').style.opacity = '';
     if (dy > 110) { el.style.transform = 'translateY(calc(100% + 40px))'; ui.sheet = null; drawSheet(); } else el.style.transform = ''; }
-  if (sw) { const s = sw; sw = null; if (!s.active) return; ui.swipeAt = Date.now(); s.row.classList.remove('dragging');
-    if (s.raw < -230) { s.fg.style.transform = 'translateX(-100%)'; removeEntryAnimated(s.row.dataset.id); return; }
-    if (s.x < -46) { s.row.classList.add('opened'); s.fg.style.transform = 'translateX(-92px)'; } else { s.row.classList.remove('opened'); s.fg.style.transform = ''; } }
+  if (sw) { const s = sw; sw = null; if (!s.active) return; ui.swipeAt = Date.now();
+    if (s.row.classList.contains('armed')) {   // a full swipe: the red takes the whole row, then the row closes up
+      s.row.classList.add('opened'); setSwipe(s.row, -s.w); setTimeout(() => removeEntryAnimated(s.row.dataset.id), reduced() ? 0 : 200); return; }
+    const flick = s.v < -.4 || (performance.now() - s.t0 < 250 && s.x - s.base < -20);   // fast at the end, or a short quick swipe
+    const open = flick || (s.v <= .4 && -s.x > DEL_W / 2);   // a flick left opens, a flick right closes
+    s.row.classList.toggle('opened', open); setSwipe(s.row, open ? -DEL_W : 0); }
 }
 document.addEventListener('pointerup', endGesture);
 document.addEventListener('pointercancel', endGesture);
@@ -2357,6 +2376,11 @@ document.addEventListener('keydown', e => {
 let scrollRaf = 0;
 window.addEventListener('scroll', () => { if (scrollRaf) return; scrollRaf = requestAnimationFrame(() => { scrollRaf = 0; onScroll(); }); }, { passive:true });
 window.addEventListener('resize', () => closeMenu());
+/* the on-screen keyboard: Safari shrinks the visual viewport, and sheets move up to sit on top of the keyboard */
+if (window.visualViewport) {
+  const kb = () => { const v = visualViewport, k = Math.round(innerHeight - v.height - v.offsetTop); document.documentElement.style.setProperty('--kb', (k > 40 ? k : 0) + 'px'); };
+  visualViewport.addEventListener('resize', kb); visualViewport.addEventListener('scroll', kb);
+}
 let _today = todayStr();
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && todayStr() !== _today) { if (ui.date === _today) ui.date = todayStr(); _today = todayStr(); ui.anim = true; render(); }
