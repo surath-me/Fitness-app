@@ -607,7 +607,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.18';
+const APP_VERSION = '3.19';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -988,14 +988,14 @@ function sessionOn(date){
   return seq[i % seq.length];
 }
 /* a training day that was skipped, or passed with nothing logged */
-const missedDay = date => !isRestDay(date) && !!sessionOn(date) && !trainedOn(date) && date >= S.settings.planStart && (!!S.dismissed[date] || date < todayStr());
+const missedDay = date => !isRestDay(date) && !!sessionOn(date) && !trainedOn(date) && (!!S.dismissed[date] || (date < todayStr() && date >= S.settings.planStart));
 /* A rest day can trade places with a training day of the same week when the day that becomes a training day is today or
    later, neither day has anything logged, and no day between them was trained (that would rewrite a session already done). */
-function canSwapRest(rest, train){
+function canSwapRest(rest, train, clearing = false){   // clearing: the training day's logs are about to be removed
   if (rest === train || weekStart(rest) !== weekStart(train) || !isRestDay(rest) || isRestDay(train)) return false;
-  if (rest < todayStr() || train < S.settings.planStart || trainedOn(rest) || trainedOn(train)) return false;
+  if (rest < todayStr() || trainedOn(rest) || (trainedOn(train) && !clearing) || (train < S.settings.planStart && !trainedOn(train))) return false;
   const [a, b] = rest < train ? [rest, train] : [train, rest];
-  for (let d = addDays(a, 1); d < b; d = addDays(d, 1)) if (trainedOn(d)) return false;
+  for (let d = addDays(a, 1); d < b; d = addDays(d, 1)) if (!isRestDay(d) && trainedOn(d)) return false;   // a rest day between has no session to shift
   return true;
 }
 function setRest(date, on){ if (on === splitRest(date)) delete S.rest[date]; else S.rest[date] = on; delete S.dismissed[date]; }
@@ -1007,6 +1007,31 @@ function sessionAfterSwap(rest, train, day){   // what `day` would train after t
 /* the days whose session changes with a swap, in order, as [date, session] */
 const swapEffects = (rest, train) => weekDays(rest).filter(d => d !== train && d >= todayStr())
   .map(d => [d, sessionAfterSwap(rest, train, d)]).filter(([d, t]) => t && t !== sessionOn(d));
+/* Fixing a past training day: one trained by mistake, or missed, can become a rest day when one of the week's rest days
+   is still ahead (that rest day becomes a training day), or be marked as skipped. Both clear what was logged, after asking. */
+function pastFixes(date){
+  const out = [];
+  const logged = trainedOn(date);
+  if (date >= todayStr() || (date < S.settings.planStart && !logged)) return out;   // a day with lifts logged was clearly tracked here
+  if (isRestDay(date)) { if (logged) out.push({ act:'pastclear', data:{ d:date }, icon:'xcirc', label:'Clear what was logged', sub:'It stays a rest day' }); return out; }
+  const from = weekDays(date).filter(d => canSwapRest(d, date, true)), tname = t => t && TEMPLATES[t] ? TEMPLATES[t].name : 'no session';
+  from.forEach(d => out.push({ act:'pastrest', data:{ rest:d, train:date }, icon:'moon',
+    label: from.length > 1 ? `Rest day instead of ${d === todayStr() ? 'today' : WD[wdOf(d)]}` : 'Make it a rest day',
+    sub: [swapEffects(d, date).map(([x, t]) => `${x === todayStr() ? 'Today' : WD[wdOf(x)]} gets ${tname(t)}`).join(', '), logged ? 'Clears what was logged' : ''].filter(Boolean).join('. ') }));
+  if (logged) out.push({ act:'pastskip', data:{ d:date }, icon:'skip', label:'Mark as skipped', sub:'Clears what was logged' });
+  return out;
+}
+function fixPast(date, change, msg, bad){
+  const apply = () => {
+    const keep = { rest:{ ...S.rest }, dismissed:{ ...S.dismissed }, wk: S.workouts[date] ? deepClone(S.workouts[date]) : null };
+    delete S.workouts[date]; change(); saveState(); ui.anim = true; render();
+    ui.undo = { fn: () => { S.rest = keep.rest; S.dismissed = keep.dismissed; if (keep.wk) S.workouts[date] = keep.wk; saveState(); ui.anim = true; render(); } };
+    toast(msg, { undo:true, bad });
+  };
+  const n = loggedIds(S.workouts[date]).length;
+  if (!n) return apply();
+  askGlass(`Clear ${WD[wdOf(date)]}'s workout?`, `${n} lift${n === 1 ? '' : 's'} logged on ${longDate(date)} will be removed. You can undo this right after.`, 'Clear').then(ok => { if (ok) apply(); });
+}
 /* the lifts of the last training day before `date`, if it was skipped or missed and not made up since */
 function makeUp(date, skip){
   for (let k = 1; k <= 7; k++) {
@@ -1326,7 +1351,7 @@ const ICON = {
   minus:'<svg viewBox="0 0 24 24"><path d="M4.5 12h15" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
   close:'<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
   moon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.6 8.6 0 1 0 11.3 11.3z"/></svg>',
-  missed:'<svg viewBox="0 0 44 44"><path fill="currentColor" fill-rule="evenodd" d="M22 4a18 18 0 1 1 0 36a18 18 0 1 1 0-36zM15.6 13.5l-2.1 2.1 6.4 6.4-6.4 6.4 2.1 2.1 6.4-6.4 6.4 6.4 2.1-2.1-6.4-6.4 6.4-6.4-2.1-2.1-6.4 6.4z"/></svg>',
+  missed:'<svg viewBox="0 0 44 44"><path fill="currentColor" fill-rule="evenodd" d="M22 4a18 18 0 1 1 0 36a18 18 0 1 1 0-36zM13.5 14.6v14.8c0 1 1.1 1.6 1.9 1l10-7.4c.7-.5.7-1.5 0-2l-10-7.4c-.8-.6-1.9 0-1.9 1zM27.2 14.5h2.6c.5 0 .9.4.9.9v13.2c0 .5-.4.9-.9.9h-2.6c-.5 0-.9-.4-.9-.9V15.4c0-.5.4-.9.9-.9z"/></svg>',   // a skipped session: skip forward in a filled circle
   zzz:'<svg viewBox="0 0 44 44"><path fill="currentColor" d="M35 28A17 17 0 0 1 15.6 8.6a17 17 0 1 0 19.4 19.4z"/><path d="M24.5 7.5h6.5l-6.5 8h6.5M34 4h4.5L34 9.5h4.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   updown:'<svg viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6l3-3 3 3M2 10l3 3 3-3"/></svg>',
   drop:'<svg viewBox="0 0 24 24"><path d="M12 2.8C9.1 6.8 5.6 10.7 5.6 14.7a6.4 6.4 0 0 0 12.8 0c0-4-3.5-7.9-6.4-11.9z" stroke-linejoin="round"/></svg>',
@@ -1874,7 +1899,7 @@ const closeSheet = () => { ui.sheet = null; drawSheet(); };
 let toastT;
 function toast(m, opts = {}){
   const el = $('#toast');
-  el.innerHTML = `<span class="ok${opts.bad ? ' bad' : ''}">${opts.bad ? ICON.close : ICON.check}</span><span>${esc(m)}</span>` + (opts.undo ? `<button class="link" data-act="undo" style="margin-left:4px">Undo</button>` : '');
+  el.innerHTML = `<span class="ok${opts.bad ? ' bad' : ''}">${opts.bad ? ICON.skip : ICON.check}</span><span>${esc(m)}</span>` + (opts.undo ? `<button class="link" data-act="undo" style="margin-left:4px">Undo</button>` : '');
   el.hidden = false; void el.offsetWidth; requestAnimationFrame(() => el.classList.remove('ghost'));
   clearTimeout(toastT);
   toastT = setTimeout(() => { el.classList.add('ghost'); toastT = setTimeout(() => { el.hidden = true; }, 550); }, opts.undo ? 4000 : 1900);
@@ -2021,7 +2046,7 @@ function toolbarHTML(){
   const t = ui.tab;
   const l = t === 'setup' && ui.setupPage ? `<button class="tbtn glass" data-act="setupback" aria-label="Back to Setup">${ICON.chevL}</button>` : '';
   let r = '';
-  if (t === 'train') r = `<button class="tbtn glass" data-act="addex" aria-label="Add an exercise">${ICON.plus}</button>${getPlan(ui.date).past ? '' : `<button class="tbtn glass" data-act="menu" data-menu="train" aria-label="More" aria-haspopup="menu">${ICON.more}</button>`}`;
+  if (t === 'train') r = `<button class="tbtn glass" data-act="addex" aria-label="Add an exercise">${ICON.plus}</button>${getPlan(ui.date).past && !pastFixes(ui.date).length ? '' : `<button class="tbtn glass" data-act="menu" data-menu="train" aria-label="More" aria-haspopup="menu">${ICON.more}</button>`}`;
   if (t === 'eat') r = `<button class="tbtn glass" data-act="addfood" aria-label="Add food">${ICON.plus}</button><button class="tbtn glass" data-act="menu" data-menu="eat" aria-label="More" aria-haspopup="menu">${ICON.more}</button>`;
   return [l, r];
 }
@@ -2063,7 +2088,8 @@ function setToolbar(){
 /* ---------- menus: glass bubbles that grow out of the button that opens them ---------- */
 function menuSpec(kind){
   const date = ui.date, out = [];
-  if (kind === 'train') {
+  if (kind === 'train' && getPlan(date).past) out.push({ head:'Fix this day' }, ...pastFixes(date));
+  else if (kind === 'train') {
     const plan = getPlan(date), cur = ui.forceTpl[date] || (S.dismissed[date] ? null : plan.tid);
     const here = date === todayStr() ? 'today' : 'this day', Here = here[0].toUpperCase() + here.slice(1), day = d => WD[wdOf(d)], tname = t => t && TEMPLATES[t] ? TEMPLATES[t].name : 'no session';
     const effects = (rest, train) => swapEffects(rest, train).map(([d, t]) => `${d === date ? Here : day(d)} gets ${tname(t)}`).join(', ');
@@ -2288,6 +2314,9 @@ const H = {
   forcetpl(t){ if (t.dataset.t) ui.forceTpl[ui.date] = t.dataset.t; else delete ui.forceTpl[ui.date]; ui.anim = true; render(); },
   skipsession(){ S.dismissed[ui.date] = true; saveState(); ui.anim = true; render(); ui.undo = { fn: () => { delete S.dismissed[ui.date]; saveState(); render(); } }; toast('Session skipped', { undo:true, bad:true }); },
   unskip(){ delete S.dismissed[ui.date]; saveState(); render(); },
+  pastrest(t){ const { rest, train } = t.dataset; fixPast(train, () => swapRest(rest, train), `${WD[wdOf(train)]} is now a rest day`); },
+  pastclear(t){ const d = t.dataset.d; fixPast(d, () => {}, `${WD[wdOf(d)]} cleared`); },
+  pastskip(t){ const d = t.dataset.d; fixPast(d, () => { S.dismissed[d] = true; }, `${WD[wdOf(d)]} marked as skipped`, true); },
   swaprest(t){
     const { rest, train } = t.dataset, keep = { rest:{ ...S.rest }, dismissed:{ ...S.dismissed } };
     swapRest(rest, train); saveState(); ui.anim = true; render();
