@@ -87,7 +87,7 @@ input,select{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:12px}
 [hidden]{display:none!important}
 svg{display:block}
-.app{max-width:560px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 52px) 16px calc(150px + env(safe-area-inset-bottom));overflow-x:clip}   /* nothing sliding or edge to edge may widen the page: iPhone Safari would zoom out to fit it */
+.app{position:relative;max-width:560px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 52px) 16px calc(150px + env(safe-area-inset-bottom));overflow-x:clip}   /* nothing sliding or edge to edge may widen the page: iPhone Safari would zoom out to fit it */
 
 /* ---------- Liquid Glass material ---------- */
 /* Without backdrop-filter the material falls back to a frosted solid. */
@@ -521,12 +521,13 @@ body.lock{overflow:hidden}
    API is not used: its snapshots paint above every fixed bar, and naming the bars stops their glass blurring. */
 .app.enter{animation:pageIn .42s var(--out) backwards}
 .app.swap{animation:tabIn .28s var(--out) backwards}
-/* a new day: the old content fades away while the new content fades in and zooms up to size from the middle of the screen */
-.daybody.enter{animation:dayIn .38s var(--smooth) .08s backwards}
-.dayout{position:absolute;z-index:1;margin:0;pointer-events:none;animation:dayOut .16s var(--out) forwards}
+/* a new day scrolls softly: the old content fades out towards the side it leaves by while the new one fades in
+   from the other side (later days come from the right, earlier ones from the left) */
+.daybody.enter{animation:dayIn .38s var(--smooth) .04s backwards}
+.dayout{position:absolute;z-index:1;margin:0;pointer-events:none;animation:dayOut .22s var(--out) forwards}
 .dayout *{animation:none!important;transition:none!important}
-@keyframes dayIn{from{opacity:0;transform:scale(.955)}}
-@keyframes dayOut{to{opacity:0;transform:scale(1.015)}}
+@keyframes dayIn{from{opacity:0;transform:translateX(calc(var(--dir,1) * 44px))}}
+@keyframes dayOut{to{opacity:0;transform:translateX(calc(var(--dir,1) * -44px))}}
 @keyframes pageIn{from{opacity:0;transform:translateX(calc(var(--dir,1) * 26px))}}
 @keyframes tabIn{from{opacity:0;transform:scale(.985)}}
 
@@ -596,7 +597,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.16';
+const APP_VERSION = '3.17';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1881,28 +1882,30 @@ function viewHTML(){
 }
 function render(opts = {}){
   const app = $('#app'), still = reduced(), snap = (opts.day || opts.meters) && !still ? meterSnap() : null;
-  const out = opts.day && !still ? dayLeaving($('.daybody')) : null;
+  const out = opts.day && !still ? dayLeaving($('.daybody'), opts.dir || 1) : null;
   app.innerHTML = viewHTML(); afterRender(opts);
   if (still) return;
-  if (opts.day) {   // a new day: the title stays put, the week strip pages if the week changed, the content fades and zooms, the meters glide
+  if (opts.day) {   // a new day: the title stays put, the week strip pages if the week changed, the content scrolls softly, the meters glide
     const body = $('.daybody');
-    if (body) { body.style.transformOrigin = `50% ${Math.round(innerHeight / 2 - body.getBoundingClientRect().top)}px`; body.classList.add('enter'); }
-    if (out) { document.body.append(out); out.addEventListener('animationend', () => out.remove()); setTimeout(() => out.remove(), 600); }
+    if (body) { body.style.setProperty('--dir', String(opts.dir || 1)); body.classList.add('enter'); }
     if (opts.week) slideWeek(opts.dir, opts.dx || 0);
     meterMorph(snap);
+    if (out) { app.append(out); out.addEventListener('animationend', () => out.remove()); setTimeout(() => out.remove(), 600); }
   } else if (opts.meters) meterMorph(snap);
   else if (opts.transition) {   // a new tab fades in, a pushed page slides in from its side
     app.style.setProperty('--dir', String(opts.dir || 1));
     app.classList.remove('enter', 'swap'); void app.offsetWidth; app.classList.add(opts.tab ? 'swap' : 'enter');
   }
 }
-/* The day that is leaving: a copy of it stays where it was and fades out over the new day */
-function dayLeaving(el){
+/* The day that is leaving: a copy of it stays where it was, inside the page so its slide is clipped, and fades out
+   towards the side it leaves by while the new day comes in */
+function dayLeaving(el, dir){
   if (!el) return null;
-  const r = el.getBoundingClientRect(), c = el.cloneNode(true);
+  const r = el.getBoundingClientRect(), a = $('#app').getBoundingClientRect(), c = el.cloneNode(true);
   c.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
   c.className = 'daybody dayout'; c.setAttribute('aria-hidden', 'true'); c.inert = true;
-  Object.assign(c.style, { left:r.left + scrollX + 'px', top:r.top + scrollY + 'px', width:r.width + 'px', transformOrigin:`50% ${Math.round(innerHeight / 2 - r.top)}px` });
+  Object.assign(c.style, { left:r.left - a.left + 'px', top:r.top - a.top + 'px', width:r.width + 'px' });
+  c.style.setProperty('--dir', String(dir));
   return c;
 }
 /* The week strip pages from where it was (or from where the finger let go) to the new week */
