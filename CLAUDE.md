@@ -75,7 +75,7 @@ Do not name top-level functions or variables after browser globals (`history`, `
 - **Carry-over:** every exercise in a scheduled session from the last 7 days that has no logged sets on or after that date is owed. Owed exercises join today's pool, exercise by exercise. Days before `planStart` (the first day the app was opened) are ignored.
 - **Recovery:** a compound lift is held back if its muscle was trained yesterday (needs 2 days). Isolation lifts need 1 day.
 - **Lower body once a week:** if two or more leg lifts were logged in the last 5 days, quads, hamstrings and calves wait.
-- **Time budget:** 45, 60, 75 (default) or 90 minutes. About 11 minutes per compound, 8 per isolation, 6 for abs. Compounds are kept first, then lower `prio`, then older owed. What does not fit stays owed.
+- **Time budget:** 45, 60, 75 (default) or 90 minutes. The time control and the "Back after a break" switch only show when the day has exercises; a rest day hides them. About 11 minutes per compound, 8 per isolation, 6 for abs. Compounds are kept first, then lower `prio`, then older owed. What does not fit stays owed.
 - Past days show only what was logged. Future days show only the schedule.
 - Buttons: skip today's session, drop carried exercises, train a different session, add an exercise by hand.
 

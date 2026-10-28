@@ -581,7 +581,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.10';
+const APP_VERSION = '3.11';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1440,7 +1440,7 @@ function sessionCard(plan, date){
     h += `<div class="collapse ${ui.showWhy ? 'open' : ''}" id="whybox"><div>${plan.why.slice(1).map(w => `<p class="why">${esc(w)}</p>`).join('')}</div></div>
       <button class="link" data-act="whytoggle" aria-expanded="${ui.showWhy}">${ui.showWhy ? 'Show less' : 'Why this plan'}</button>`;
   }
-  if (!plan.past) {
+  if (!plan.past && plan.items.length) {   // time and the break switch only matter when there is something to train
     h += `<div class="divider"></div>
       <div class="seg" role="group" aria-label="Time available">${[45,60,75,90].map(m => `<button data-act="budget" data-v="${m}" aria-pressed="${S.settings.timeBudget===m}">${m} min</button>`).join('')}</div>
       <label class="switch gap8"><input type="checkbox" data-chg="returning" ${S.settings.returning ? 'checked' : ''}>Back after a break or illness</label>`;
