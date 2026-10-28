@@ -186,6 +186,7 @@ body.under .edge.top{opacity:1}
 .wd .dots{display:flex;gap:3px;height:5px}
 .wd .dots b{width:5px;height:5px;border-radius:50%;background:var(--accent)}
 .wd .dots b.f{background:var(--ink3)}
+.wd .dots b.x{background:var(--red)}   /* a skipped or missed session */
 .capsule{height:34px;padding:0 14px;border-radius:99px;font-size:13px;font-weight:600;color:var(--accent);background:var(--accent-t);transition:transform .3s var(--spring)}
 .icb{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:var(--accent);background:var(--fill2);transition:transform .3s var(--spring)}
 .icb svg{width:18px;height:18px}
@@ -283,6 +284,14 @@ body.under .edge.top{opacity:1}
 .rc-ic svg{width:44px;height:44px}
 .rc-title{font-size:17px;font-weight:700;line-height:1.25;margin:1px 0 4px}
 .rc-text{font-size:14px;line-height:1.4;color:var(--ink2);margin:0}
+.restcard.bad .rc-ic{color:var(--red)}
+/* lifts from a skipped session, to fit in if there is time: quieter than the day's own */
+.extras h3{margin-top:24px}
+.extras .note{margin:-4px 8px 8px}
+.extras .ex-head{min-height:62px}
+.extras .wt{font-size:24px;color:var(--ink2)}
+.extras .ex-name{font-weight:500;font-size:16px}
+.extras .chip:not(.done):not(.part){display:none}
 .collapse{display:grid;grid-template-rows:0fr;transition:grid-template-rows .4s var(--smooth)}
 .collapse>div{overflow:hidden}
 .collapse.open{grid-template-rows:1fr}
@@ -515,6 +524,7 @@ body.lock{overflow:hidden}
 .toast>span:not(.ok){overflow:hidden;text-overflow:ellipsis}
 .toast .ok{width:22px;height:22px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;flex:none}
 .toast .ok svg{width:13px;height:13px}
+.toast .ok.bad{background:var(--red)}
 
 /* ---------- page transitions ---------- */
 /* Only the new content animates, underneath the bars, so the bars always stay on top. The View Transitions
@@ -597,7 +607,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.17';
+const APP_VERSION = '3.18';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -840,7 +850,7 @@ function defaultSettings(){
            timeBudget: 75, returning: false, exCfg: {}, planStart: todayStr() };
 }
 function freshState(){
-  const s = { v:1, days:{}, workouts:{}, dismissed:{}, foods:[], waist: SEED_WAIST.map(x=>({...x})), settings: defaultSettings(), water:{} };
+  const s = { v:1, days:{}, workouts:{}, dismissed:{}, rest:{}, foods:[], waist: SEED_WAIST.map(x=>({...x})), settings: defaultSettings(), water:{} };
   SEED_DAYS.forEach(([date,kcal,c,p,f,note]) => {
     s.days[date] = { entries:[{ id:uid(), food:null, name:'Day total (imported)'+(note?': '+note:''), unit:'day', qty:1, slot:'imported',
       kcal, p, f, c, k:{kcal,p,f,c}, cap:null, capQty:0 }] };
@@ -874,7 +884,7 @@ function migrate(s){
   s.settings.targets  = Object.assign(deepClone(DEFAULT_TARGETS), s.settings.targets || {});
   s.settings.caps     = Object.assign(deepClone(DEFAULT_CAPS), s.settings.caps || {});
   s.settings.schedule = Object.assign(deepClone(DEFAULT_SCHEDULE), s.settings.schedule || {});
-  ['days','workouts','dismissed','water'].forEach(k => { if (!s[k]) s[k] = {}; });
+  ['days','workouts','dismissed','rest','water'].forEach(k => { if (!s[k]) s[k] = {}; });
   if (!s.foods) s.foods = [];
   if (!s.waist) s.waist = [];
   return s;
@@ -957,24 +967,56 @@ function suggest(id, date){
 }
 
 /* ---------- planner ----------
-   Scheduled session for the day + everything still owed from the last 7 days
-   (exercise by exercise), minus what needs recovery, trimmed to the time you have. */
+   The day's session from the week (see sessionOn), minus what needs recovery, trimmed to the time you have, plus the
+   lifts of a skipped or missed session before it as optional extras. */
 const needGap = c => c.kind === 'compound' ? 2 : 1;      // days since the muscle was last trained
 
-function computeOwed(date){
-  const out = new Map();
+/* ---------- the week ----------
+   The split's sessions fill the week's training days in order (Monday first), so moving a rest day shifts the sessions
+   after it: rest on Wednesday instead of Thursday and Wednesday's session moves to Thursday. S.rest[date] overrides the
+   split for one day (true: rest, false: train). A skipped or missed day keeps its session; its lifts show on the next
+   training day under "If you have time". */
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const weekDays = date => Array.from({ length:7 }, (_, i) => addDays(weekStart(date), i));
+const splitRest = date => { const t = S.settings.schedule[wdOf(date)]; return !(t && TEMPLATES[t]); };
+const isRestDay = date => S.rest[date] !== undefined ? S.rest[date] : splitRest(date);
+const trainedOn = date => loggedIds(S.workouts[date]).length > 0;
+function sessionOn(date){
+  if (isRestDay(date)) return null;
+  const seq = WEEK_ORDER.map(d => S.settings.schedule[d]).filter(t => t && TEMPLATES[t]); if (!seq.length) return null;
+  let i = 0; for (let d = weekStart(date); d < date; d = addDays(d, 1)) if (!isRestDay(d)) i++;
+  return seq[i % seq.length];
+}
+/* a training day that was skipped, or passed with nothing logged */
+const missedDay = date => !isRestDay(date) && !!sessionOn(date) && !trainedOn(date) && date >= S.settings.planStart && (!!S.dismissed[date] || date < todayStr());
+/* A rest day can trade places with a training day of the same week when the day that becomes a training day is today or
+   later, neither day has anything logged, and no day between them was trained (that would rewrite a session already done). */
+function canSwapRest(rest, train){
+  if (rest === train || weekStart(rest) !== weekStart(train) || !isRestDay(rest) || isRestDay(train)) return false;
+  if (rest < todayStr() || train < S.settings.planStart || trainedOn(rest) || trainedOn(train)) return false;
+  const [a, b] = rest < train ? [rest, train] : [train, rest];
+  for (let d = addDays(a, 1); d < b; d = addDays(d, 1)) if (trainedOn(d)) return false;
+  return true;
+}
+function setRest(date, on){ if (on === splitRest(date)) delete S.rest[date]; else S.rest[date] = on; delete S.dismissed[date]; }
+function swapRest(rest, train){ setRest(rest, false); setRest(train, true); }
+function sessionAfterSwap(rest, train, day){   // what `day` would train after the swap
+  const r = S.rest, dm = S.dismissed; S.rest = { ...r }; S.dismissed = { ...dm };
+  swapRest(rest, train); const t = sessionOn(day); S.rest = r; S.dismissed = dm; return t;
+}
+/* the days whose session changes with a swap, in order, as [date, session] */
+const swapEffects = (rest, train) => weekDays(rest).filter(d => d !== train && d >= todayStr())
+  .map(d => [d, sessionAfterSwap(rest, train, d)]).filter(([d, t]) => t && t !== sessionOn(d));
+/* the lifts of the last training day before `date`, if it was skipped or missed and not made up since */
+function makeUp(date, skip){
   for (let k = 1; k <= 7; k++) {
-    const d = addDays(date, -k);
-    if (d < S.settings.planStart) continue;
-    const t = S.settings.schedule[wdOf(d)];
-    if (!t || !TEMPLATES[t] || S.dismissed[d]) continue;
-    TEMPLATES[t].ex.forEach(id => {
-      if (out.has(id) || !EX[id]) return;
-      if (loggedSince(id, d, date)) return;
-      out.set(id, { id, from:d, tid:t });
-    });
+    const d = addDays(date, -k); if (d < S.settings.planStart) return null;
+    if (isRestDay(d)) continue;
+    if (!missedDay(d)) return null;
+    const tid = sessionOn(d), ids = TEMPLATES[tid].ex.filter(id => EX[id] && !skip(id) && !loggedSince(id, d, date));
+    return ids.length ? { from:d, tid, skipped:!!S.dismissed[d], ids } : null;
   }
-  return Array.from(out.values());
+  return null;
 }
 function minutesFor(id){ const c = cfg(id); return c.muscle === 'abs' ? ABS_MIN : (MINUTES[c.kind] || 8); }
 
@@ -982,7 +1024,7 @@ function buildPlan(date, opts={}){
   const today = todayStr(), budget = opts.budget || S.settings.timeBudget;
   const wd = wdOf(date), why = [], deferred = [];
   const wk = S.workouts[date];
-  let tid = opts.templateId !== undefined ? opts.templateId : S.settings.schedule[wd];
+  let tid = opts.templateId !== undefined ? opts.templateId : sessionOn(date);
   if (S.dismissed[date] && opts.templateId === undefined) tid = null;
   const tpl = tid && TEMPLATES[tid] ? TEMPLATES[tid] : null;
 
@@ -991,47 +1033,39 @@ function buildPlan(date, opts={}){
     const ids = new Set(loggedIds(wk).concat((wk && wk.added) || []));
     const items = Array.from(ids).sort((a,b) => EX[a].ord - EX[b].ord).map(id => ({ id, origin:'logged', sug: suggest(id, date) }));
     return { date, tid, title: items.length ? 'Logged workout' : 'No workout logged', why:[ items.length ? 'Editing a past day.' : 'Nothing was logged on this day.' ],
-             items, deferred:[], minutes:0, budget, past:true, owed:[] };
+             items, deferred:[], minutes:0, budget, past:true, extras:null };
   }
 
   const pool = new Map();
-  if (tpl) { tpl.ex.forEach(id => pool.set(id, { id, from:date, origins:['today'], tid })); why.push(`${WD[wd]}: ${tpl.name} is scheduled.`); }
-  else why.push(S.dismissed[date] ? `You skipped today's scheduled session.` : `${WD[wd]} is an off day in your split.`);
-
-  let owed = [];
-  if (date === today) {
-    owed = computeOwed(date);
-    const groups = {};
-    owed.forEach(o => { const key = o.from + '|' + o.tid; (groups[key] = groups[key] || []).push(o); });
-    owed.forEach(o => { if (pool.has(o.id)) pool.get(o.id).origins.push('carried'); else pool.set(o.id, { id:o.id, from:o.from, origins:['carried'], tid:o.tid }); });
-    Object.keys(groups).sort().forEach(key => {
-      const [d, t] = key.split('|');
-      const names = groups[key].map(o => cfg(o.id).name.toLowerCase());
-      why.push(`Carried over from ${WD[wdOf(d)]} (${TEMPLATES[t].name}, not logged): ${joinNames(names)}.`);
-    });
+  if (tpl) {
+    tpl.ex.forEach(id => pool.set(id, { id, from:date, origins:['today'], tid }));
+    const usual = S.settings.schedule[wd];
+    why.push(opts.templateId === undefined && usual !== tid ? `${WD[wd]}: ${tpl.name}. Your rest day moved this week, so the sessions after it shifted.` : `${WD[wd]}: ${tpl.name} is scheduled.`);
   }
+  else why.push(S.dismissed[date] ? `You skipped this session.` : `${WD[wd]} is a rest day.`);
 
   // recovery and lower-body rules
   const kept = [];
   const rested = [], lowerWait = [];
   const lowerBlock = lowerRecently(date);
+  const holdFor = id => { const c = cfg(id), lt = lastTrained(c.muscle, date);
+    if (opts.ignoreRecovery) return null;
+    if (lt && diffDays(lt, date) < needGap(c)) return `${MUSCLE_LABEL[c.muscle].toLowerCase()} trained ${diffDays(lt,date)===1?'yesterday':diffDays(lt,date)+' days ago'}`;
+    if (LOWER.includes(c.muscle) && lowerBlock) return 'legs already trained this week';
+    return null; };
   pool.forEach(it => {
-    const c = cfg(it.id);
     const ran = setsDone(wk, it.id).length > 0;          // already being logged today: never drop
-    if (!ran) {
-      const lt = lastTrained(c.muscle, date);
-      if (lt && diffDays(lt, date) < needGap(c) && !opts.ignoreRecovery) { rested.push(it); deferred.push({ id:it.id, reason:`${MUSCLE_LABEL[c.muscle].toLowerCase()} trained ${diffDays(lt,date)===1?'yesterday':diffDays(lt,date)+' days ago'}` }); return; }
-      if (LOWER.includes(c.muscle) && lowerBlock && !opts.ignoreRecovery) { lowerWait.push(it); deferred.push({ id:it.id, reason:'legs already trained this week' }); return; }
-    }
+    const hold = ran ? null : holdFor(it.id);
+    if (hold) { (hold.startsWith('legs') ? lowerWait : rested).push(it); deferred.push({ id:it.id, reason:hold }); return; }
     kept.push(it);
   });
   if (rested.length) why.push(`Held back for recovery: ${joinNames(rested.map(i => cfg(i.id).name.toLowerCase()))}.`);
   if (lowerWait.length) why.push(`Legs were trained in the last 5 days, so lower-body work waits.`);
 
-  // time budget: compounds first, then by priority, older owed first
+  // time budget: compounds first, then by priority
   const ranked = kept.slice().sort((a,b) => {
     const ca = cfg(a.id), cb = cfg(b.id);
-    return (ca.kind==='compound'?0:1) - (cb.kind==='compound'?0:1) || ca.prio - cb.prio || (a.from < b.from ? -1 : 1);
+    return (ca.kind==='compound'?0:1) - (cb.kind==='compound'?0:1) || ca.prio - cb.prio;
   });
   let used = 0; const chosen = [], trimmed = [];
   ranked.forEach(it => {
@@ -1039,24 +1073,24 @@ function buildPlan(date, opts={}){
     if (forced || used + m <= budget || chosen.length < 3) { chosen.push(it); used += m; } else trimmed.push(it);
   });
   trimmed.forEach(it => deferred.push({ id:it.id, reason:`did not fit ${budget} min` }));
-  if (trimmed.length) why.push(`To fit ${budget} minutes, these move to your next session: ${joinNames(trimmed.map(i => cfg(i.id).name.toLowerCase()))}. They stay on your list for 7 days.`);
+  if (trimmed.length) why.push(`To fit ${budget} minutes, these are left out today: ${joinNames(trimmed.map(i => cfg(i.id).name.toLowerCase()))}.`);
+
+  // a skipped or missed session before today: its lifts wait at the bottom, to do if there is time
+  const added = new Set((wk && wk.added) || []);
+  const mu = date === today && tpl ? makeUp(date, id => pool.has(id) || added.has(id) || (!setsDone(wk, id).length && !!holdFor(id))) : null;
+  const extras = mu ? { ...mu, items: mu.ids.sort((a,b) => cfg(a).ord - cfg(b).ord).map(id => ({ id, origin:'extra', from:mu.from, sug: suggest(id, date) })) } : null;
+  const inExtras = new Set(mu ? mu.ids : []);
 
   // anything added by hand or already logged today
   const present = new Set(chosen.map(i => i.id));
   const extra = new Set(((wk && wk.added) || []).concat(loggedIds(wk)));
-  extra.forEach(id => { if (EX[id] && !present.has(id)) { chosen.push({ id, from:date, origins:['added'] }); present.add(id); } });
+  extra.forEach(id => { if (EX[id] && !present.has(id) && !inExtras.has(id)) { chosen.push({ id, from:date, origins:['added'] }); present.add(id); } });
 
   chosen.sort((a,b) => cfg(a.id).ord - cfg(b.id).ord);
-  const items = chosen.map(it => ({ id:it.id, origin: it.origins.includes('carried') ? 'carried' : it.origins.includes('added') ? 'added' : 'today', from:it.from, sug: suggest(it.id, date) }));
+  const items = chosen.map(it => ({ id:it.id, origin: it.origins.includes('added') ? 'added' : 'today', from:it.from, sug: suggest(it.id, date) }));
 
-  let title;
-  const carriedNames = Array.from(new Set(owed.map(o => TEMPLATES[o.tid].name)));
-  if (tpl && owed.length && items.some(i => i.origin === 'carried')) title = `${tpl.name} plus carried work`;
-  else if (tpl) title = tpl.name;
-  else if (items.length && carriedNames.length) title = `Carried: ${joinNames(carriedNames)}`;
-  else if (items.length) title = 'Workout';
-  else title = 'Rest day';
-  return { date, tid, title, why, items, deferred, minutes:used, budget, past:false, owed };
+  const title = tpl ? tpl.name : items.length ? 'Workout' : 'Rest day';
+  return { date, tid, title, why, items, deferred, minutes:used, budget, past:false, extras };
 }
 const getPlan = date => buildPlan(date, { templateId: ui.forceTpl[date] });
 
@@ -1292,6 +1326,7 @@ const ICON = {
   minus:'<svg viewBox="0 0 24 24"><path d="M4.5 12h15" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
   close:'<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
   moon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.6 8.6 0 1 0 11.3 11.3z"/></svg>',
+  missed:'<svg viewBox="0 0 44 44"><path fill="currentColor" fill-rule="evenodd" d="M22 4a18 18 0 1 1 0 36a18 18 0 1 1 0-36zM15.6 13.5l-2.1 2.1 6.4 6.4-6.4 6.4 2.1 2.1 6.4-6.4 6.4 6.4 2.1-2.1-6.4-6.4 6.4-6.4-2.1-2.1-6.4 6.4z"/></svg>',
   zzz:'<svg viewBox="0 0 44 44"><path fill="currentColor" d="M35 28A17 17 0 0 1 15.6 8.6a17 17 0 1 0 19.4 19.4z"/><path d="M24.5 7.5h6.5l-6.5 8h6.5M34 4h4.5L34 9.5h4.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   updown:'<svg viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6l3-3 3 3M2 10l3 3 3-3"/></svg>',
   drop:'<svg viewBox="0 0 24 24"><path d="M12 2.8C9.1 6.8 5.6 10.7 5.6 14.7a6.4 6.4 0 0 0 12.8 0c0-4-3.5-7.9-6.4-11.9z" stroke-linejoin="round"/></svg>',
@@ -1318,9 +1353,9 @@ function weekPage(start, pos){
   const sel = ui.date, t = todayStr(), si = (wdOf(sel) + 6) % 7, here = pos === 0;
   const days = Array.from({ length:7 }, (_, i) => addDays(start, i));
   return `<div class="wk-page"${here ? ' role="tablist" aria-label="Pick a day"' : ' aria-hidden="true" inert'}>${days.map((d, i) => {
-      const w = loggedIds(S.workouts[d]).length > 0, f = dayEntries(d).length > 0;
-      return `<button class="wd ${i===si?'sel':''} ${d===t?'today':''}" role="tab" aria-selected="${i===si}" data-act="pickday" data-d="${d}" aria-label="${longDate(d)}">
-        <span class="l">${'MTWTFSS'[i]}</span><span class="n">${parseD(d).getDate()}</span><span class="dots">${w?'<b></b>':''}${f?'<b class="f"></b>':''}</span></button>`;
+      const w = loggedIds(S.workouts[d]).length > 0, f = dayEntries(d).length > 0, x = !w && missedDay(d);
+      return `<button class="wd ${i===si?'sel':''} ${d===t?'today':''}" role="tab" aria-selected="${i===si}" data-act="pickday" data-d="${d}" aria-label="${longDate(d)}${x ? ', session missed' : ''}">
+        <span class="l">${'MTWTFSS'[i]}</span><span class="n">${parseD(d).getDate()}</span><span class="dots">${w?'<b></b>':x?'<b class="x"></b>':''}${f?'<b class="f"></b>':''}</span></button>`;
     }).join('')}</div>`;
 }
 function weekStrip(){
@@ -1403,7 +1438,7 @@ function exHead(it, date){
     const lab = { go:'Add weight', hold:'Hold', low:'Lighter', new:'New' }[sug.status];
     chip = `<span class="${cls}">${lab}</span>`;
   }
-  const tag = it.origin === 'carried' ? `<span class="tag">Carried from ${WD3[wdOf(it.from)]}</span>` : it.origin === 'added' ? `<span class="tag">Added</span>` : '';
+  const tag = it.origin === 'added' ? `<span class="tag">Added</span>` : '';
   const reps = `<b>${sug.sets} × ${sug.low === sug.high ? sug.high : `${sug.low}–${sug.high}`}</b> reps${c.single ? '/side' : ''}`;
   // closed: the weight to load, the lift, the reps needed and its status; what was logged and the reasoning sit inside (exWhy)
   return `<button class="ex-head" data-act="openex" data-key="${esc(key)}" aria-expanded="${!!ui.open[key]}">
@@ -1441,28 +1476,53 @@ function exRow(it, date){
     <div class="sets-wrap ${open && ui.justOpen !== key ? 'open' : ''}" ${open ? '' : 'hidden'}><div>${open ? setsEditor(it, date) : ''}</div></div></div>`;
 }
 const findEx = key => $$('.ex').find(e => e.dataset.key === key);
+const planItem = (date, id) => { const p = getPlan(date); return p.items.find(i => i.id === id) || (p.extras && p.extras.items.find(i => i.id === id)); };
 function refreshHead(date, id){
   const host = findEx(date + '|' + id); if (!host) return;
-  const it = getPlan(date).items.find(i => i.id === id); if (!it) return;
+  const it = planItem(date, id); if (!it) return;
   const head = $('.ex-head', host); if (head) head.outerHTML = exHead(it, date);
 }
 function refreshEx(date, id){
   const host = findEx(date + '|' + id); if (!host) return;
-  const it = getPlan(date).items.find(i => i.id === id); if (!it) return;
+  const it = planItem(date, id); if (!it) return;
   host.outerHTML = exRow(it, date);
 }
 
 /* ---------- session card ---------- */
-/* A day with nothing to train gets one card instead of the session ring: what the day is, why, and one thing to do about it */
+/* A day with nothing to train gets one card instead of the session ring: what the day is, why, and one thing to do about it.
+   A skipped or missed session is not a good thing, so it shows in red. */
 function restCard(plan, date){
-  const isToday = date === todayStr(), sched = S.settings.schedule[wdOf(date)], name = t => t && TEMPLATES[t] ? TEMPLATES[t].name : 'the session';
-  const choose = `<button class="btn soft block" data-act="menu" data-menu="train" aria-haspopup="menu">Choose a session</button>`;
-  let icon = ICON.zzz, title = 'Rest day', text, btn = choose;
-  if (plan.past) { icon = ICON.dumb; title = 'No workout logged'; text = 'Nothing was logged on this day.'; btn = ''; }
-  else if (S.dismissed[date] && !ui.forceTpl[date]) { icon = ICON.skip; title = 'Session skipped'; text = `You skipped ${name(sched)} ${isToday ? 'today' : 'on this day'}. It does not carry over.`; btn = `<button class="btn soft block" data-act="unskip">Bring it back</button>`; }
-  else if (plan.tid) { title = 'Recovery day'; text = `${name(plan.tid)} is planned, but those muscles need more rest. Its exercises move to your next training day.`; }
-  else text = isToday ? 'Nothing planned and nothing to catch up on. Recover today, or choose a session if you feel like training.' : 'Nothing planned for this day. You can still choose a session for it.';
-  return `<div class="group session restcard"><div class="rc"><span class="rc-ic" aria-hidden="true">${icon}</span><div><div class="rc-title">${title}</div><p class="rc-text">${esc(text)}</p></div></div>${btn}</div>`;
+  const isToday = date === todayStr(), here = isToday ? 'today' : 'on this day', day = d => WD[wdOf(d)];
+  const name = t => t && TEMPLATES[t] ? TEMPLATES[t].name : 'the session';
+  const btn = (act, label, data = {}) => `<button class="btn soft block" data-act="${act}"${Object.entries(data).map(([k, v]) => ` data-${k}="${v}"`).join('')}${act === 'menu' ? ' data-menu="train" aria-haspopup="menu"' : ''}>${label}</button>`;
+  let icon = ICON.zzz, title = 'Rest day', text, action = btn('menu', 'Choose a session'), bad = false;
+  if (plan.past) {
+    action = '';
+    if (isRestDay(date)) text = 'A rest day in your week.';
+    else if (missedDay(date)) { bad = true; icon = ICON.missed; title = S.dismissed[date] ? 'Session skipped' : 'Session missed'; text = `${name(sessionOn(date))} was planned and nothing was logged.`; }
+    else { icon = ICON.dumb; title = 'No workout logged'; text = 'Nothing was logged on this day.'; }
+  } else if (S.dismissed[date] && !ui.forceTpl[date]) {
+    bad = true; icon = ICON.missed; title = 'Session skipped';
+    const free = weekDays(date).find(d => canSwapRest(d, date));   // a rest day still free this week: rest now instead
+    if (free) {
+      const fx = swapEffects(free, date).map(([d, t]) => `${day(d)} gets ${name(t)}`).join(', ');
+      text = `You skipped ${name(sessionOn(date))}, but ${day(free)} is still a rest day. Rest ${here} instead${fx ? ` and ${fx}` : ''}.`;
+      action = btn('swaprest', `Rest ${isToday ? 'today' : 'this day'} instead`, { rest:free, train:date });
+    } else {
+      text = `You skipped ${name(sessionOn(date))}. Its lifts show on your next training day, to do if you have time.`;
+      action = btn('unskip', 'Bring it back');
+    }
+  } else if (plan.tid) {
+    title = 'Recovery day'; text = `${name(plan.tid)} is planned, but those muscles need more rest. Train them next time.`;
+  } else {
+    // a session missed earlier this week can take this rest day's place
+    const miss = weekDays(date).filter(d => d < date && missedDay(d) && canSwapRest(date, d)).pop();
+    if (miss) {
+      text = `You ${S.dismissed[miss] ? 'skipped' : 'missed'} ${name(sessionOn(miss))} on ${day(miss)}. Train ${name(sessionAfterSwap(date, miss, date))} ${here} and make ${day(miss)} your rest day?`;
+      action = btn('swaprest', `Train it ${isToday ? 'today' : 'then'}`, { rest:date, train:miss });
+    } else text = isToday ? 'Nothing planned today. Recover, or choose a session if you feel like training.' : 'Nothing planned for this day. You can still choose a session for it.';
+  }
+  return `<div class="group session restcard${bad ? ' bad' : ''}"><div class="rc"><span class="rc-ic" aria-hidden="true">${icon}</span><div><div class="rc-title">${title}</div><p class="rc-text">${esc(text)}</p></div></div>${action}</div>`;
 }
 function sessionCard(plan, date){
   if (!plan.items.length) return restCard(plan, date);
@@ -1499,11 +1559,14 @@ function viewTrain(){
   const date = ui.date, plan = getPlan(date);
   let h = `<h1 class="lt">Train</h1>` + weekStrip() + `<div class="daybody">` + sessionCard(plan, date);
   if (plan.items.length) h += `<div class="group">${plan.items.map(it => exRow(it, date)).join('')}</div>`;
+  const x = plan.extras;
+  if (x) h += `<section class="extras" aria-label="If you have time"><h3>If you have time</h3><p class="note">From ${WD[wdOf(x.from)]}'s ${x.skipped ? 'skipped' : 'missed'} ${esc(TEMPLATES[x.tid].name)}. Fit these in if your session goes quickly.</p>
+    <div class="group">${x.items.map(it => exRow(it, date)).join('')}</div></section>`;
   if (plan.deferred.length) {
-    h += `<h2>Next session</h2><p class="why" style="margin:0 4px 10px">These stay on your list for 7 days.</p><div class="group">` +
+    h += `<h2>Left out today</h2><p class="why" style="margin:0 4px 10px">Held back for recovery or to fit your time.</p><div class="group">` +
       plan.deferred.map(d => `<div class="lift"><div><strong>${esc(cfg(d.id).name)}</strong><div class="small muted">${esc(d.reason)}</div></div><span></span><span></span></div>`).join('') + `</div>`;
   }
-  if (!plan.past && plan.items.length) h += `<p class="note" style="margin:0 4px">Use ${'⋯'} at the top to train a different session, skip today or drop carried exercises.</p>`;
+  if (!plan.past && plan.items.length) h += `<p class="note" style="margin:0 4px">Use ${'⋯'} at the top to move your rest day, skip this session or train a different one.</p>`;
   return h + `</div>`;
 }
 
@@ -1660,7 +1723,7 @@ function setupPage(p){
   if (p === 'caps') return `<div class="group">${field('Whole eggs','caps.egg',C.egg,'a day')}${field('Whey scoops','caps.whey',C.whey,'a day')}${field('Quark','caps.quark',C.quark,'g a day')}${field('Chicken breast, cooked','caps.chicken',C.chicken,'g a day')}${field('Protein puddings','caps.pudding',C.pudding,'a week')}</div>
     <p class="note">The limit chips on Eat and the foods suggested to land on target use these.</p>`;
   if (p === 'split') return `<div class="group">${[1,2,3,4,5,6,0].map(d => `<label class="frow"><span class="grow">${WD[d]}</span><select class="pick" data-set="schedule.${d}" aria-label="${WD[d]}"><option value="">Off</option>${Object.keys(TEMPLATES).map(t => `<option value="${t}" ${st.schedule[d]===t?'selected':''}>${esc(TEMPLATES[t].name)}</option>`).join('')}</select></label>`).join('')}</div>
-    <p class="note">Sessions you miss are carried into your next training day, up to 7 days back. Compounds are kept first when time is short, and lifts wait if that muscle was trained yesterday.</p>`;
+    <p class="note">Your sessions fill the week's training days in order. Move a rest day from ${'⋯'} on Train and the sessions after it shift by a day. A skipped session's lifts show on the next training day, if you have time. Compounds are kept first when time is short, and lifts wait if that muscle was trained yesterday.</p>`;
   if (p === 'lifts') return `<div class="group exgroup"><div class="exset h"><span></span><span>Sets</span><span>Reps from</span><span>Reps to</span><span>Jump kg</span></div>
     ${Object.keys(EX).map(id => { const c = cfg(id); return `<div class="exset"><span>${esc(c.name)}</span>
       ${['sets','low','high','inc'].map(f => `<input class="field" type="text" inputmode="decimal" data-set="exCfg.${id}.${f}" value="${esc(c[f])}" aria-label="${esc(c.name)} ${f}">`).join('')}</div>`; }).join('')}</div>
@@ -1811,7 +1874,7 @@ const closeSheet = () => { ui.sheet = null; drawSheet(); };
 let toastT;
 function toast(m, opts = {}){
   const el = $('#toast');
-  el.innerHTML = `<span class="ok">${ICON.check}</span><span>${esc(m)}</span>` + (opts.undo ? `<button class="link" data-act="undo" style="margin-left:4px">Undo</button>` : '');
+  el.innerHTML = `<span class="ok${opts.bad ? ' bad' : ''}">${opts.bad ? ICON.close : ICON.check}</span><span>${esc(m)}</span>` + (opts.undo ? `<button class="link" data-act="undo" style="margin-left:4px">Undo</button>` : '');
   el.hidden = false; void el.offsetWidth; requestAnimationFrame(() => el.classList.remove('ghost'));
   clearTimeout(toastT);
   toastT = setTimeout(() => { el.classList.add('ghost'); toastT = setTimeout(() => { el.hidden = true; }, 550); }, opts.undo ? 4000 : 1900);
@@ -2002,13 +2065,34 @@ function menuSpec(kind){
   const date = ui.date, out = [];
   if (kind === 'train') {
     const plan = getPlan(date), cur = ui.forceTpl[date] || (S.dismissed[date] ? null : plan.tid);
+    const here = date === todayStr() ? 'today' : 'this day', Here = here[0].toUpperCase() + here.slice(1), day = d => WD[wdOf(d)], tname = t => t && TEMPLATES[t] ? TEMPLATES[t].name : 'no session';
+    const effects = (rest, train) => swapEffects(rest, train).map(([d, t]) => `${d === date ? Here : day(d)} gets ${tname(t)}`).join(', ');
+    // move the rest day: a rest day can train and send its rest to another day, a training day can take a rest day's place
+    if (!plan.past && !ui.forceTpl[date]) {
+      if (isRestDay(date)) {
+        const to = weekDays(date).filter(d => canSwapRest(date, d));
+        if (to.length) {
+          out.push({ head:`Train ${here}, rest on another day` });
+          to.forEach(d => out.push({ act:'swaprest', data:{ rest:date, train:d }, label:`Rest on ${day(d)} instead`, icon:'moon',
+            sub: effects(date, d) + (d < todayStr() ? ` (${day(d)} was missed)` : '') }));
+          out.push({ sep:true });
+        }
+      } else if (!trainedOn(date)) {
+        const from = weekDays(date).filter(d => canSwapRest(d, date));
+        out.push({ head:'Rest day' });
+        if (from.length) from.forEach(d => out.push({ act:'swaprest', data:{ rest:d, train:date }, label:`Rest ${here} instead of ${day(d)}`, icon:'moon',
+          sub: effects(d, date) }));
+        else if (S.dismissed[date]) out.push({ head:'No rest days left to move this week' });
+        else out.push({ act:'skipsession', label:`Skip ${date === todayStr() ? "today's" : 'this'} session`, icon:'skip', sub:'No rest days left to move this week' });
+        out.push({ sep:true });
+      }
+    }
     out.push({ head:'Train a different session' });
     Object.keys(TEMPLATES).forEach(t => out.push({ act:'forcetpl', t, label:TEMPLATES[t].name, on: cur === t }));
     const more = [];
     if (ui.forceTpl[date]) more.push({ act:'forcetpl', t:'', label:'Back to the plan', icon:'undo' });
-    if (plan.tid && !S.dismissed[date]) more.push({ act:'skipsession', label:"Skip today's session", icon:'skip' });
-    if (S.dismissed[date]) more.push({ act:'unskip', label:"Bring today's session back", icon:'undo' });
-    if (plan.owed && plan.owed.length) more.push({ act:'dropcarried', label:'Drop carried exercises', icon:'xcirc' });
+    if (plan.tid && !S.dismissed[date] && !plan.past && !out.some(i => i.act === 'skipsession')) more.push({ act:'skipsession', label:`Skip ${date === todayStr() ? "today's" : 'this'} session`, icon:'skip' });
+    if (S.dismissed[date]) more.push({ act:'unskip', label:'Bring the session back', icon:'undo' });
     if (more.length) out.push({ sep:true }, ...more);
   } else if (kind === 'daytype') {
     const cur = dayType(ui.date), T = S.settings.targets;
@@ -2021,7 +2105,7 @@ function menuSpec(kind){
   return out;
 }
 const menuHTML = items => items.map(it => it.head ? `<div class="mh">${esc(it.head)}</div>` : it.sep ? '<div class="msep" role="separator"></div>' :
-  `<button class="mi" role="${it.on === undefined ? 'menuitem' : 'menuitemradio'}"${it.on === undefined ? '' : ` aria-checked="${it.on}"`} data-act="${it.act}"${it.t === undefined ? '' : ` data-t="${it.t}"`}${it.v === undefined ? '' : ` data-v="${it.v}"`}><span class="mic">${it.on ? ICON.check : it.icon ? ICON[it.icon] : ''}</span><span class="mt">${esc(it.label)}${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span></button>`).join('');
+  `<button class="mi" role="${it.on === undefined ? 'menuitem' : 'menuitemradio'}"${it.on === undefined ? '' : ` aria-checked="${it.on}"`} data-act="${it.act}"${it.t === undefined ? '' : ` data-t="${it.t}"`}${it.v === undefined ? '' : ` data-v="${it.v}"`}${Object.entries(it.data || {}).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('')}><span class="mic">${it.on ? ICON.check : it.icon ? ICON[it.icon] : ''}</span><span class="mt">${esc(it.label)}${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span></button>`).join('');
 function openMenu(btn, kind){
   const m = $('#menu'), r = btn.getBoundingClientRect();
   ui.menu = { src:btn, host:btn };   // the button's glass becomes the menu
@@ -2178,7 +2262,7 @@ const H = {
       const fin = () => { if (!ui.open[k]) { wrap.hidden = true; wrap.firstElementChild.innerHTML = ''; } };
       if (reduced()) fin(); else setTimeout(fin, 400);
     } else {
-      const it = getPlan(date).items.find(i => i.id === id); if (!it) return;
+      const it = planItem(date, id); if (!it) return;
       ui.open[k] = true; t.setAttribute('aria-expanded', 'true');
       wrap.firstElementChild.innerHTML = setsEditor(it, date); wrap.hidden = false; void wrap.offsetHeight;
       requestAnimationFrame(() => wrap.classList.add('open'));
@@ -2202,9 +2286,14 @@ const H = {
   delset(t){ const { date, ex, i } = t.dataset, rows = materialize(date, ex), wk = ensureWk(date);
     rows.splice(+i, 1); if (!rows.length) delete wk.ex[ex]; saveState(); refreshEx(date, ex); refreshSession(date); },
   forcetpl(t){ if (t.dataset.t) ui.forceTpl[ui.date] = t.dataset.t; else delete ui.forceTpl[ui.date]; ui.anim = true; render(); },
-  skipsession(){ S.dismissed[ui.date] = true; saveState(); render(); toast('Session skipped'); },
+  skipsession(){ S.dismissed[ui.date] = true; saveState(); ui.anim = true; render(); ui.undo = { fn: () => { delete S.dismissed[ui.date]; saveState(); render(); } }; toast('Session skipped', { undo:true, bad:true }); },
   unskip(){ delete S.dismissed[ui.date]; saveState(); render(); },
-  dropcarried(){ getPlan(ui.date).owed.forEach(o => { S.dismissed[o.from] = true; }); saveState(); render(); toast('Carried exercises dropped'); },
+  swaprest(t){
+    const { rest, train } = t.dataset, keep = { rest:{ ...S.rest }, dismissed:{ ...S.dismissed } };
+    swapRest(rest, train); saveState(); ui.anim = true; render();
+    ui.undo = { fn: () => { S.rest = keep.rest; S.dismissed = keep.dismissed; saveState(); ui.anim = true; render(); } };
+    toast(`${WD[wdOf(train)]} is now a rest day`, { undo:true });
+  },
   addex(){ openSheet({ type:'exercise' }); },
   pickex(t){ const wk = ensureWk(ui.date); if (!wk.added) wk.added = []; if (!wk.added.includes(t.dataset.id)) wk.added.push(t.dataset.id);
     const key = ui.date + '|' + t.dataset.id; ui.open[key] = true; ui.justOpen = key; ui.flashEx = key; saveState(); closeSheet(); render(); },
@@ -2243,7 +2332,8 @@ const H = {
     ui.flash = e.id; saveState(); closeSheet(); render(); toast('Updated'); },
   entrydelete(){ const id = ui.sheet.id; closeSheet(); removeEntry(id); render(); toast('Removed', { undo:true }); },
   swipedel(t){ removeEntryAnimated(t.dataset.id); },
-  undo(){ const u = ui.undo; if (!u) return; const d = S.days[u.date] || (S.days[u.date] = { entries:[] });
+  undo(){ const u = ui.undo; if (!u) return; if (u.fn) { ui.undo = null; u.fn(); hideToast(); return; }
+    const d = S.days[u.date] || (S.days[u.date] = { entries:[] });
     d.entries.splice(Math.min(u.idx, d.entries.length), 0, u.entry); ui.flash = u.entry.id; ui.undo = null; saveState(); render(); hideToast(); },
   copyday(){ openSheet({ type:'copyday' }); },
   confirmcopy(){ const from = $('#copyd').value; if (!from || from === ui.date) { toast('Pick a different day'); return; }
@@ -2522,7 +2612,8 @@ function merge3(base, a, b){
       Object.entries(x.ex || {}).forEach(([id, sets]) => { const done = l => (l || []).filter(s => +s.r > 0).length; if (!ex[id] || done(sets) >= done(ex[id])) ex[id] = sets; });
       return { ...y, ...x, ex, added: [...new Set([...(y.added || []), ...(x.added || [])])] }; },
     water: (x, y) => (!x || !y) ? x || y : { ml: Math.max(x.ml || 0, y.ml || 0), creatine: !!(x.creatine || y.creatine) },
-    dismissed: (x, y) => x || y
+    dismissed: (x, y) => x || y,
+    rest: (x, y) => x   // both devices moved the same day differently: this device wins
   };
   Object.entries(byDate).forEach(([k, both]) => {
     const A = a[k] || {}, B = b[k] || {}, OO = O[k] || {}, r = {};
@@ -2606,7 +2697,7 @@ Object.assign(H, {
 window.addEventListener('online', () => syncNow());
 document.addEventListener('visibilitychange', () => { if (!cloud.token) return; if (document.hidden) { if (syncTimer) syncNow(); } else syncNow(); });
 
-if (typeof window !== 'undefined') window.__coach = { S: () => S, setS: v => { S = v; }, ui, render, getPlan, suggest, suggestGap, H, dayType, sumMacros, addEntry, foodById, mergeHistory, saveState: () => saveState(), cloud, syncNow, merge3, planDay };
+if (typeof window !== 'undefined') window.__coach = { S: () => S, setS: v => { S = v; }, ui, render, getPlan, sessionOn, isRestDay, suggest, suggestGap, H, dayType, sumMacros, addEntry, foodById, mergeHistory, saveState: () => saveState(), cloud, syncNow, merge3, planDay };
 render();
 if (cloud.token) syncNow();
 </script>
