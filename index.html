@@ -607,7 +607,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.19';
+const APP_VERSION = '3.20';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -850,7 +850,7 @@ function defaultSettings(){
            timeBudget: 75, returning: false, exCfg: {}, planStart: todayStr() };
 }
 function freshState(){
-  const s = { v:1, days:{}, workouts:{}, dismissed:{}, rest:{}, foods:[], waist: SEED_WAIST.map(x=>({...x})), settings: defaultSettings(), water:{} };
+  const s = { v:1, days:{}, workouts:{}, dismissed:{}, rest:{}, assign:{}, foods:[], waist: SEED_WAIST.map(x=>({...x})), settings: defaultSettings(), water:{} };
   SEED_DAYS.forEach(([date,kcal,c,p,f,note]) => {
     s.days[date] = { entries:[{ id:uid(), food:null, name:'Day total (imported)'+(note?': '+note:''), unit:'day', qty:1, slot:'imported',
       kcal, p, f, c, k:{kcal,p,f,c}, cap:null, capQty:0 }] };
@@ -884,7 +884,7 @@ function migrate(s){
   s.settings.targets  = Object.assign(deepClone(DEFAULT_TARGETS), s.settings.targets || {});
   s.settings.caps     = Object.assign(deepClone(DEFAULT_CAPS), s.settings.caps || {});
   s.settings.schedule = Object.assign(deepClone(DEFAULT_SCHEDULE), s.settings.schedule || {});
-  ['days','workouts','dismissed','rest','water'].forEach(k => { if (!s[k]) s[k] = {}; });
+  ['days','workouts','dismissed','rest','assign','water'].forEach(k => { if (!s[k]) s[k] = {}; });
   if (!s.foods) s.foods = [];
   if (!s.waist) s.waist = [];
   return s;
@@ -979,16 +979,37 @@ const needGap = c => c.kind === 'compound' ? 2 : 1;      // days since the muscl
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const weekDays = date => Array.from({ length:7 }, (_, i) => addDays(weekStart(date), i));
 const splitRest = date => { const t = S.settings.schedule[wdOf(date)]; return !(t && TEMPLATES[t]); };
-const isRestDay = date => S.rest[date] !== undefined ? S.rest[date] : splitRest(date);
+const markedRest = date => S.rest[date] !== undefined ? S.rest[date] : splitRest(date);
 const trainedOn = date => loggedIds(S.workouts[date]).length > 0;
-function sessionOn(date){
-  if (isRestDay(date)) return null;
-  const seq = WEEK_ORDER.map(d => S.settings.schedule[d]).filter(t => t && TEMPLATES[t]); if (!seq.length) return null;
-  let i = 0; for (let d = weekStart(date); d < date; d = addDays(d, 1)) if (!isRestDay(d)) i++;
-  return seq[i % seq.length];
+/* The week's sessions, day by day. A day with a chosen session (S.assign) trains that one; every other training day takes
+   the next of the split's sessions not done yet this week. From today on, a day also skips a session chosen for a later
+   day, so the week still covers all of them. A training day with no session left over is a rest day too: giving a past
+   rest day a session frees one, and it lands at the end of the week, ready to be moved. */
+function weekPlan(date){
+  const days = weekDays(date), today = todayStr(), out = {};
+  const queue = WEEK_ORDER.map(d => S.settings.schedule[d]).filter(t => t && TEMPLATES[t]);
+  const chosen = d => !markedRest(d) && S.assign[d] && TEMPLATES[S.assign[d]] ? S.assign[d] : null;
+  days.forEach((d, i) => {
+    if (markedRest(d)) { out[d] = null; return; }
+    const a = chosen(d);
+    if (a) { const k = queue.indexOf(a); if (k >= 0) queue.splice(k, 1); out[d] = a; return; }
+    let k = 0;
+    if (d >= today) { const later = days.slice(i + 1).map(chosen).filter(Boolean); while (k < queue.length && later.includes(queue[k])) k++; }
+    out[d] = k < queue.length ? queue.splice(k, 1)[0] : null;
+  });
+  return out;
 }
+const sessionOn = date => weekPlan(date)[date] || null;
+const isRestDay = date => !sessionOn(date);
+/* Changing the week must never re-plan days already lived: past training days keep the session they have now */
+function pinPast(date){
+  const today = todayStr(), plan = weekPlan(date);
+  weekDays(date).forEach(d => { if (d < today && plan[d] && !S.assign[d]) S.assign[d] = plan[d]; });
+}
+const snapWeek = () => ({ rest:{ ...S.rest }, dismissed:{ ...S.dismissed }, assign:{ ...S.assign } });
+function restoreWeek(k){ S.rest = k.rest; S.dismissed = k.dismissed; S.assign = k.assign; saveState(); ui.anim = true; render(); }
 /* a training day that was skipped, or passed with nothing logged */
-const missedDay = date => !isRestDay(date) && !!sessionOn(date) && !trainedOn(date) && (!!S.dismissed[date] || (date < todayStr() && date >= S.settings.planStart));
+const missedDay = date => !!sessionOn(date) && !trainedOn(date) && (!!S.dismissed[date] || (date < todayStr() && date >= S.settings.planStart));
 /* A rest day can trade places with a training day of the same week when the day that becomes a training day is today or
    later, neither day has anything logged, and no day between them was trained (that would rewrite a session already done). */
 function canSwapRest(rest, train, clearing = false){   // clearing: the training day's logs are about to be removed
@@ -999,33 +1020,41 @@ function canSwapRest(rest, train, clearing = false){   // clearing: the training
   return true;
 }
 function setRest(date, on){ if (on === splitRest(date)) delete S.rest[date]; else S.rest[date] = on; delete S.dismissed[date]; }
-function swapRest(rest, train){ setRest(rest, false); setRest(train, true); }
+function swapRest(rest, train){ pinPast(rest); setRest(rest, false); setRest(train, true); }
 function sessionAfterSwap(rest, train, day){   // what `day` would train after the swap
-  const r = S.rest, dm = S.dismissed; S.rest = { ...r }; S.dismissed = { ...dm };
-  swapRest(rest, train); const t = sessionOn(day); S.rest = r; S.dismissed = dm; return t;
+  const k = snapWeek(); S.rest = { ...k.rest }; S.dismissed = { ...k.dismissed }; S.assign = { ...k.assign };
+  swapRest(rest, train); const t = sessionOn(day); S.rest = k.rest; S.dismissed = k.dismissed; S.assign = k.assign; return t;
 }
+/* train a chosen session on a day: a rest day becomes a training day and frees its rest day */
+function assignSession(date, tid){ pinPast(date); if (isRestDay(date)) setRest(date, false); S.assign[date] = tid; delete S.dismissed[date]; }
 /* the days whose session changes with a swap, in order, as [date, session] */
 const swapEffects = (rest, train) => weekDays(rest).filter(d => d !== train && d >= todayStr())
   .map(d => [d, sessionAfterSwap(rest, train, d)]).filter(([d, t]) => t && t !== sessionOn(d));
 /* Fixing a past training day: one trained by mistake, or missed, can become a rest day when one of the week's rest days
    is still ahead (that rest day becomes a training day), or be marked as skipped. Both clear what was logged, after asking. */
 function pastFixes(date){
-  const out = [];
-  const logged = trainedOn(date);
+  const out = [], logged = trainedOn(date), cur = sessionOn(date), tname = t => t && TEMPLATES[t] ? TEMPLATES[t].name : 'no session';
   if (date >= todayStr() || (date < S.settings.planStart && !logged)) return out;   // a day with lifts logged was clearly tracked here
-  if (isRestDay(date)) { if (logged) out.push({ act:'pastclear', data:{ d:date }, icon:'xcirc', label:'Clear what was logged', sub:'It stays a rest day' }); return out; }
-  const from = weekDays(date).filter(d => canSwapRest(d, date, true)), tname = t => t && TEMPLATES[t] ? TEMPLATES[t].name : 'no session';
-  from.forEach(d => out.push({ act:'pastrest', data:{ rest:d, train:date }, icon:'moon',
+  const sessions = head => [{ head }, ...Object.keys(TEMPLATES).map(t => ({ act:'pastassign', data:{ d:date, s:t }, label:TEMPLATES[t].name, on: cur === t }))];
+  if (isRestDay(date)) {   // marked as rest by mistake: give it the session it really was, which frees its rest day
+    out.push(...sessions('It was a training day'));
+    if (logged) out.push({ sep:true }, { act:'pastclear', data:{ d:date }, icon:'xcirc', label:'Clear what was logged', sub:'It stays a rest day' });
+    return out;
+  }
+  const from = weekDays(date).filter(d => canSwapRest(d, date, true)), fixes = [];
+  from.forEach(d => fixes.push({ act:'pastrest', data:{ rest:d, train:date }, icon:'moon',
     label: from.length > 1 ? `Rest day instead of ${d === todayStr() ? 'today' : WD[wdOf(d)]}` : 'Make it a rest day',
     sub: [swapEffects(d, date).map(([x, t]) => `${x === todayStr() ? 'Today' : WD[wdOf(x)]} gets ${tname(t)}`).join(', '), logged ? 'Clears what was logged' : ''].filter(Boolean).join('. ') }));
-  if (logged) out.push({ act:'pastskip', data:{ d:date }, icon:'skip', label:'Mark as skipped', sub:'Clears what was logged' });
+  if (logged) fixes.push({ act:'pastskip', data:{ d:date }, icon:'skip', label:'Mark as skipped', sub:'Clears what was logged' });
+  if (fixes.length) out.push({ head:'Fix this day' }, ...fixes, { sep:true });
+  out.push(...sessions('It was a different session'));
   return out;
 }
 function fixPast(date, change, msg, bad){
   const apply = () => {
-    const keep = { rest:{ ...S.rest }, dismissed:{ ...S.dismissed }, wk: S.workouts[date] ? deepClone(S.workouts[date]) : null };
-    delete S.workouts[date]; change(); saveState(); ui.anim = true; render();
-    ui.undo = { fn: () => { S.rest = keep.rest; S.dismissed = keep.dismissed; if (keep.wk) S.workouts[date] = keep.wk; saveState(); ui.anim = true; render(); } };
+    const keep = snapWeek(), wk = S.workouts[date] ? deepClone(S.workouts[date]) : null;
+    pinPast(date); delete S.workouts[date]; change(); saveState(); ui.anim = true; render();
+    ui.undo = { fn: () => { if (wk) S.workouts[date] = wk; restoreWeek(keep); } };
     toast(msg, { undo:true, bad });
   };
   const n = loggedIds(S.workouts[date]).length;
@@ -1049,8 +1078,8 @@ function buildPlan(date, opts={}){
   const today = todayStr(), budget = opts.budget || S.settings.timeBudget;
   const wd = wdOf(date), why = [], deferred = [];
   const wk = S.workouts[date];
-  let tid = opts.templateId !== undefined ? opts.templateId : sessionOn(date);
-  if (S.dismissed[date] && opts.templateId === undefined) tid = null;
+  let tid = sessionOn(date);
+  if (S.dismissed[date]) tid = null;
   const tpl = tid && TEMPLATES[tid] ? TEMPLATES[tid] : null;
 
   // past days: show what was logged, nothing else
@@ -1065,7 +1094,8 @@ function buildPlan(date, opts={}){
   if (tpl) {
     tpl.ex.forEach(id => pool.set(id, { id, from:date, origins:['today'], tid }));
     const usual = S.settings.schedule[wd];
-    why.push(opts.templateId === undefined && usual !== tid ? `${WD[wd]}: ${tpl.name}. Your rest day moved this week, so the sessions after it shifted.` : `${WD[wd]}: ${tpl.name} is scheduled.`);
+    why.push(S.assign[date] === tid && usual !== tid ? `${WD[wd]}: you chose ${tpl.name}. The sessions after it shift to cover the week.`
+      : usual !== tid ? `${WD[wd]}: ${tpl.name}. Your week changed, so the sessions after it shifted.` : `${WD[wd]}: ${tpl.name} is scheduled.`);
   }
   else why.push(S.dismissed[date] ? `You skipped this session.` : `${WD[wd]} is a rest day.`);
 
@@ -1117,7 +1147,7 @@ function buildPlan(date, opts={}){
   const title = tpl ? tpl.name : items.length ? 'Workout' : 'Rest day';
   return { date, tid, title, why, items, deferred, minutes:used, budget, past:false, extras };
 }
-const getPlan = date => buildPlan(date, { templateId: ui.forceTpl[date] });
+const getPlan = date => buildPlan(date);
 
 /* ---------- foods and macros ---------- */
 const allFoods = () => FOODS.concat(S.foods || []);
@@ -1140,7 +1170,7 @@ function dayType(date){
   const d = S.days[date]; if (d && d.type) return d.type;
   if (loggedIds(S.workouts[date]).length) return 'training';
   if (date < todayStr()) return 'rest';
-  return buildPlan(date, { templateId: ui.forceTpl[date] }).items.length ? 'training' : 'rest';
+  return buildPlan(date).items.length ? 'training' : 'rest';
 }
 const dayTarget = date => S.settings.targets[dayType(date)];
 function capUsage(date){
@@ -1335,7 +1365,7 @@ const waterOf = date => S.water[date] || { ml:0, creatine:false };
    UI STATE, ICONS, SHARED PIECES, TRAIN VIEW
    ===================================================================== */
 function defaultSlot(){ const h = new Date().getHours(); return h < 10 ? 'breakfast' : h < 15 ? 'lunch' : h < 18 ? 'snack' : 'dinner'; }
-const ui = { tab:'train', date:todayStr(), slot:defaultSlot(), open:{}, sheet:null, forceTpl:{}, showWhy:false, gap:[], plan:null, planAlt:{},
+const ui = { tab:'train', date:todayStr(), slot:defaultSlot(), open:{}, sheet:null, showWhy:false, gap:[], plan:null, planAlt:{},
              anim:true, flash:null, flashEx:null, justOpen:null, popKey:null, lastLeft:null, nfUnit:'g', swipeAt:0 };
 const fmtInt = n => Math.round(n).toLocaleString('en-US');
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -1526,7 +1556,7 @@ function restCard(plan, date){
     if (isRestDay(date)) text = 'A rest day in your week.';
     else if (missedDay(date)) { bad = true; icon = ICON.missed; title = S.dismissed[date] ? 'Session skipped' : 'Session missed'; text = `${name(sessionOn(date))} was planned and nothing was logged.`; }
     else { icon = ICON.dumb; title = 'No workout logged'; text = 'Nothing was logged on this day.'; }
-  } else if (S.dismissed[date] && !ui.forceTpl[date]) {
+  } else if (S.dismissed[date]) {
     bad = true; icon = ICON.missed; title = 'Session skipped';
     const free = weekDays(date).find(d => canSwapRest(d, date));   // a rest day still free this week: rest now instead
     if (free) {
@@ -1545,7 +1575,8 @@ function restCard(plan, date){
     if (miss) {
       text = `You ${S.dismissed[miss] ? 'skipped' : 'missed'} ${name(sessionOn(miss))} on ${day(miss)}. Train ${name(sessionAfterSwap(date, miss, date))} ${here} and make ${day(miss)} your rest day?`;
       action = btn('swaprest', `Train it ${isToday ? 'today' : 'then'}`, { rest:date, train:miss });
-    } else text = isToday ? 'Nothing planned today. Recover, or choose a session if you feel like training.' : 'Nothing planned for this day. You can still choose a session for it.';
+    } else if (!markedRest(date)) text = `All your sessions are covered this week, so ${isToday ? 'today is' : 'this is'} a free rest day. Move it from ${'⋯'} on another day, or choose a session.`;
+    else text = isToday ? 'Nothing planned today. Recover, or choose a session if you feel like training.' : 'Nothing planned for this day. You can still choose a session for it.';
   }
   return `<div class="group session restcard${bad ? ' bad' : ''}"><div class="rc"><span class="rc-ic" aria-hidden="true">${icon}</span><div><div class="rc-title">${title}</div><p class="rc-text">${esc(text)}</p></div></div>${action}</div>`;
 }
@@ -1748,7 +1779,7 @@ function setupPage(p){
   if (p === 'caps') return `<div class="group">${field('Whole eggs','caps.egg',C.egg,'a day')}${field('Whey scoops','caps.whey',C.whey,'a day')}${field('Quark','caps.quark',C.quark,'g a day')}${field('Chicken breast, cooked','caps.chicken',C.chicken,'g a day')}${field('Protein puddings','caps.pudding',C.pudding,'a week')}</div>
     <p class="note">The limit chips on Eat and the foods suggested to land on target use these.</p>`;
   if (p === 'split') return `<div class="group">${[1,2,3,4,5,6,0].map(d => `<label class="frow"><span class="grow">${WD[d]}</span><select class="pick" data-set="schedule.${d}" aria-label="${WD[d]}"><option value="">Off</option>${Object.keys(TEMPLATES).map(t => `<option value="${t}" ${st.schedule[d]===t?'selected':''}>${esc(TEMPLATES[t].name)}</option>`).join('')}</select></label>`).join('')}</div>
-    <p class="note">Your sessions fill the week's training days in order. Move a rest day from ${'⋯'} on Train and the sessions after it shift by a day. A skipped session's lifts show on the next training day, if you have time. Compounds are kept first when time is short, and lifts wait if that muscle was trained yesterday.</p>`;
+    <p class="note">Your sessions fill the week's training days in order. Move a rest day from ${'⋯'} on Train and the sessions after it shift by a day. Choose a different session and the others move to cover the week. A skipped session's lifts show on the next training day, if you have time. Compounds are kept first when time is short, and lifts wait if that muscle was trained yesterday.</p>`;
   if (p === 'lifts') return `<div class="group exgroup"><div class="exset h"><span></span><span>Sets</span><span>Reps from</span><span>Reps to</span><span>Jump kg</span></div>
     ${Object.keys(EX).map(id => { const c = cfg(id); return `<div class="exset"><span>${esc(c.name)}</span>
       ${['sets','low','high','inc'].map(f => `<input class="field" type="text" inputmode="decimal" data-set="exCfg.${id}.${f}" value="${esc(c[f])}" aria-label="${esc(c.name)} ${f}">`).join('')}</div>`; }).join('')}</div>
@@ -2088,13 +2119,13 @@ function setToolbar(){
 /* ---------- menus: glass bubbles that grow out of the button that opens them ---------- */
 function menuSpec(kind){
   const date = ui.date, out = [];
-  if (kind === 'train' && getPlan(date).past) out.push({ head:'Fix this day' }, ...pastFixes(date));
+  if (kind === 'train' && getPlan(date).past) out.push(...pastFixes(date));
   else if (kind === 'train') {
-    const plan = getPlan(date), cur = ui.forceTpl[date] || (S.dismissed[date] ? null : plan.tid);
+    const plan = getPlan(date), cur = S.dismissed[date] ? null : plan.tid;
     const here = date === todayStr() ? 'today' : 'this day', Here = here[0].toUpperCase() + here.slice(1), day = d => WD[wdOf(d)], tname = t => t && TEMPLATES[t] ? TEMPLATES[t].name : 'no session';
     const effects = (rest, train) => swapEffects(rest, train).map(([d, t]) => `${d === date ? Here : day(d)} gets ${tname(t)}`).join(', ');
     // move the rest day: a rest day can train and send its rest to another day, a training day can take a rest day's place
-    if (!plan.past && !ui.forceTpl[date]) {
+    if (!plan.past) {
       if (isRestDay(date)) {
         const to = weekDays(date).filter(d => canSwapRest(date, d));
         if (to.length) {
@@ -2113,10 +2144,10 @@ function menuSpec(kind){
         out.push({ sep:true });
       }
     }
-    out.push({ head:'Train a different session' });
+    out.push({ head: isRestDay(date) ? `Train ${date === todayStr() ? 'today' : 'this day'} anyway` : 'Train a different session' });
     Object.keys(TEMPLATES).forEach(t => out.push({ act:'forcetpl', t, label:TEMPLATES[t].name, on: cur === t }));
     const more = [];
-    if (ui.forceTpl[date]) more.push({ act:'forcetpl', t:'', label:'Back to the plan', icon:'undo' });
+    if (S.assign[date]) more.push({ act:'forcetpl', t:'', label:'Back to the plan', icon:'undo' });
     if (plan.tid && !S.dismissed[date] && !plan.past && !out.some(i => i.act === 'skipsession')) more.push({ act:'skipsession', label:`Skip ${date === todayStr() ? "today's" : 'this'} session`, icon:'skip' });
     if (S.dismissed[date]) more.push({ act:'unskip', label:'Bring the session back', icon:'undo' });
     if (more.length) out.push({ sep:true }, ...more);
@@ -2311,16 +2342,24 @@ const H = {
     rows.push({ w: last ? last.w : '', r:'' }); saveState(); refreshEx(date, ex); refreshSession(date); },
   delset(t){ const { date, ex, i } = t.dataset, rows = materialize(date, ex), wk = ensureWk(date);
     rows.splice(+i, 1); if (!rows.length) delete wk.ex[ex]; saveState(); refreshEx(date, ex); refreshSession(date); },
-  forcetpl(t){ if (t.dataset.t) ui.forceTpl[ui.date] = t.dataset.t; else delete ui.forceTpl[ui.date]; ui.anim = true; render(); },
+  forcetpl(t){   // train a different session on this day, saved; the week's other sessions move to cover it
+    const d = ui.date, tid = t.dataset.t, keep = snapWeek();
+    if (tid) assignSession(d, tid);
+    else { delete S.assign[d]; if (splitRest(d) && S.rest[d] === false) delete S.rest[d]; }
+    saveState(); ui.anim = true; render();
+    if (tid) { ui.undo = { fn: () => restoreWeek(keep) }; toast(`${TEMPLATES[tid].name} ${d === todayStr() ? 'today' : 'on ' + WD[wdOf(d)]}`, { undo:true }); }
+  },
+  pastassign(t){ const { d, s } = t.dataset, keep = snapWeek(); assignSession(d, s); saveState(); ui.anim = true; render();
+    ui.undo = { fn: () => restoreWeek(keep) }; toast(`${WD[wdOf(d)]} was ${TEMPLATES[s].name}`, { undo:true }); },
   skipsession(){ S.dismissed[ui.date] = true; saveState(); ui.anim = true; render(); ui.undo = { fn: () => { delete S.dismissed[ui.date]; saveState(); render(); } }; toast('Session skipped', { undo:true, bad:true }); },
   unskip(){ delete S.dismissed[ui.date]; saveState(); render(); },
   pastrest(t){ const { rest, train } = t.dataset; fixPast(train, () => swapRest(rest, train), `${WD[wdOf(train)]} is now a rest day`); },
   pastclear(t){ const d = t.dataset.d; fixPast(d, () => {}, `${WD[wdOf(d)]} cleared`); },
   pastskip(t){ const d = t.dataset.d; fixPast(d, () => { S.dismissed[d] = true; }, `${WD[wdOf(d)]} marked as skipped`, true); },
   swaprest(t){
-    const { rest, train } = t.dataset, keep = { rest:{ ...S.rest }, dismissed:{ ...S.dismissed } };
+    const { rest, train } = t.dataset, keep = snapWeek();
     swapRest(rest, train); saveState(); ui.anim = true; render();
-    ui.undo = { fn: () => { S.rest = keep.rest; S.dismissed = keep.dismissed; saveState(); ui.anim = true; render(); } };
+    ui.undo = { fn: () => restoreWeek(keep) };
     toast(`${WD[wdOf(train)]} is now a rest day`, { undo:true });
   },
   addex(){ openSheet({ type:'exercise' }); },
@@ -2642,7 +2681,8 @@ function merge3(base, a, b){
       return { ...y, ...x, ex, added: [...new Set([...(y.added || []), ...(x.added || [])])] }; },
     water: (x, y) => (!x || !y) ? x || y : { ml: Math.max(x.ml || 0, y.ml || 0), creatine: !!(x.creatine || y.creatine) },
     dismissed: (x, y) => x || y,
-    rest: (x, y) => x   // both devices moved the same day differently: this device wins
+    rest: (x, y) => x,   // both devices moved the same day differently: this device wins
+    assign: (x, y) => x
   };
   Object.entries(byDate).forEach(([k, both]) => {
     const A = a[k] || {}, B = b[k] || {}, OO = O[k] || {}, r = {};
