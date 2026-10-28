@@ -246,15 +246,21 @@ body.under .edge.top{opacity:1}
   background:var(--chip) linear-gradient(180deg,var(--chip-top),transparent 70%);box-shadow:var(--raise);transition:scale .55s var(--spring),background-color .2s}
 .qchip.lit{scale:1.07}
 .qchip.on{background-color:var(--accent);color:#fff}
-/* a suggestion inside a meal card: grey rows in the same columns as logged food */
-.sug{position:relative;margin-left:16px;padding:10px 16px 12px 0;border-top:.5px solid var(--sep)}
-.sug-h{display:flex;align-items:flex-start;gap:6px;font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:4px}
-.sug-h svg{width:13px;height:13px;flex:none;margin-top:1px;color:var(--accent)}
-.sugrow{padding:5px 0;color:var(--ink2)}
-.sugrow .nm{font-size:14px;font-weight:500;line-height:1.2}
-.sugrow .q{font-size:12px;color:var(--ink3)}
-.sugrow .t{text-align:right;font-size:12px;font-variant-numeric:tabular-nums;font-family:var(--rounded);font-weight:600;color:var(--ink3)}
-.sug-act{margin-top:8px}
+/* a suggestion inside a meal card: a quiet grey row in the list, with the food list's round + to add it */
+.sug{display:flex;align-items:center;gap:10px;margin-left:16px;padding:9px 12px 9px 0;min-height:58px;border-top:.5px solid var(--sep)}
+.sug-i{flex:none;width:16px;color:var(--ink3)}
+.sug-i svg{width:14px;height:14px}
+.sug-txt{flex:1;min-width:0}
+.sug-foods{font-size:15px;line-height:1.3;color:var(--ink2)}
+.sug-foods .q{color:var(--ink3)}
+.sug-meta{font-size:12px;line-height:1.35;color:var(--ink3);margin-top:2px}
+.sug-alt,.sug-add{flex:none;display:grid;place-items:center;border-radius:50%;transition:transform .3s var(--spring),background .2s}
+.sug-alt{width:34px;height:34px;color:var(--ink3)}
+.sug-alt svg{width:17px;height:17px}
+.sug-alt:active{transform:scale(.9);background:var(--fill2)}
+.sug-add{width:30px;height:30px;background:var(--accent-t);color:var(--accent)}
+.sug-add svg{width:14px;height:14px}
+.sug-add:active{transform:scale(.88)}
 .gaps .qchip{background:var(--accent-t);color:var(--accent);box-shadow:inset 0 0 0 .5px var(--accent-t);text-align:left;padding:9px 16px}
 .gaps .qchip small{display:block;font-size:10.5px;font-weight:500;opacity:.8}
 
@@ -1236,8 +1242,9 @@ function planDay(date, alt = {}){
   const out = best.picks.map((pick, i) => {
     const reason = pick.office ? 'Canteen day. Pick the dish with the most protein.' : firstFourth && pick.has4 ? 'Brings your fourth protein source.'
       : pick.count >= 2 || pick.usual ? 'One of your usual meals.' : '';
+    const tag = pick.office ? 'canteen, pick the most protein' : firstFourth && pick.has4 ? 'your fourth protein' : pick.count >= 2 || pick.usual ? 'your usual' : '';
     if (pick.has4) firstFourth = false;
-    return { slot: per[i].slot, meal: { ...pick, reason }, options: per[i].list.length };
+    return { slot: per[i].slot, meal: { ...pick, reason, tag }, options: per[i].list.length };
   });
   return { slots:out, left, T, cur, total:best.tot, fourth:best.has4 };
 }
@@ -1274,6 +1281,7 @@ const ICON = {
   basket:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 9h16l-1.6 9.4A2.5 2.5 0 0 1 15.9 20.5H8.1a2.5 2.5 0 0 1-2.5-2.1z"/><path d="M8 9l3-5M16 9l-3-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
   box:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l8.5 4.3v10.4L12 21.5l-8.5-4.3V6.8z" opacity=".9"/></svg>',
   more:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2.1"/><circle cx="12" cy="12" r="2.1"/><circle cx="19" cy="12" r="2.1"/></svg>',
+  shuffle:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h3.5c2.4 0 3.8 1.2 5 3.4l1 1.9c1.2 2.2 2.6 3.7 5 3.7H21"/><path d="M3 17h3.5c1.6 0 2.7-.5 3.6-1.5M14 8.5c1-1 2.1-1.5 3.5-1.5H21"/><path d="M18.5 4.5L21 7l-2.5 2.5M18.5 14.5L21 17l-2.5 2.5"/></svg>',
   undo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4.5 9.5 9 5"/><path d="M4.5 9.5H15a5 5 0 0 1 0 10h-3"/></svg>',
   skip:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6.3c0-1 1.1-1.6 1.9-1.1l8.4 5.7c.7.5.7 1.6 0 2.1l-8.4 5.7c-.8.5-1.9-.1-1.9-1.1z"/><rect x="16.6" y="5" width="2.8" height="14" rx="1.4"/></svg>',
   xcirc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="12" cy="12" r="8.6"/><path d="M9 9l6 6M15 9l-6 6"/></svg>',
@@ -1305,11 +1313,16 @@ function weekStrip(){
 const SPARK = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9zM18.5 15l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z"/></svg>';
 function sugBlock(slot){
   const p = ui.plan && ui.plan.slots.find(x => x.slot === slot); if (!p) return '';
-  const meal = p.meal, qty = ({ food, qty }) => food.unit === 'g' ? `${fmtW(qty)} g` : `${fmtW(qty)} × ${esc(food.unit)}`;
-  return `<div class="sug"><div class="sug-h">${SPARK}<span>Suggested${meal.reason ? `. ${esc(meal.reason)}` : ''}</span></div>
-    ${meal.items.map(i => `<div class="cols sugrow"><span><span class="nm">${esc(i.food.name.replace(/\s*\(.*?\)/g, ''))}</span><br><span class="q">${qty(i)}</span></span>
-      <span class="t">${r0(i.m.kcal)}</span><span class="t">${r0(i.m.p)}</span><span class="t">${r0(i.m.f)}</span><span class="t">${r0(i.m.c)}</span></div>`).join('')}
-    <div class="row sug-act"><button class="btn tinted small" data-act="planadd" data-slot="${slot}">Add these</button>${p.options > 1 ? `<button class="btn plain small" data-act="planalt" data-slot="${slot}">Another idea</button>` : ''}</div></div>`;
+  const meal = p.meal, name = slotName(slot).toLowerCase();
+  const food = ({ food, qty }) => esc(food.name.replace(/\s*\(.*?\)/g, '').replace(/,\s*(cooked|raw|whole|drained|canned)$/i, ''))
+    + (food.unit === 'g' ? `&nbsp;<span class="q">${fmtW(qty)}&nbsp;g</span>` : qty === 1 ? '' : `&nbsp;<span class="q">×${fmtW(qty)}</span>`);
+  const meta = [`${fmtInt(meal.m.kcal)} kcal`, `${r0(meal.m.p)} g protein`, meal.tag].filter(Boolean).join(' · ');
+  return `<div class="sug" role="group" aria-label="Suggested ${name}">
+    <span class="sug-i">${SPARK}</span>
+    <div class="sug-txt"><div class="sug-foods">${meal.items.map(food).join(', ')}</div><div class="sug-meta">${esc(meta)}</div></div>
+    ${p.options > 1 ? `<button class="sug-alt" data-act="planalt" data-slot="${slot}" aria-label="Another idea for ${name}">${ICON.shuffle}</button>` : ''}
+    <button class="sug-add" data-act="planadd" data-slot="${slot}" aria-label="Add the suggested ${name}">${ICON.plus}</button>
+  </div>`;
 }
 function planNote(){
   const plan = ui.plan; if (!plan || !plan.slots.length) return '';
