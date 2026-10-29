@@ -232,7 +232,6 @@ body.under .edge.top{opacity:1}
 .btn.danger{color:var(--red-ink);background:var(--red-t);box-shadow:inset 0 0 0 .5px rgba(255,56,60,.12)}
 .btn.block{display:flex;width:100%}
 .btn.small{min-height:38px;padding:0 16px;font-size:13px}
-.btn.soft.grey{color:var(--ink);background:var(--fill)}
 .btn.small svg{width:15px;height:15px;margin-left:-3px}
 .btn.lit{scale:1.06}
 .btn.block.lit{scale:1.025}
@@ -283,9 +282,8 @@ body.under .edge.top{opacity:1}
 .cardmore::after{content:"";position:absolute;inset:-7px}   /* a 44 px target */
 .cardmore svg{width:17px;height:17px}
 .cardmore:active{transform:scale(.9)}
-/* the foot of an opened lift: add or remove a set, and mark it as not done */
-.setfoot{display:flex;gap:8px;margin-top:10px}
-.ndlink{display:inline-flex;align-items:center;gap:6px;min-height:44px;margin:4px 0 -10px;padding:0 2px;font-size:14px;font-weight:500;color:var(--ink2)}
+/* the foot of an opened lift: mark it as not done */
+.ndlink{display:inline-flex;align-items:center;gap:6px;min-height:44px;margin:0 0 -10px;padding:0 2px;font-size:14px;font-weight:500;color:var(--ink2)}
 .ndlink svg{width:15px;height:15px}
 .ndlink.back{color:var(--accent)}
 .ex.nd .wt{color:var(--ink3)}
@@ -340,6 +338,16 @@ body.under .edge.top{opacity:1}
 .check{width:40px;height:40px;border-radius:50%;justify-self:center;display:grid;place-items:center;color:transparent;box-shadow:inset 0 0 0 2px var(--ink3);transition:background .25s var(--out),box-shadow .25s,transform .3s var(--spring)}
 .check svg{width:20px;height:20px}
 .check.on{background:var(--green);color:#fff;box-shadow:none}
+/* a set logged with 0 reps counts, but shows a grey dot instead of the tick */
+.check.zero{background:var(--fill);box-shadow:none}
+.check.zero svg{display:none}
+.check.zero::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--ink2)}
+.setrow.zero input{background:var(--fill2)}
+/* each set swipes left to delete, like a meal; room around it keeps the focus ring visible */
+.setswipe{padding:3px 4px;margin:0 -4px 2px}
+.setswipe::after,.setswipe .swipe-fg::before{display:none}
+.setswipe .setrow{margin-bottom:0}
+.ex .setswipe .swipe-del .pill,.extras .ex .setswipe .swipe-del .pill{top:50%;right:4px;height:min(44px, max(0px, calc(var(--rev, 0px) - 18px)))}
 .check.pop{animation:pop .5s var(--spring)}
 .setlab{font-size:10px;color:var(--ink2);margin-bottom:4px;text-align:center}
 .cue{font-size:12px;color:var(--ink2);margin:0 0 12px}
@@ -649,7 +657,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.26';
+const APP_VERSION = '3.27';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -948,7 +956,9 @@ saveLocal();
 function cfg(id){ return Object.assign({}, EX[id], (S.settings.exCfg||{})[id] || {}); }
 
 /* ---------- workouts ---------- */
-const isDoneSet = s => s.d !== undefined ? !!s.d : +s.r > 0;   // a set counts once its tick is pressed (older sets: once it had reps)
+const isDoneSet = s => s.d !== undefined ? !!s.d : +s.r > 0;   // a set counts once its tick is pressed (older sets: once it had reps); 0 reps is a valid set
+const topW = sets => { const l = sets.filter(s => +s.r > 0); return Math.max(...(l.length ? l : sets).map(s => +s.w || 0)); };   // heaviest weight actually lifted (a 0-rep set does not count)
+const setTarget = (wk, it) => { const r = wk && wk.ex && wk.ex[it.id]; return r && r.length ? r.length : it.sug.sets; };   // sets for a lift: its rows once there are any (a set swiped away no longer counts)
 const setsDone  = (wk, id) => ((wk && wk.ex && wk.ex[id]) || []).filter(isDoneSet);
 const loggedIds = wk => wk && wk.ex ? Object.keys(wk.ex).filter(id => EX[id] && setsDone(wk,id).length) : [];
 const workoutDates = () => Object.keys(S.workouts).sort();
@@ -982,13 +992,13 @@ function suggest(id, date){
              text: c.start ? `Start around ${fmtW(c.start)} ${c.unit}. Log it to set a baseline.` : 'No baseline yet. Start light and log it.',
              last:'' };
   }
-  const last = hist[0], W = Math.max(...last.sets.map(s => s.w));
+  const last = hist[0], W = topW(last.sets);
   const lastTxt = last.sets.map(s => `${fmtW(s.w)}×${s.r}`).join(', ');
   const atW = last.sets.filter(s => s.w === W);
   const allClean = last.sets.length >= c.sets && last.sets.every(s => s.r >= c.high);
   let status, w, text;
   const prev = hist[1];
-  const prevW = prev ? Math.max(...prev.sets.map(s => s.w)) : null;
+  const prevW = prev ? topW(prev.sets) : null;
   const failTwice = prev && prevW === W &&
     Math.max(...atW.map(s=>s.r)) < c.low && Math.max(...prev.sets.filter(s=>s.w===W).map(s=>s.r)) < c.low;
   if (failTwice) {
@@ -1548,10 +1558,11 @@ function exHead(it, date){
   const c = cfg(it.id), sug = it.sug, wk = S.workouts[date];
   const done = setsDone(wk, it.id), key = date + '|' + it.id;
   let chip, wShow = sug.w;
-  if (isNotDone(wk, it.id)) { chip = `<span class="chip low">${ICON.skip}Not done</span>`; if (done.length) wShow = Math.max(...done.map(s => +s.w || 0)); }
+  if (isNotDone(wk, it.id)) { chip = `<span class="chip low">${ICON.skip}Not done</span>`; if (done.length) wShow = topW(done); }
   else if (done.length) {
-    chip = done.length >= sug.sets ? `<span class="chip done">${ICON.check}Done</span>` : `<span class="chip part">${done.length} of ${sug.sets}</span>`;
-    wShow = Math.max(...done.map(s => +s.w || 0));
+    const want = setTarget(wk, it);
+    chip = done.length >= want ? `<span class="chip done">${ICON.check}Done</span>` : `<span class="chip part">${done.length} of ${want}</span>`;
+    wShow = topW(done);
   } else {
     const cls = { go:'chip go', hold:'chip', low:'chip low', new:'chip new' }[sug.status];
     const lab = { go:'Add weight', hold:'Hold', low:'Lighter', new:'New' }[sug.status];
@@ -1576,16 +1587,14 @@ function setsEditor(it, date){
     <p class="ex-why">${esc(exWhy(it, date))}</p>
     ${c.cue ? `<p class="cue">${esc(c.cue)}${c.single ? ' Left leads, right matches the reps.' : ''}</p>` : ''}
     <div class="setlab"><span>Set</span><span>${esc(c.unit)}</span><span>${c.single ? 'Reps/side' : 'Reps'}</span><span></span></div>
-    ${rows.map((r, i) => { const on = isDoneSet(r); return `<div class="setrow ${on ? 'on' : ''}">
+    ${rows.map((r, i) => { const on = isDoneSet(r), zero = on && +r.r === 0; return `<div class="setswipe swipe">
+      ${rows.length > 1 ? `<button class="swipe-del" data-act="swipedelset" data-date="${date}" data-ex="${it.id}" data-i="${i}" tabindex="-1" aria-label="Delete set ${i+1}"><span class="pill">${ICON.trash}</span></button>` : ''}
+      <div class="swipe-fg setrow ${on ? 'on' : ''} ${zero ? 'zero' : ''}">
       <span class="n">${i+1}</span>
       <input type="text" inputmode="decimal" enterkeyhint="next" autocomplete="off" aria-label="Set ${i+1} weight" data-bind="set" data-f="w" data-date="${date}" data-ex="${it.id}" data-i="${i}" value="${esc(r.w ?? '')}">
       <input type="text" inputmode="numeric" enterkeyhint="done" autocomplete="off" aria-label="Set ${i+1} reps" placeholder="${it.sug.high}" data-bind="set" data-f="r" data-date="${date}" data-ex="${it.id}" data-i="${i}" value="${esc(r.r ?? '')}">
-      <button class="check ${on ? 'on' : ''} ${ui.popKey === key + '|' + i ? 'pop' : ''}" data-act="checkset" data-date="${date}" data-ex="${it.id}" data-i="${i}" aria-pressed="${on}" aria-label="${on ? 'Undo' : 'Complete'} set ${i+1}">${ICON.check}</button>
-    </div>`; }).join('')}
-    <div class="setfoot">
-      <button class="btn soft small" data-act="addset" data-date="${date}" data-ex="${it.id}">${ICON.plus}Add set</button>
-      ${rows.length > 1 ? `<button class="btn soft grey small" data-act="delset" data-date="${date}" data-ex="${it.id}" data-i="${rows.length-1}">${ICON.minus}Remove last</button>` : ''}
-    </div>
+      <button class="check ${on ? 'on' : ''} ${zero ? 'zero' : ''} ${ui.popKey === key + '|' + i ? 'pop' : ''}" data-act="checkset" data-date="${date}" data-ex="${it.id}" data-i="${i}" aria-pressed="${on}" aria-label="${on ? 'Undo' : 'Complete'} set ${i+1}">${ICON.check}</button>
+    </div></div>`; }).join('')}
     ${ndButton(it, date)}
   </div>`;
 }
@@ -1594,13 +1603,13 @@ function ndButton(it, date){
   if (!((it.origin === 'today' && date <= todayStr()) || it.origin === 'logged')) return '';
   const wk = S.workouts[date];
   if (isNotDone(wk, it.id)) return `<button class="ndlink back" data-act="notdone" data-date="${date}" data-ex="${it.id}">${ICON.undo}Bring it back</button>`;
-  if (setsDone(wk, it.id).length >= it.sug.sets) return '';
+  if (setsDone(wk, it.id).length >= setTarget(wk, it)) return '';
   return `<button class="ndlink" data-act="notdone" data-date="${date}" data-ex="${it.id}">${ICON.skip}Mark as not done</button>`;
 }
-function exRow(it, date){   // swipe the head left to delete, as with meals
-  const key = date + '|' + it.id, open = !!ui.open[key];
+function exRow(it, date){   // lifts added by hand (and those offered if there is time) swipe left to delete; the planned ones are marked as not done instead
+  const key = date + '|' + it.id, open = !!ui.open[key], del = it.origin === 'added' || it.origin === 'extra';
   return `<div class="ex swipe ${ui.flashEx === key ? 'flash' : ''} ${isNotDone(S.workouts[date], it.id) ? 'nd' : ''}" data-key="${esc(key)}">
-    <button class="swipe-del" data-act="swipedelex" data-key="${esc(key)}" tabindex="-1" aria-label="Delete"><span class="pill">${ICON.trash}</span></button>
+    ${del ? `<button class="swipe-del" data-act="swipedelex" data-key="${esc(key)}" tabindex="-1" aria-label="Delete"><span class="pill">${ICON.trash}</span></button>` : ''}
     <div class="swipe-fg">${exHead(it, date)}
     <div class="sets-wrap ${open && ui.justOpen !== key ? 'open' : ''}" ${open ? '' : 'hidden'}><div>${open ? setsEditor(it, date) : ''}</div></div></div></div>`;
 }
@@ -1664,7 +1673,7 @@ function restCard(plan, date){
 function sessionCard(plan, date){
   if (!plan.items.length) return restCard(plan, date);
   const wk = S.workouts[date];
-  const total = plan.items.reduce((a, it) => a + (isNotDone(wk, it.id) ? setsDone(wk, it.id).length : Math.max(it.sug.sets, setsDone(wk, it.id).length)), 0);   // a lift not done no longer counts as open
+  const total = plan.items.reduce((a, it) => a + (isNotDone(wk, it.id) ? setsDone(wk, it.id).length : Math.max(setTarget(wk, it), setsDone(wk, it.id).length)), 0);   // a lift not done no longer counts as open
   const done = plan.items.reduce((a, it) => a + setsDone(wk, it.id).length, 0);
   const pct = total ? done / total : 0;
   const nLogged = plan.items.filter(it => setsDone(wk, it.id).length).length;
@@ -1832,7 +1841,7 @@ function viewProgress(){
   const rows = Object.keys(EX).map(id => {
     const ds = workoutDates().filter(d => setsDone(S.workouts[d], id).length);
     if (!ds.length) return null;
-    const tops = ds.map(d => Math.max(...setsDone(S.workouts[d], id).map(s => +s.w || 0)));
+    const tops = ds.map(d => topW(setsDone(S.workouts[d], id)));
     const lastSets = setsDone(S.workouts[ds[ds.length-1]], id), top = tops[tops.length-1];
     const reps = Math.max(...lastSets.filter(s => (+s.w||0) === top).map(s => +s.r));
     return `<div class="lift"><div><strong>${esc(cfg(id).name)}</strong><div class="small muted">${ds.length} session${ds.length>1?'s':''}, last ${dateLabel(ds[ds.length-1])}</div></div>
@@ -2355,10 +2364,10 @@ function onSetInput(el){
   const { date, ex, i, f } = el.dataset, rows = materialize(date, ex), row = rows[+i]; if (!row) return;
   const raw = el.value.replace(',', '.').trim(), was = isDoneSet(row);
   if (raw === '') row[f] = ''; else if (!isNaN(+raw)) row[f] = +raw; else return;
-  row.d = was && +row.r > 0;   // typing never logs a set, only the tick does; a logged set stays logged unless its reps are cleared
+  row.d = was && row.r !== '';   // typing never logs a set, only the tick does; a logged set stays logged unless its reps are cleared
   saveState();
   const sr = el.closest('.setrow');
-  if (sr) { const on = isDoneSet(row); sr.classList.toggle('on', on); const cb = $('.check', sr); cb.classList.toggle('on', on); cb.setAttribute('aria-pressed', String(on)); }
+  if (sr) { const on = isDoneSet(row), zero = on && +row.r === 0; sr.classList.toggle('on', on); sr.classList.toggle('zero', zero); const cb = $('.check', sr); cb.classList.toggle('on', on); cb.classList.toggle('zero', zero); cb.setAttribute('aria-pressed', String(on)); }
   refreshHead(date, ex); refreshSession(date);
 }
 function setPath(path, raw){
@@ -2396,6 +2405,17 @@ function removeLift(date, ex, row){
     row.style.height = row.offsetHeight + 'px'; void row.offsetHeight; row.style.height = '0px'; row.style.opacity = '0'; setTimeout(finish, 280); };
   if (!n) return go();
   askGlass(`Remove ${name}?`, `The ${n} set${n === 1 ? '' : 's'} logged for it will be deleted too.`, 'Remove').then(ok => { if (ok) go(); else closeSwipes(); });
+}
+/* swipe a set away: the sets below move up, with Undo. The last set left never swipes. */
+function removeSet(date, ex, i, row){
+  const finish = () => {
+    const rows = materialize(date, ex), keep = rows.map(x => ({ ...x }));
+    rows.splice(i, 1); saveState(); refreshEx(date, ex); refreshSession(date);
+    ui.undo = { fn: () => { ensureWk(date).ex[ex] = keep; saveState(); refreshEx(date, ex); refreshSession(date); } };
+    toast(`Set ${i + 1} deleted`, { undo:true });
+  };
+  if (!row || reduced()) return finish();
+  row.style.height = row.offsetHeight + 'px'; void row.offsetHeight; row.style.height = '0px'; row.style.opacity = '0'; setTimeout(finish, 280);
 }
 function removeEntryAnimated(id){
   const row = $$('.swipe').find(r => r.dataset.id === id);
@@ -2451,6 +2471,8 @@ const H = {
     }
   },
   checkset(t){
+    if (Date.now() - ui.swipeAt < 400) return;
+    if (t.closest('.swipe.opened')) { closeSwipes(); return; }   // a tap on a swiped set just closes it
     const { date, ex, i } = t.dataset, rows = materialize(date, ex), row = rows[+i]; if (!row) return;
     if (isDoneSet(row)) row.d = false;   // untick: the numbers stay, the set is no longer logged
     else {
@@ -2458,16 +2480,13 @@ const H = {
       const wIn = host && host.querySelector(`input[data-f="w"][data-i="${i}"]`), rIn = host && host.querySelector(`input[data-f="r"][data-i="${i}"]`);
       const wv = wIn ? num(wIn.value) : null, rv = rIn ? num(rIn.value) : null;
       row.w = wv !== null ? wv : (row.w !== '' ? row.w : (sug.w ?? ''));
-      row.r = rv && rv > 0 ? rv : sug.high; row.d = true;
+      row.r = rv !== null && rv >= 0 ? rv : sug.high; row.d = true;   // 0 reps is a valid set (a grey dot instead of the tick)
       const wk = S.workouts[date]; if (isNotDone(wk, ex)) wk.notDone = wk.notDone.filter(x => x !== ex);   // done after all
       ui.popKey = date + '|' + ex + '|' + i; startRest(ex);
     }
     saveState(); refreshEx(date, ex); ui.popKey = null; refreshSession(date);
   },
-  addset(t){ const { date, ex } = t.dataset, rows = materialize(date, ex), last = rows[rows.length - 1];
-    rows.push({ w: last ? last.w : '', r:'' }); saveState(); refreshEx(date, ex); refreshSession(date); },
-  delset(t){ const { date, ex, i } = t.dataset, rows = materialize(date, ex), wk = ensureWk(date);
-    rows.splice(+i, 1); if (!rows.length) delete wk.ex[ex]; saveState(); refreshEx(date, ex); refreshSession(date); },
+  swipedelset(t){ removeSet(t.dataset.date, t.dataset.ex, +t.dataset.i, t.closest('.setswipe')); },
   forcetpl(t){   // train a different session on this day, saved; the week's other sessions move to cover it
     const d = ui.date, tid = t.dataset.t, keep = snapWeek();
     if (tid) assignSession(d, tid);
@@ -2580,7 +2599,8 @@ document.addEventListener('pointerdown', e => {
   const head = e.target.closest('.sheet-head');
   if (head && !e.target.closest('button')) { sd = { y0:e.clientY, id:e.pointerId, dy:0 }; $('#sheet').classList.add('dragging'); return; }
   let fg = e.target.closest('.swipe-fg');
-  if (fg && fg.parentElement.classList.contains('ex') && !e.target.closest('.ex-head')) fg = null;   // the sets inside an exercise never swipe
+  if (fg && fg.parentElement.classList.contains('ex') && !e.target.closest('.ex-head')) fg = null;   // only the head of an exercise swipes; each set swipes on its own
+  if (fg && !fg.parentElement.querySelector(':scope > .swipe-del')) fg = null;   // planned lifts and a lift's last set have no delete
   if (!fg) { if (!e.target.closest('.swipe-del')) closeSwipes(); return; }
   const row = fg.parentElement; closeSwipes(row);
   sw = { row, x0:e.clientX, y0:e.clientY, base: row.classList.contains('opened') ? -DEL_W : 0, x:0, v:0, lx:e.clientX, lt:performance.now(), t0:performance.now(), w:row.offsetWidth, active:false, id:e.pointerId };
@@ -2604,7 +2624,8 @@ function endGesture(){
   if (sw) { const s = sw; sw = null; if (!s.active) return; ui.swipeAt = Date.now();
     if (s.row.classList.contains('armed')) {   // a full swipe: the red takes the whole row, then the row closes up
       s.row.classList.add('opened'); setSwipe(s.row, -s.w);
-      setTimeout(() => { if (s.row.classList.contains('ex')) { const [d, x] = s.row.dataset.key.split('|'); removeLift(d, x, s.row); } else removeEntryAnimated(s.row.dataset.id); }, reduced() ? 0 : 200); return; }
+      setTimeout(() => { if (s.row.classList.contains('setswipe')) { const b = $('.swipe-del', s.row); removeSet(b.dataset.date, b.dataset.ex, +b.dataset.i, s.row); }
+        else if (s.row.classList.contains('ex')) { const [d, x] = s.row.dataset.key.split('|'); removeLift(d, x, s.row); } else removeEntryAnimated(s.row.dataset.id); }, reduced() ? 0 : 200); return; }
     const flick = s.v < -.4 || (performance.now() - s.t0 < 250 && s.x - s.base < -20);   // fast at the end, or a short quick swipe
     const open = flick || (s.v <= .4 && -s.x > DEL_W / 2);   // a flick left opens, a flick right closes
     s.row.classList.toggle('opened', open); setSwipe(s.row, open ? -DEL_W : 0); }
