@@ -488,7 +488,10 @@ h2.first{margin-top:6px}
 body.pushed .nb-inner{opacity:1;transform:none}
 
 /* ---------- tab bar: floating glass capsule with a liquid selection; it always stays full size ---------- */
-.dock{position:fixed;z-index:20;left:max(21px,calc(50% - 200px));right:max(21px,calc(50% - 200px));bottom:max(12px,calc(env(safe-area-inset-bottom) - 10px));height:62px;pointer-events:none}
+.dock{position:fixed;z-index:20;left:max(21px,calc(50% - 200px));right:max(21px,calc(50% - 200px));bottom:max(12px,calc(env(safe-area-inset-bottom) - 10px));height:62px;pointer-events:none;transition:translate .4s var(--smooth)}
+/* while the keyboard is up, the tab bar and the rest timer slide down behind it, so the keyboard covers them as in a native
+   app instead of iOS lifting them above it */
+.kbopen .dock{translate:0 240px}
 .tabbar{position:absolute;left:0;bottom:0;width:100%;height:62px;padding:4px;border-radius:31px;display:flex;pointer-events:auto;touch-action:none}
 .tab{position:relative;z-index:1;flex:1 1 0;min-width:0;overflow:hidden;border-radius:27px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
   font-size:10px;font-weight:600;letter-spacing:.01em;color:var(--ink);white-space:nowrap;transition:color .25s}
@@ -679,7 +682,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.43';
+const APP_VERSION = '3.44';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2897,7 +2900,8 @@ window.addEventListener('scroll', () => { if (scrollRaf) return; scrollRaf = req
 window.addEventListener('resize', () => closeMenu());
 /* the on-screen keyboard: Safari shrinks the visual viewport, and sheets move up to sit on top of the keyboard */
 if (window.visualViewport) {
-  const kb = () => { const v = visualViewport, k = Math.round(innerHeight - v.height - v.offsetTop); document.documentElement.style.setProperty('--kb', (k > 40 ? k : 0) + 'px'); };
+  const kb = () => { const v = visualViewport, k = Math.round(innerHeight - v.height - v.offsetTop), up = k > 40;
+    document.documentElement.style.setProperty('--kb', (up ? k : 0) + 'px'); document.documentElement.classList.toggle('kbopen', up); };
   visualViewport.addEventListener('resize', kb); visualViewport.addEventListener('scroll', kb);
 }
 let _today = todayStr();
