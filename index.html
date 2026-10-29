@@ -20,7 +20,7 @@
 @property --lit{syntax:'<number>';inherits:false;initial-value:0}
 :root{
   --bg:#F2F2F7; --card:#FFFFFF; --ink:#000; --ink2:#6C6C70; --ink3:#AEAEB2; --drop-line:#D1D1D6;
-  --sep:rgba(60,60,67,.14); --fill:rgba(120,120,128,.16); --fill2:rgba(120,120,128,.10);
+  --sep:rgba(60,60,67,.12); --sep-w:1px; --fill:rgba(120,120,128,.16); --fill2:rgba(120,120,128,.10);
   --accent:#0088FF; --accent-press:#006FD6; --accent-t:rgba(0,136,255,.12); --accent-glow:rgba(0,136,255,.32); --accent-ink:#007AEB;
   --red:#FF383C; --red-t:rgba(255,56,60,.12); --red-ink:#D70015; --gray:#8E8E93;
   --green:#34C759; --green-t:rgba(52,199,89,.16); --green-ink:#1F8A3B;
@@ -55,7 +55,7 @@
 /* Dark mode follows the system, with Apple's iOS 26 dark colours */
 @media (prefers-color-scheme:dark){:root{
   --bg:#000000; --card:#1C1C1E; --ink:#FFFFFF; --ink2:#98989F; --ink3:#5B5B60; --drop-line:#3A3A3C;
-  --sep:rgba(84,84,88,.6); --fill:rgba(120,120,128,.36); --fill2:rgba(120,120,128,.24);
+  --sep:rgba(84,84,88,.4); --fill:rgba(120,120,128,.36); --fill2:rgba(120,120,128,.24);
   --accent:#0091FF; --accent-press:#3AA7FF; --accent-t:rgba(0,145,255,.22); --accent-glow:rgba(0,145,255,.38); --accent-ink:#45ADFF;
   --red:#FF4245; --red-t:rgba(255,66,69,.2); --red-ink:#FF6B6E; --gray:#98989D;
   --green:#30D158; --green-t:rgba(48,209,88,.22); --green-ink:#30D158;
@@ -194,12 +194,12 @@ body.under .edge.top{opacity:1}
 /* ---------- cards and rows (content layer: solid, never glass) ---------- */
 .group{background:var(--card);border-radius:var(--r-card);overflow:hidden;margin:0 0 16px}
 .group.pad{padding:18px 16px}
-.group>.switch{margin-left:16px;padding:0 16px 0 0;border-top:.5px solid var(--sep)}
+.group>.switch{margin:0 16px;padding:0;border-top:var(--sep-w) solid var(--sep)}
 .group>.switch:first-child{border-top:0}
-.group.pad>.switch{margin-left:0;padding:0;border-top:0}
+.group.pad>.switch{margin:0;padding:0;border-top:0}
 .session .why{margin-top:14px}
 .item{margin-left:16px;padding:10px 16px 10px 0;min-height:56px;display:flex;align-items:center;gap:10px}
-.divider{height:.5px;background:var(--sep);margin:14px 0}
+.divider{height:var(--sep-w);background:var(--sep);margin:14px 0}
 
 /* ---------- controls ---------- */
 /* segmented control: a white thumb that lifts into a glass lens while touched, and can be dragged */
@@ -251,7 +251,7 @@ body.under .edge.top{opacity:1}
 .qchip.lit{scale:1.07}
 .qchip.on{background-color:var(--accent);color:#fff}
 /* a suggestion inside a meal card: a quiet grey row in the list, with the food list's round + to add it */
-.sug{display:flex;align-items:center;gap:10px;margin-left:16px;padding:9px 12px 9px 0;min-height:58px;border-top:.5px solid var(--sep)}
+.sug{display:flex;align-items:center;gap:10px;margin:0 16px;padding:9px 0;min-height:58px;border-top:var(--sep-w) solid var(--sep)}
 .sug-i{flex:none;width:16px;color:var(--ink3)}
 .sug-i svg{width:14px;height:14px}
 .sug-txt{flex:1;min-width:0}
@@ -418,7 +418,7 @@ body.under .edge.top{opacity:1}
 .slothead .t{text-align:right;font-weight:700;font-size:16px;font-variant-numeric:tabular-nums;font-family:var(--rounded);color:var(--ink)}   /* the meal's totals are the headline */
 .swipe{position:relative;overflow:hidden;transition:height .3s var(--out),opacity .3s}
 /* rows run edge to edge; only the separator is inset, so a row can slide off the card's left edge as in Mail */
-.swipe::after{content:"";position:absolute;z-index:1;top:0;left:16px;right:0;height:.5px;background:var(--sep);pointer-events:none;transition:opacity .2s}
+.swipe::after{content:"";position:absolute;z-index:1;top:0;left:16px;right:16px;height:var(--sep-w);background:var(--sep);pointer-events:none;transition:opacity .2s}
 .swipe.dragging::after,.swipe.opened::after,.swipe.dragging+.swipe::after,.swipe.opened+.swipe::after{opacity:0}
 /* the touch highlight and the swiped row are one shape: a grey rounded rectangle inset a little from the card, as in iOS 26 */
 .swipe-fg::before,.ex-head::before{content:"";position:absolute;inset:3px 6px;border-radius:16px;z-index:-1;background:transparent;transition:background-color .2s}
@@ -443,7 +443,7 @@ body.under .edge.top{opacity:1}
 .entry .nm{font-size:15px;font-weight:400;line-height:1.25}
 .entry .q{font-size:12px;color:var(--ink2)}
 .entry .t{text-align:right;font-size:12px;font-variant-numeric:tabular-nums;font-family:var(--rounded);font-weight:500;color:var(--ink2)}   /* each food's macros stay quiet */
-.addline{display:flex;align-items:center;gap:10px;min-height:52px;width:calc(100% - 16px);margin-left:16px;padding:0 16px 0 0;border-top:.5px solid var(--sep);color:var(--accent);font-weight:600;font-size:14px}
+.addline{display:flex;align-items:center;gap:10px;min-height:52px;width:calc(100% - 32px);margin:0 16px;padding:0;border-top:var(--sep-w) solid var(--sep);color:var(--accent);font-weight:600;font-size:14px}
 .addline .pl{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff}
 .addline .pl svg{width:14px;height:14px}
 
@@ -451,7 +451,7 @@ body.under .edge.top{opacity:1}
 .chart{width:100%;height:auto}
 .chart text{font-family:var(--font);fill:var(--ink2);font-size:10px}
 .chart.anim rect.b{transform-box:fill-box;transform-origin:bottom;animation:grow .7s var(--out) both}
-.lift{display:grid;grid-template-columns:1fr auto 84px;gap:12px;align-items:center;margin-left:16px;padding:12px 16px 12px 0;border-top:.5px solid var(--sep)}
+.lift{display:grid;grid-template-columns:1fr auto 84px;gap:12px;align-items:center;margin:0 16px;padding:12px 0;border-top:var(--sep-w) solid var(--sep)}
 .lift:first-child{border-top:0}
 .lift .num{font-size:22px}
 .stat{display:flex;justify-content:space-between;gap:12px}
@@ -466,7 +466,7 @@ body.under .edge.top{opacity:1}
 h2.first{margin-top:6px}
 /* rows that open a page: label, optional value, chevron; separators inset from the leading edge */
 .srow{position:relative;display:flex;align-items:center;gap:10px;width:100%;min-height:58px;padding:0 16px;font-size:15px;text-align:left;cursor:pointer;transition:background .2s}
-.srow+.srow::before,.frow+.frow::before{content:"";position:absolute;top:0;left:16px;right:0;height:.5px;background:var(--sep)}
+.srow+.srow::before,.frow+.frow::before{content:"";position:absolute;top:0;left:16px;right:16px;height:var(--sep-w);background:var(--sep)}
 .srow .v{color:var(--ink2)}
 .srow svg{width:13px;height:13px;flex:none;color:var(--ink3)}
 .srow:active{background:var(--press)}
@@ -567,7 +567,7 @@ body.pushed .nb-inner{opacity:1;transform:none}
 .search{width:100%;height:44px;border-radius:22px;border:0;background:var(--fill);padding:0 14px 0 38px;font-size:16px;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='17' height='17' viewBox='0 0 24 24' fill='none' stroke='%236C6C70' stroke-width='2.6' stroke-linecap='round'><circle cx='11' cy='11' r='7'/><path d='M20 20l-3.5-3.5'/></svg>");background-repeat:no-repeat;background-position:13px center}
 .search:focus{outline:0;box-shadow:0 0 0 2px var(--accent)}
-.food{display:grid;grid-template-columns:1fr auto;gap:8px;width:calc(100% - 16px);margin-left:16px;padding:11px 16px 11px 0;border-top:.5px solid var(--sep);min-height:56px;align-items:center;transition:background .2s}
+.food{display:grid;grid-template-columns:1fr auto;gap:8px;width:calc(100% - 32px);margin:0 16px;padding:11px 0;border-top:var(--sep-w) solid var(--sep);min-height:56px;align-items:center;transition:background .2s}
 .group>.food:first-child{border-top:0}
 .food .nm{font-weight:500}
 .food .m{font-size:11px;color:var(--ink2)}
@@ -682,7 +682,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.47';
+const APP_VERSION = '3.48';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
