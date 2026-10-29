@@ -676,7 +676,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.40';
+const APP_VERSION = '3.41';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2024,7 +2024,7 @@ function drawSheet(){
   const t = ui.sheet.type;
   el.innerHTML = t === 'food' ? foodSheet() : t === 'entry' ? entrySheet() : t === 'exercise' ? exerciseSheet() : t === 'copyday' ? copySheet() : '';
   const contentH = Array.from(el.children).reduce((a, c) => a + c.offsetHeight, 0) + 40;   // the content, not the sheet: a full sheet is stretched
-  el.classList.toggle('full', (t === 'food' && !ui.sheet.sel && ui.sheet.mode !== 'quick') || t === 'exercise' || contentH > innerHeight * .78);
+  el.classList.toggle('full', (t === 'food' && !ui.sheet.sel) || t === 'exercise' || contentH > innerHeight * .78);   // Foods and Quick entry share one full tray, so switching between them does not move it
   initSegs(el);
   if (opening) { el.scrollTop = 0; el.style.transform = ''; void el.offsetHeight; requestAnimationFrame(() => { el.classList.add('open'); sc.classList.add('open'); }); }
 }
