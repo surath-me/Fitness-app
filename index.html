@@ -682,7 +682,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.46';
+const APP_VERSION = '3.47';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2089,7 +2089,7 @@ function startRest(id){
   audioCtx();
   RT.total = secs * 1000; RT.end = Date.now() + RT.total;
   RT.done = false;
-  const el = $('#timer'); el.classList.remove('done', 'seen'); el.style.translate = el.style.opacity = el.style.transition = '';
+  const el = $('#timer'); el.getAnimations().forEach(a => a.cancel()); el.classList.remove('done', 'seen'); el.style.translate = el.style.scale = el.style.opacity = el.style.transition = '';
   $('#timerl').textContent = 'Rest'; $('#timerx').textContent = 'Skip';
   el.hidden = false; void el.offsetWidth; requestAnimationFrame(() => el.classList.remove('ghost'));
   tickRest(); clearInterval(RT.iv); RT.iv = setInterval(tickRest, 250);
@@ -2110,6 +2110,13 @@ function hideRest(slide){
   if (slide && !reduced()) {   // swiped down: it slides off the bottom instead of dematerialising
     el.style.transition = 'translate .32s var(--out),opacity .28s var(--out)'; el.style.translate = '0 140px'; el.style.opacity = '0';
     setTimeout(() => { el.hidden = true; el.classList.add('ghost'); el.style.translate = el.style.opacity = el.style.transition = ''; }, 340);
+    return;
+  }
+  if (RT.done && !reduced()) {   // Done once the rest is over: the whole timer shrinks and fades from the size it has now, its green pulse stopped
+    const from = getComputedStyle(el).scale; el.classList.add('seen');
+    const out = [el.animate([{ scale: from === 'none' ? '1' : from }, { scale:'.8' }], { duration:360, easing:EASE.smooth, fill:'forwards' }),
+                 el.animate([{ opacity:1 }, { opacity:0 }], { duration:300, easing:'cubic-bezier(.4,0,.6,1)', fill:'forwards' })];
+    out[0].finished.then(() => { el.hidden = true; el.classList.add('ghost'); out.forEach(a => a.cancel()); }, () => {});
     return;
   }
   el.classList.add('ghost');
@@ -2305,11 +2312,11 @@ function openMenu(btn, kind){
   const pinned = !!btn.closest('.navbar, .sheet, .tabbar, #tabs, .accessory');
   m.style.position = pinned ? 'fixed' : 'absolute';
   m.style.left = left + (pinned ? 0 : scrollX) + 'px'; m.style.top = top + (pinned ? 0 : scrollY) + 'px';
-  m.style.transformOrigin = `${r.left + r.width / 2 - left}px ${r.top + r.height / 2 - top}px`;
+  m.style.transformOrigin = '0 0';   // it grows out of the button's exact box: moved and scaled from its top left corner
   ui.menu.host.classList.add('morphing');
   if (!reduced()) {
     const sx = r.width / W, sy = r.height / Hh, rad = r.height / 2;
-    m.animate([{ transform:`scale(${sx},${sy})`, borderRadius:`${rad / sx}px / ${rad / sy}px` }, { transform:'none', borderRadius:'28px' }], { duration:560, easing:EASE.spring });
+    m.animate([{ transform:`translate(${r.left - left}px,${r.top - top}px) scale(${sx},${sy})`, borderRadius:`${rad / sx}px / ${rad / sy}px` }, { transform:'none', borderRadius:'28px' }], { duration:560, easing:EASE.spring });
     $('.menu-in', m).animate([{ opacity:0 }, { opacity:0, offset:.2 }, { opacity:1 }], { duration:380 });
   }
   const first = $('.mi', m); if (first) first.focus({ preventScroll:true });
@@ -2324,9 +2331,12 @@ function closeMenu(){
   const { src, host } = ui.menu; ui.menu = null; $('#menuscrim').hidden = true;
   const fin = () => { if (ui.menu) return; m.hidden = true; m.innerHTML = ''; m.getAnimations().forEach(a => a.cancel()); host.classList.remove('morphing'); };
   if (reduced() || !src || !src.isConnected) { fin(); return; }
-  const r = src.getBoundingClientRect(), W = m.offsetWidth, Hh = m.offsetHeight, sx = r.width / W, sy = r.height / Hh, rad = r.height / 2;
-  $('.menu-in', m).animate([{ opacity:1 }, { opacity:0 }], { duration:160, fill:'forwards' });
-  m.animate([{ transform:'none', borderRadius:'28px' }, { transform:`scale(${sx},${sy})`, borderRadius:`${rad / sx}px / ${rad / sy}px` }], { duration:300, easing:'cubic-bezier(.4,0,.2,1)', fill:'forwards' }).finished.then(fin, fin);
+  // it shrinks back onto the button's exact box, and in the last moment the button fades in under it as the menu fades out
+  const r = src.getBoundingClientRect(), mr = m.getBoundingClientRect(), W = m.offsetWidth, Hh = m.offsetHeight, sx = r.width / W, sy = r.height / Hh, rad = r.height / 2, dur = 420;
+  $('.menu-in', m).animate([{ opacity:1 }, { opacity:0 }], { duration:150, fill:'forwards' });
+  m.animate([{ transform:'none', borderRadius:'28px' }, { transform:`translate(${r.left - mr.left}px,${r.top - mr.top}px) scale(${sx},${sy})`, borderRadius:`${rad / sx}px / ${rad / sy}px` }], { duration:dur, easing:EASE.smooth, fill:'forwards' }).finished.then(fin, fin);
+  m.animate([{ opacity:1 }, { opacity:1, offset:.72 }, { opacity:0 }], { duration:dur, fill:'forwards' });
+  setTimeout(() => { if (ui.menu) return; host.classList.remove('morphing'); host.animate([{ opacity:0 }, { opacity:1 }], { duration:dur * .28 }); }, dur * .72);
 }
 
 /* ---------- segmented controls: a sliding thumb that lifts into a lens ---------- */
