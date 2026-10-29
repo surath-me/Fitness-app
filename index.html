@@ -232,6 +232,8 @@ body.under .edge.top{opacity:1}
 .btn.danger{color:var(--red-ink);background:var(--red-t);box-shadow:inset 0 0 0 .5px rgba(255,56,60,.12)}
 .btn.block{display:flex;width:100%}
 .btn.small{min-height:38px;padding:0 16px;font-size:13px}
+.btn.soft.grey{color:var(--ink);background:var(--fill)}
+.btn.small svg{width:15px;height:15px;margin-left:-3px}
 .btn.lit{scale:1.06}
 .btn.block.lit{scale:1.025}
 .chip{display:inline-flex;align-items:center;gap:4px;padding:4px 11px;border-radius:99px;font-size:11px;font-weight:600;background:var(--fill);color:var(--ink2);white-space:nowrap}
@@ -277,6 +279,17 @@ body.under .edge.top{opacity:1}
 .sring .lbl{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--rounded);font-weight:700;font-size:13px}
 .session-title{font-size:18px;font-weight:700;line-height:1.2;letter-spacing:-.01em}
 .session .meta{font-size:12px;color:var(--ink2);margin-top:2px}
+.cardmore{position:relative;flex:none;align-self:flex-start;width:30px;height:30px;margin:-2px -4px 0 0;border-radius:50%;display:grid;place-items:center;background:var(--fill);color:var(--ink2);transition:transform .3s var(--spring)}
+.cardmore::after{content:"";position:absolute;inset:-7px}   /* a 44 px target */
+.cardmore svg{width:17px;height:17px}
+.cardmore:active{transform:scale(.9)}
+/* the foot of an opened lift: add or remove a set, and mark it as not done */
+.setfoot{display:flex;gap:8px;margin-top:10px}
+.ndlink{display:inline-flex;align-items:center;gap:6px;min-height:44px;margin:4px 0 -10px;padding:0 2px;font-size:14px;font-weight:500;color:var(--ink2)}
+.ndlink svg{width:15px;height:15px}
+.ndlink.back{color:var(--accent)}
+.ex.nd .wt{color:var(--ink3)}
+.ex.nd .ex-name,.ex.nd .ex-reps,.ex.nd .ex-reps b{color:var(--ink2)}
 /* a day with nothing to train: one card in the style of Apple Fitness tips */
 .restcard{padding:20px 16px 16px}
 .rc{display:grid;grid-template-columns:44px 1fr;gap:14px;align-items:start;margin:0 4px 18px 2px}
@@ -636,7 +649,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.25';
+const APP_VERSION = '3.26';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -680,6 +693,7 @@ const MUSCLE_LABEL = { chest:'Chest', back:'Back', shoulders:'Shoulders', biceps
 const LOWER = ['quads','hams','calves'];
 const MINUTES = { compound: 11, iso: 8 };           // rough minutes per exercise including rest
 const ABS_MIN = 6;
+const DAY_MINUTES = 60;   // a training day plans for this long; another time can be picked for that day from the session card's ⋯
 
 /* ---------- Sessions and default week ---------- */
 const TEMPLATES = {
@@ -876,7 +890,7 @@ const joinNames = a => a.length <= 1 ? (a[0]||'') : a.slice(0,-1).join(', ') + '
 let storageOk = true;
 function defaultSettings(){
   return { targets: deepClone(DEFAULT_TARGETS), caps: deepClone(DEFAULT_CAPS), schedule: deepClone(DEFAULT_SCHEDULE),
-           timeBudget: 75, returning: false, exCfg: {}, planStart: todayStr() };
+           returning: false, exCfg: {}, planStart: todayStr() };
 }
 function freshState(){
   const s = { v:1, days:{}, workouts:{}, dismissed:{}, rest:{}, assign:{}, pin:{}, foods:[], waist: SEED_WAIST.map(x=>({...x})), settings: defaultSettings(), water:{} };
@@ -914,6 +928,7 @@ function migrate(s){
   s.settings.caps     = Object.assign(deepClone(DEFAULT_CAPS), s.settings.caps || {});
   s.settings.schedule = Object.assign(deepClone(DEFAULT_SCHEDULE), s.settings.schedule || {});
   ['days','workouts','dismissed','rest','assign','pin','water'].forEach(k => { if (!s[k]) s[k] = {}; });
+  delete s.settings.timeBudget;   // the time is per day now (wk.budget), 60 minutes unless changed
   if (!s.foods) s.foods = [];
   if (!s.waist) s.waist = [];
   return s;
@@ -1097,18 +1112,25 @@ function makeUp(date, skip){
   for (let k = 1; k <= 7; k++) {
     const d = addDays(date, -k); if (d < S.settings.planStart) return null;
     if (isRestDay(d)) continue;
-    if (!missedDay(d)) return null;
+    if (!missedDay(d)) {   // trained: the lifts marked as not done that day wait at the bottom
+      const nd = ((S.workouts[d] && S.workouts[d].notDone) || []).filter(id => EX[id] && !skip(id) && !loggedSince(id, addDays(d, 1), date));
+      return nd.length ? { from:d, tid:sessionOn(d), notDone:true, ids:nd } : null;
+    }
     const tid = sessionOn(d), ids = TEMPLATES[tid].ex.filter(id => EX[id] && !skip(id) && !loggedSince(id, d, date));
     return ids.length ? { from:d, tid, skipped:!!S.dismissed[d], ids } : null;
   }
   return null;
 }
+/* the minutes planned for a day: 60 unless another time was picked for that day */
+const budgetOf = date => (S.workouts[date] && S.workouts[date].budget) || DAY_MINUTES;
+/* a planned lift that could not be done that day (wk.notDone): it no longer counts as open, and waits for the next training day */
+const isNotDone = (wk, id) => !!(wk && wk.notDone && wk.notDone.includes(id));
 function minutesFor(id){ const c = cfg(id); return c.muscle === 'abs' ? ABS_MIN : (MINUTES[c.kind] || 8); }
 
 /* the order of a day's exercises: the order Surath dragged them into (wk.order), then the usual order */
 const byOrder = wk => (a, b) => { const o = (wk && wk.order) || [], ia = o.indexOf(a), ib = o.indexOf(b); return (ia < 0 ? 1e3 + cfg(a).ord : ia) - (ib < 0 ? 1e3 + cfg(b).ord : ib); };
 function buildPlan(date, opts={}){
-  const today = todayStr(), budget = opts.budget || S.settings.timeBudget;
+  const today = todayStr(), budget = opts.budget || budgetOf(date);
   const wd = wdOf(date), why = [], deferred = [];
   const wk = S.workouts[date], removed = new Set((wk && wk.removed) || []);   // lifts taken off this day by hand
   const byHand = new Set((wk && wk.added) || []);   // added on top of the plan: stays under Added, even a lift the plan left out today
@@ -1526,7 +1548,8 @@ function exHead(it, date){
   const c = cfg(it.id), sug = it.sug, wk = S.workouts[date];
   const done = setsDone(wk, it.id), key = date + '|' + it.id;
   let chip, wShow = sug.w;
-  if (done.length) {
+  if (isNotDone(wk, it.id)) { chip = `<span class="chip low">${ICON.skip}Not done</span>`; if (done.length) wShow = Math.max(...done.map(s => +s.w || 0)); }
+  else if (done.length) {
     chip = done.length >= sug.sets ? `<span class="chip done">${ICON.check}Done</span>` : `<span class="chip part">${done.length} of ${sug.sets}</span>`;
     wShow = Math.max(...done.map(s => +s.w || 0));
   } else {
@@ -1559,15 +1582,24 @@ function setsEditor(it, date){
       <input type="text" inputmode="numeric" enterkeyhint="done" autocomplete="off" aria-label="Set ${i+1} reps" placeholder="${it.sug.high}" data-bind="set" data-f="r" data-date="${date}" data-ex="${it.id}" data-i="${i}" value="${esc(r.r ?? '')}">
       <button class="check ${on ? 'on' : ''} ${ui.popKey === key + '|' + i ? 'pop' : ''}" data-act="checkset" data-date="${date}" data-ex="${it.id}" data-i="${i}" aria-pressed="${on}" aria-label="${on ? 'Undo' : 'Complete'} set ${i+1}">${ICON.check}</button>
     </div>`; }).join('')}
-    <div class="row gap8">
-      <button class="btn tinted small" data-act="addset" data-date="${date}" data-ex="${it.id}">${ICON.plus.replace('<svg','<svg width="14" height="14"')}Add set</button>
-      ${rows.length > 1 ? `<button class="btn plain small" data-act="delset" data-date="${date}" data-ex="${it.id}" data-i="${rows.length-1}">Remove last</button>` : ''}
+    <div class="setfoot">
+      <button class="btn soft small" data-act="addset" data-date="${date}" data-ex="${it.id}">${ICON.plus}Add set</button>
+      ${rows.length > 1 ? `<button class="btn soft grey small" data-act="delset" data-date="${date}" data-ex="${it.id}" data-i="${rows.length-1}">${ICON.minus}Remove last</button>` : ''}
     </div>
+    ${ndButton(it, date)}
   </div>`;
+}
+/* a planned lift that could not be done today: mark it, and it waits for the next training day under If you have time */
+function ndButton(it, date){
+  if (!((it.origin === 'today' && date <= todayStr()) || it.origin === 'logged')) return '';
+  const wk = S.workouts[date];
+  if (isNotDone(wk, it.id)) return `<button class="ndlink back" data-act="notdone" data-date="${date}" data-ex="${it.id}">${ICON.undo}Bring it back</button>`;
+  if (setsDone(wk, it.id).length >= it.sug.sets) return '';
+  return `<button class="ndlink" data-act="notdone" data-date="${date}" data-ex="${it.id}">${ICON.skip}Mark as not done</button>`;
 }
 function exRow(it, date){   // swipe the head left to delete, as with meals
   const key = date + '|' + it.id, open = !!ui.open[key];
-  return `<div class="ex swipe ${ui.flashEx === key ? 'flash' : ''}" data-key="${esc(key)}">
+  return `<div class="ex swipe ${ui.flashEx === key ? 'flash' : ''} ${isNotDone(S.workouts[date], it.id) ? 'nd' : ''}" data-key="${esc(key)}">
     <button class="swipe-del" data-act="swipedelex" data-key="${esc(key)}" tabindex="-1" aria-label="Delete"><span class="pill">${ICON.trash}</span></button>
     <div class="swipe-fg">${exHead(it, date)}
     <div class="sets-wrap ${open && ui.justOpen !== key ? 'open' : ''}" ${open ? '' : 'hidden'}><div>${open ? setsEditor(it, date) : ''}</div></div></div></div>`;
@@ -1632,26 +1664,22 @@ function restCard(plan, date){
 function sessionCard(plan, date){
   if (!plan.items.length) return restCard(plan, date);
   const wk = S.workouts[date];
-  const total = plan.items.reduce((a, it) => a + Math.max(it.sug.sets, setsDone(wk, it.id).length), 0);
+  const total = plan.items.reduce((a, it) => a + (isNotDone(wk, it.id) ? setsDone(wk, it.id).length : Math.max(it.sug.sets, setsDone(wk, it.id).length)), 0);   // a lift not done no longer counts as open
   const done = plan.items.reduce((a, it) => a + setsDone(wk, it.id).length, 0);
   const pct = total ? done / total : 0;
   const nLogged = plan.items.filter(it => setsDone(wk, it.id).length).length;
   const meta = plan.past ? `${nLogged} of ${plan.items.length} exercise${plan.items.length === 1 ? '' : 's'} logged`
-    : plan.items.length ? `${plan.items.length} exercises, about ${plan.minutes} min` : 'Nothing planned';
+    : plan.items.length ? `${plan.items.length} exercise${plan.items.length === 1 ? '' : 's'}, about ${plan.minutes} of ${plan.budget} min` : 'Nothing planned';
   let h = `<div class="group pad session">
     <div class="top">
       <div class="sring">${ringSVG([{ pct, color:'var(--accent)' }], 64, 8, ui.anim)}<div class="lbl">${total ? Math.round(pct*100) + '%' : '–'}</div></div>
       <div class="grow"><div class="session-title">${esc(plan.title)}</div><div class="meta">${meta}${done ? `, ${done} of ${total} sets done` : ''}</div></div>
+      ${plan.past ? '' : `<button class="cardmore" data-act="menu" data-menu="session" aria-label="Time and options" aria-haspopup="menu">${ICON.more}</button>`}
     </div>
     <p class="why gap16">${esc(plan.why[0])}</p>`;
   if (plan.why.length > 1) {
     h += `<div class="collapse ${ui.showWhy ? 'open' : ''}" id="whybox"><div>${plan.why.slice(1).map(w => `<p class="why">${esc(w)}</p>`).join('')}</div></div>
       <button class="link" data-act="whytoggle" aria-expanded="${ui.showWhy}">${ui.showWhy ? 'Show less' : 'Why this plan'}</button>`;
-  }
-  if (!plan.past && plan.items.length) {   // time and the break switch only matter when there is something to train
-    h += `<div class="divider"></div>
-      <div class="seg" role="group" aria-label="Time available">${[45,60,75,90].map(m => `<button data-act="budget" data-v="${m}" aria-pressed="${S.settings.timeBudget===m}">${m} min</button>`).join('')}</div>
-      <label class="switch gap8"><input type="checkbox" data-chg="returning" ${S.settings.returning ? 'checked' : ''}>Back after a break or illness</label>`;
   }
   return h + `</div>`;
 }
@@ -1668,13 +1696,13 @@ function viewTrain(){
   if (plan.added.length) h += `<section class="added" aria-label="Added"><h3>Added</h3><p class="note">On top of the plan, not counted in the session.</p>
     <div class="group">${plan.added.map(it => exRow(it, date)).join('')}</div></section>`;
   const x = plan.extras;
-  if (x) h += `<section class="extras" aria-label="If you have time"><h3>If you have time</h3><p class="note">From ${WD[wdOf(x.from)]}'s ${x.skipped ? 'skipped' : 'missed'} ${esc(TEMPLATES[x.tid].name)}. Fit these in if your session goes quickly.</p>
+  if (x) h += `<section class="extras" aria-label="If you have time"><h3>If you have time</h3><p class="note">${x.notDone ? `Not done in ${WD[wdOf(x.from)]}'s ${esc(TEMPLATES[x.tid].name)}` : `From ${WD[wdOf(x.from)]}'s ${x.skipped ? 'skipped' : 'missed'} ${esc(TEMPLATES[x.tid].name)}`}. Fit these in if your session goes quickly.</p>
     <div class="group">${x.items.map(it => exRow(it, date)).join('')}</div></section>`;
   if (plan.deferred.length) {
     h += `<h2>Left out today</h2><p class="why" style="margin:0 4px 10px">Held back for recovery or to fit your time.</p><div class="group">` +
       plan.deferred.map(d => `<div class="lift"><div><strong>${esc(cfg(d.id).name)}</strong><div class="small muted">${esc(d.reason)}</div></div><span></span><span></span></div>`).join('') + `</div>`;
   }
-  if (!plan.past && plan.items.length) h += `<p class="note" style="margin:0 4px">Use ${'⋯'} at the top to move your rest day, skip this session or train a different one.</p>`;
+  if (!plan.past && plan.items.length) h += `<p class="note" style="margin:0 4px">Use ${'⋯'} at the top of the screen to move your rest day, skip this session or train a different one.</p>`;
   return h + `</div>`;
 }
 
@@ -2215,6 +2243,11 @@ function menuSpec(kind){
     if (plan.tid && !S.dismissed[date] && !plan.past && !out.some(i => i.act === 'skipsession')) more.push({ act:'skipsession', label:`Skip ${date === todayStr() ? "today's" : 'this'} session`, icon:'skip' });
     if (S.dismissed[date]) more.push({ act:'unskip', label:'Bring the session back', icon:'undo' });
     if (more.length) out.push({ sep:true }, ...more);
+  } else if (kind === 'session') {   // the session card's ⋯: time for this day, and the break switch
+    const b = budgetOf(date);
+    out.push({ head: date === todayStr() ? 'Time today' : 'Time for this day' },
+      ...[45, 60, 75, 90].map(m => ({ act:'budget', v:m, label:`${m} min`, sub: m === DAY_MINUTES ? 'Default' : '', on: b === m })),
+      { sep:true }, { act:'returning', label:'Back after a break or illness', sub:'Set 1 one step lighter', on: !!S.settings.returning, check:true });
   } else if (kind === 'daytype') {
     const cur = dayType(ui.date), T = S.settings.targets;
     out.push({ head:'This day is a' },
@@ -2226,7 +2259,7 @@ function menuSpec(kind){
   return out;
 }
 const menuHTML = items => items.map(it => it.head ? `<div class="mh">${esc(it.head)}</div>` : it.sep ? '<div class="msep" role="separator"></div>' :
-  `<button class="mi" role="${it.on === undefined ? 'menuitem' : 'menuitemradio'}"${it.on === undefined ? '' : ` aria-checked="${it.on}"`} data-act="${it.act}"${it.t === undefined ? '' : ` data-t="${it.t}"`}${it.v === undefined ? '' : ` data-v="${it.v}"`}${Object.entries(it.data || {}).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('')}><span class="mic">${it.on ? ICON.check : it.icon ? ICON[it.icon] : ''}</span><span class="mt">${esc(it.label)}${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span></button>`).join('');
+  `<button class="mi" role="${it.on === undefined ? 'menuitem' : it.check ? 'menuitemcheckbox' : 'menuitemradio'}"${it.on === undefined ? '' : ` aria-checked="${it.on}"`} data-act="${it.act}"${it.t === undefined ? '' : ` data-t="${it.t}"`}${it.v === undefined ? '' : ` data-v="${it.v}"`}${Object.entries(it.data || {}).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('')}><span class="mic">${it.on ? ICON.check : it.icon ? ICON[it.icon] : ''}</span><span class="mt">${esc(it.label)}${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span></button>`).join('');
 function openMenu(btn, kind){
   const m = $('#menu'), r = btn.getBoundingClientRect();
   ui.menu = { src:btn, host:btn };   // the button's glass becomes the menu
@@ -2390,7 +2423,16 @@ const H = {
   quickentry(){ openSheet({ type:'food', slot:ui.slot, q:'', sel:null, qty:0, mode:'quick' }); },
   day(t){ go(addDays(ui.date, +t.dataset.n)); },
   today(){ go(todayStr()); },
-  budget(t){ S.settings.timeBudget = +t.dataset.v; saveState(); render(); },
+  budget(t){ const wk = ensureWk(ui.date), v = +t.dataset.v; if (v === DAY_MINUTES) delete wk.budget; else wk.budget = v; saveState(); render(); },
+  returning(){ S.settings.returning = !S.settings.returning; saveState(); render(); toast(S.settings.returning ? 'Back after a break: set 1 one step lighter' : 'Back after a break is off'); },
+  notdone(t){   // mark a planned lift as not done, or bring it back
+    const { date, ex } = t.dataset, wk = ensureWk(date), key = date + '|' + ex, was = (wk.notDone || []).slice();
+    if (isNotDone(wk, ex)) { wk.notDone = was.filter(x => x !== ex); saveState(); refreshEx(date, ex); refreshSession(date); return; }
+    wk.notDone = [...was, ex]; saveState();
+    closeEx(key); const host = findEx(key); if (host) host.classList.add('nd'); refreshHead(date, ex); refreshSession(date);
+    ui.undo = { fn: () => { wk.notDone = was; saveState(); render(); } };
+    toast(`${cfg(ex).name} not done`, { undo:true, bad:true });
+  },
   whytoggle(t){ ui.showWhy = !ui.showWhy; const box = $('#whybox'); if (box) box.classList.toggle('open', ui.showWhy);
     t.textContent = ui.showWhy ? 'Show less' : 'Why this plan'; t.setAttribute('aria-expanded', String(ui.showWhy)); },
   openex(t){
@@ -2417,6 +2459,7 @@ const H = {
       const wv = wIn ? num(wIn.value) : null, rv = rIn ? num(rIn.value) : null;
       row.w = wv !== null ? wv : (row.w !== '' ? row.w : (sug.w ?? ''));
       row.r = rv && rv > 0 ? rv : sug.high; row.d = true;
+      const wk = S.workouts[date]; if (isNotDone(wk, ex)) wk.notDone = wk.notDone.filter(x => x !== ex);   // done after all
       ui.popKey = date + '|' + ex + '|' + i; startRest(ex);
     }
     saveState(); refreshEx(date, ex); ui.popKey = null; refreshSession(date);
@@ -2741,8 +2784,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const t = e.target;
-  if (t.dataset.chg === 'returning') { S.settings.returning = t.checked; saveState(); setTimeout(() => render(), reduced() ? 0 : 260); }
-  else if (t.dataset.chg === 'creatine') { const w = S.water[ui.date] || (S.water[ui.date] = { ml:0, creatine:false }); w.creatine = t.checked; saveState(); }
+  if (t.dataset.chg === 'creatine') { const w = S.water[ui.date] || (S.water[ui.date] = { ml:0, creatine:false }); w.creatine = t.checked; saveState(); }
   else if (t.dataset.set) setPath(t.dataset.set, t.value);
   else if (t.id === 'importfile' && t.files && t.files[0]) {
     const rd = new FileReader();
@@ -2775,7 +2817,18 @@ let _today = todayStr();
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && todayStr() !== _today) { if (ui.date === _today) ui.date = todayStr(); _today = todayStr(); ui.anim = true; render(); }
   if (!document.hidden && !$('#timer').classList.contains('ghost')) tickRest();
+  if (!document.hidden) checkVersion();
 });
+/* A home-screen app keeps the old page in memory. Coming back to it checks for a newer version and reloads, unless a rest is
+   counting down, a sheet is open or a field has focus (everything is saved already; the reload syncs on open). */
+let verAt = 0;
+function checkVersion(){
+  if (Date.now() - verAt < 30000 || navigator.onLine === false) return; verAt = Date.now();
+  fetch('/', { cache:'no-store' }).then(r => r.ok ? r.text() : '').then(t => {
+    const m = t.match(/APP_VERSION = '([\d.]+)'/), busy = (RT.iv && !RT.done) || ui.sheet || (document.activeElement && document.activeElement.matches('input,textarea,select'));
+    if (m && m[1] !== APP_VERSION && !busy) location.reload();
+  }).catch(() => {});
+}
 
 /* =====================================================================
    CLOUD SYNC: an optional private copy in Upstash Redis through /api/sync.
