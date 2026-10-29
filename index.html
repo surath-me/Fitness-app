@@ -671,7 +671,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.34';
+const APP_VERSION = '3.35';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1541,13 +1541,14 @@ function topUps(date){
 }
 
 /* ---------- rings ---------- */
-function ringSVG(list, size, stroke, anim, cls=''){
-  const c = size / 2;
+function ringSVG(list, size, stroke, anim, cls=''){   // a ring can be thinner than the others with its own w
+  const c = size / 2; let edge = 0;
   let s = `<svg class="rings ${anim ? 'anim' : ''} ${cls}" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" aria-hidden="true">`;
-  list.forEach((r, i) => {
-    const rad = c - stroke/2 - i*(stroke + 3), C = 2*Math.PI*rad, p = Math.max(0, Math.min(1, r.pct || 0)), off = C*(1-p);
-    s += `<circle cx="${c}" cy="${c}" r="${rad.toFixed(2)}" fill="none" stroke="${r.color}" stroke-opacity=".16" stroke-width="${stroke}"/>`;
-    s += `<circle class="arc" cx="${c}" cy="${c}" r="${rad.toFixed(2)}" fill="none" stroke="${r.color}" stroke-width="${stroke}" stroke-linecap="round"
+  list.forEach(r => {
+    const w = r.w || stroke, rad = c - edge - w/2, C = 2*Math.PI*rad, p = Math.max(0, Math.min(1, r.pct || 0)), off = C*(1-p);
+    edge += w + 3;
+    s += `<circle cx="${c}" cy="${c}" r="${rad.toFixed(2)}" fill="none" stroke="${r.color}" stroke-opacity=".16" stroke-width="${w}"/>`;
+    s += `<circle class="arc" cx="${c}" cy="${c}" r="${rad.toFixed(2)}" fill="none" stroke="${r.color}" stroke-width="${w}" stroke-linecap="round"
       stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}" style="--c:${C.toFixed(2)}" opacity="${p > 0 ? 1 : 0}" transform="rotate(-90 ${c} ${c})"/>`;
   });
   return s + '</svg>';
@@ -1774,7 +1775,7 @@ function viewEat(){
   // the rings sit at the top of the card, with the day type above the numbers beside them: calories outside, protein, then fat (a ceiling, red once over)
   const fLeft = T.f - cur.f;
   h += `<div class="group pad summary"><div class="sum-top">
-      ${ringSVG([{ pct:cur.kcal/T.kcal, color:'var(--kcal)' }, { pct:cur.p/T.p, color:'var(--pro)' }, { pct:cur.f/T.f, color: fLeft < 0 ? 'var(--red)' : 'var(--fat)' }], 124, 14, ui.anim)}
+      ${ringSVG([{ pct:cur.kcal/T.kcal, color:'var(--kcal)' }, { pct:cur.p/T.p, color:'var(--pro)' }, { pct:cur.f/T.f, color: fLeft < 0 ? 'var(--red)' : 'var(--fat)', w:8 }], 124, 14, ui.anim)}
       <div class="grow">
         <div class="dtrow"><button class="dtpick" data-act="menu" data-menu="daytype" aria-haspopup="menu" aria-label="Day type: ${type === 'training' ? 'training day' : 'rest day'}">${type === 'training' ? ICON.dumb : ICON.moon}<span>${type === 'training' ? 'Training day' : 'Rest day'}</span>${ICON.updown}</button></div>
         <div class="hero"><span class="num" id="heroLeft" data-v="${r0(Math.abs(left))}">${fmtInt(Math.abs(left))}</span></div>
