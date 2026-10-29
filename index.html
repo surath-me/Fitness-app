@@ -393,8 +393,8 @@ body.under .edge.top{opacity:1}
 .water .num{display:inline-block;transform-origin:left bottom}
 .drops{display:flex;justify-content:space-between;padding:6px 10px 12px;touch-action:pan-y;-webkit-user-select:none;user-select:none}
 .drop{position:relative;width:27px;height:44px;display:grid;place-items:center;transition:transform .35s var(--spring)}
-.drop svg{grid-area:1/1;width:27px;height:27px;stroke-linejoin:round}
-.drop .o{fill:none;stroke:var(--ink3);stroke-width:1.6;transition:stroke .3s var(--out) calc(var(--k, 0) * 40ms)}
+.drop svg{grid-area:1/1;width:20px;height:28px;stroke-linejoin:round;overflow:visible}   /* the drop fills its box, so the gaps between drops are smaller */
+.drop .o{fill:none;stroke:var(--ink3);stroke-width:1.35;transition:stroke .3s var(--out) calc(var(--k, 0) * 40ms)}
 .drop .f{fill:var(--water);clip-path:inset(100% 0 0 0);transition:clip-path .45s var(--out) calc(var(--k, 0) * 40ms)}
 .drop.on .o{stroke:var(--water)}
 .drop.on .f{clip-path:inset(0 0 0 0)}
@@ -675,7 +675,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.36';
+const APP_VERSION = '3.37';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1448,7 +1448,7 @@ function waterCard(ml){   // the amount like a macro, then twelve drops of 250 m
   const n = Math.round(ml / WATER_STEP);
   return `<div class="wtop"><div class="mtop"><span class="num" id="waterNum">${fmtL(ml)}</span><span class="u">/ 3 L water</span><span class="st" id="waterSt">${waterLeft(ml)}</span></div></div>
     <div class="drops" role="group" aria-label="Water, a drop per 250 ml">${Array.from({ length: WATER_MAX / WATER_STEP }, (_, i) =>
-      `<button class="drop ${i < n ? 'on' : ''}" data-act="waterset" data-i="${i}" style="--d:${i}" aria-pressed="${i < n}" aria-label="${fmtL((i + 1) * WATER_STEP)} L"><svg class="o" viewBox="0 0 24 24"><path d="${DROP}"/></svg><svg class="f" viewBox="0 0 24 24" aria-hidden="true"><path d="${DROP}"/></svg></button>`).join('')}</div>`;
+      `<button class="drop ${i < n ? 'on' : ''}" data-act="waterset" data-i="${i}" style="--d:${i}" aria-pressed="${i < n}" aria-label="${fmtL((i + 1) * WATER_STEP)} L"><svg class="o" viewBox="4.8 2 14.4 19.9"><path d="${DROP}"/></svg><svg class="f" viewBox="4.8 2 14.4 19.9" aria-hidden="true"><path d="${DROP}"/></svg></button>`).join('')}</div>`;
 }
 
 /* =====================================================================
