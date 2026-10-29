@@ -367,7 +367,6 @@ body.under .edge.top{opacity:1}
 .hero .num{font-size:44px;line-height:1}
 .hl{font-size:13px;font-weight:600;color:var(--ink2);margin-top:2px}
 .hp{font-size:12px;font-weight:600;margin-top:6px}
-.hp.hf{margin-top:2px}
 /* macro bars in the style of Health's comparison bars: a big number, then a thick bar with its name inside.
    The name is drawn twice, dark on the track and light on the fill, so it reads wherever the fill ends. */
 .macro{margin:18px 0 0;--on:#fff}
@@ -387,12 +386,17 @@ body.under .edge.top{opacity:1}
 .cap.full{background:var(--accent-t);color:var(--accent)}
 .cap.over{background:var(--red-t);color:var(--red-ink)}
 /* water: a bar like the macro bars that you drag along (or tap) to set the day's water */
-.water .wtop{padding:16px 16px 0}
+.water .wtop{padding:16px 16px 12px}
 .water .wtop .macro{margin:0}
-.wbar{height:40px;border-radius:12px;cursor:ew-resize;touch-action:pan-y;-webkit-user-select:none;user-select:none}
-.wbar .ml{line-height:40px}
-.wbar>i{border-radius:12px;transition:width .45s var(--spring)}
-.wbar.dragging>i{transition:none}
+.water .num{display:inline-block;transform-origin:left bottom}
+/* touched, the bar swells (without moving what is around it) and the fill follows the finger; let go, it settles on the
+   nearest glass with a spring and the bar shrinks back */
+.wbar{height:40px;margin:0;border-radius:12px;cursor:ew-resize;touch-action:pan-y;-webkit-user-select:none;user-select:none;
+  transition:height .5s var(--spring),margin .5s var(--spring),border-radius .5s var(--spring)}
+.wbar.held{height:50px;margin:-5px 0;border-radius:15px}
+.wbar .ml{top:0;bottom:0;display:flex;align-items:center;line-height:1}
+.wbar>i{border-radius:inherit;transition:width .55s var(--spring)}
+.wbar.dragging>i{transition:width .09s linear}
 .wbar:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .wticks{position:relative;height:14px;font-size:11px;font-weight:500;color:var(--ink3);margin:6px 2px 4px}
 .wticks span{position:absolute;top:0;translate:-50% 0}
@@ -667,7 +671,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.32';
+const APP_VERSION = '3.33';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1430,7 +1434,7 @@ function planDay(date, alt = {}){
   return { slots:out, left, T, cur, total:best.tot, fourth:best.has4 };
 }
 
-/* water and creatine */
+/* water (older days may still carry a creatine flag; nothing reads it now) */
 const waterOf = date => S.water[date] || { ml:0, creatine:false };
 const WATER_MAX = 3000, WATER_STEP = 250;   // the bar runs to the daily 3 L and snaps to a glass
 const fmtL = ml => (ml / 1000).toFixed(2).replace(/\.?0+$/, '');
@@ -1776,14 +1780,12 @@ function viewEat(){
         <div class="hero"><span class="num" id="heroLeft" data-v="${r0(Math.abs(left))}">${fmtInt(Math.abs(left))}</span></div>
         <div class="hl">${left >= 0 ? (date === todayStr() ? 'kcal left today' : 'kcal left') : 'kcal over target'}</div>
         <div class="hp" style="color:var(--pro-t)">${pLeft > 0 ? `${r0(pLeft)} g protein to go` : 'Protein floor reached'}</div>
-        <div class="hp hf" style="color:${fLeft < 0 ? 'var(--red-ink)' : 'var(--fat-t)'}">${fLeft >= 0 ? `${r0(fLeft)} g fat room` : `${r0(-fLeft)} g fat over`}</div>
       </div></div>
     <div class="bars ${ui.anim ? 'anim' : ''}">${macroRow('Calories','--kcal',cur.kcal,T.kcal,'target') + macroRow('Protein','--pro',cur.p,T.p,'floor') + macroRow('Fat','--fat',cur.f,T.f,'ceiling','rgba(0,0,0,.78)') + macroRow('Carbs','--carb',cur.c,T.c,'target')}</div>
     <div class="caps" aria-label="Daily food limits">${capChips(date)}</div>
     <p class="note" style="margin:12px 0 0">Protein is a floor, fat is a ceiling.</p></div>`;
 
-  h += `<div class="group water"><div class="wtop">${waterRow(w.ml)}</div>
-    <label class="switch"><input type="checkbox" data-chg="creatine" ${w.creatine ? 'checked' : ''}>Creatine 5 g taken</label></div>`;
+  h += `<div class="group water"><div class="wtop">${waterRow(w.ml)}</div></div>`;
 
   ui.plan = date >= todayStr() ? planDay(date, ui.planAlt[date] || {}) : null;
 
@@ -2648,27 +2650,30 @@ document.addEventListener('pointercancel', endGesture);
    if the page takes the touch to scroll instead, the bar goes back. Arrow keys move it a glass at a time. */
 let wdr = null;
 const waterAt = (bar, x) => { const r = bar.getBoundingClientRect(); return Math.max(0, Math.min(WATER_MAX, Math.round((x - r.left) / r.width * WATER_MAX / WATER_STEP) * WATER_STEP)); };
-function showWater(ml){
+function showWater(ml, pct){   // pct: where the finger is while dragging; otherwise the fill sits on ml
   const bar = $('#wbar'); if (!bar) return;
-  $('i', bar).style.width = Math.min(100, ml / WATER_MAX * 100) + '%';
-  $('#waterNum').textContent = fmtL(ml); $('#waterSt').textContent = waterLeft(ml);
-  bar.setAttribute('aria-valuenow', ml); bar.setAttribute('aria-valuetext', `${fmtL(ml)} litres`);
+  $('i', bar).style.width = (pct !== undefined ? pct * 100 : Math.min(100, ml / WATER_MAX * 100)) + '%';
+  const num = $('#waterNum'), txt = fmtL(ml);
+  if (num.textContent !== txt) { num.textContent = txt; if (!reduced()) num.animate([{ transform:'scale(1.12)' }, { transform:'none' }], { duration:380, easing:EASE.spring }); }
+  $('#waterSt').textContent = waterLeft(ml);
+  bar.setAttribute('aria-valuenow', ml); bar.setAttribute('aria-valuetext', `${txt} litres`);
 }
+const waterPct = (bar, x) => { const r = bar.getBoundingClientRect(); return Math.max(0, Math.min(1, (x - r.left) / r.width)); };
 function saveWater(ml){ const w = S.water[ui.date] || (S.water[ui.date] = { ml:0, creatine:false }); if (w.ml !== ml) { w.ml = ml; saveState(); } }
 document.addEventListener('pointerdown', e => {
   const bar = e.target.closest('#wbar'); if (!bar) return;
   wdr = { id:e.pointerId, bar, x0:e.clientX, ml:waterAt(bar, e.clientX), moved:false };
   try { bar.setPointerCapture(e.pointerId); } catch (_) {}
-  showWater(wdr.ml);
+  bar.classList.add('held'); showWater(wdr.ml);
 }, { passive:true });
 document.addEventListener('pointermove', e => {
   if (!wdr || e.pointerId !== wdr.id) return;
   if (!wdr.moved && Math.abs(e.clientX - wdr.x0) < 4) return;
   wdr.moved = true; wdr.bar.classList.add('dragging');
-  const ml = waterAt(wdr.bar, e.clientX); if (ml !== wdr.ml) { wdr.ml = ml; showWater(ml); }
+  wdr.ml = waterAt(wdr.bar, e.clientX); showWater(wdr.ml, waterPct(wdr.bar, e.clientX));
 }, { passive:true });
-const endWater = e => { if (!wdr || e.pointerId !== wdr.id) return; const d = wdr; wdr = null; d.bar.classList.remove('dragging');
-  if (e.type === 'pointercancel') showWater(waterOf(ui.date).ml); else saveWater(d.ml); };
+const endWater = e => { if (!wdr || e.pointerId !== wdr.id) return; const d = wdr; wdr = null; d.bar.classList.remove('dragging', 'held');
+  if (e.type === 'pointercancel') showWater(waterOf(ui.date).ml); else { showWater(d.ml); saveWater(d.ml); } };   // settle on the nearest glass
 document.addEventListener('pointerup', endWater);
 document.addEventListener('pointercancel', endWater);
 document.addEventListener('keydown', e => {
@@ -2849,8 +2854,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const t = e.target;
-  if (t.dataset.chg === 'creatine') { const w = S.water[ui.date] || (S.water[ui.date] = { ml:0, creatine:false }); w.creatine = t.checked; saveState(); }
-  else if (t.dataset.set) setPath(t.dataset.set, t.value);
+  if (t.dataset.set) setPath(t.dataset.set, t.value);
   else if (t.id === 'importfile' && t.files && t.files[0]) {
     const rd = new FileReader();
     rd.onload = () => { try { const obj = JSON.parse(rd.result);
