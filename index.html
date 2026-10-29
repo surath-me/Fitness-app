@@ -656,7 +656,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.28';
+const APP_VERSION = '3.29';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1675,7 +1675,7 @@ function restCard(plan, date){
 function sessionCard(plan, date){
   if (!plan.items.length) return restCard(plan, date);
   const wk = S.workouts[date];
-  const total = plan.items.reduce((a, it) => a + (isNotDone(wk, it.id) ? setsDone(wk, it.id).length : Math.max(setTarget(wk, it), setsDone(wk, it.id).length)), 0);   // a lift not done no longer counts as open
+  const total = plan.items.reduce((a, it) => a + Math.max(setTarget(wk, it), setsDone(wk, it.id).length), 0);   // a lift marked as not done still counts: its sets are lost
   const done = plan.items.reduce((a, it) => a + setsDone(wk, it.id).length, 0);
   const pct = total ? done / total : 0;
   const nLogged = plan.items.filter(it => setsDone(wk, it.id).length).length;
