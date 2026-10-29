@@ -269,7 +269,7 @@ body.under .edge.top{opacity:1}
 
 /* press feedback for content, like the UIKit highlight */
 .capsule:active,.icb:active,.wd:active,.check:active,.drop:active{transform:scale(.92)}
-.ex-head:active,.food:active,.entry:active,.addline:active,summary:active{background:var(--press)}
+.food:active,.addline:active,summary:active{background:var(--press)}
 
 /* ---------- session card ---------- */
 .session .top{display:flex;gap:14px;align-items:center}
@@ -303,9 +303,8 @@ body.under .edge.top{opacity:1}
 .collapse.open{grid-template-rows:1fr}
 
 /* ---------- lifts ---------- */
-.ex{margin-left:16px;border-top:.5px solid var(--sep)}
-.ex:first-child{border-top:0}
-.ex-head{display:grid;grid-template-columns:66px 1fr auto;gap:12px;align-items:center;width:calc(100% + 16px);margin-left:-16px;padding:14px 16px;min-height:72px;transition:background .2s}
+.ex:first-child::after{display:none}
+.ex-head{position:relative;isolation:isolate;display:grid;grid-template-columns:66px 1fr auto;gap:12px;align-items:center;width:100%;padding:14px 16px;min-height:72px}
 .wt{font-size:32px;line-height:.95;text-align:right}
 .wt small{display:block;font-family:var(--font);font-weight:500;font-size:10px;color:var(--ink2);margin-top:4px;letter-spacing:0}
 .ex-name{font-weight:600;font-size:17px;line-height:1.25}
@@ -316,7 +315,7 @@ body.under .edge.top{opacity:1}
 .sets-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .45s var(--smooth)}
 .sets-wrap>div{overflow:hidden;min-height:0}
 .sets-wrap.open{grid-template-rows:1fr}
-.sets-inner{padding:0 16px 16px 0;opacity:0;transform:translateY(-6px);transition:opacity .3s var(--out) .05s,transform .4s var(--out) .05s}
+.sets-inner{padding:0 16px 16px;opacity:0;transform:translateY(-6px);transition:opacity .3s var(--out) .05s,transform .4s var(--out) .05s}
 .sets-wrap.open .sets-inner{opacity:1;transform:none}
 .setrow,.setlab{display:grid;grid-template-columns:24px 1fr 1fr 44px;gap:8px;align-items:center}
 .setrow{margin-bottom:8px}
@@ -331,7 +330,6 @@ body.under .edge.top{opacity:1}
 .check.pop{animation:pop .5s var(--spring)}
 .setlab{font-size:10px;color:var(--ink2);margin-bottom:4px;text-align:center}
 .cue{font-size:12px;color:var(--ink2);margin:0 0 12px}
-.ex.flash{animation:flash 1.1s var(--out)}
 
 /* ---------- eat ---------- */
 /* the day type: a quiet pop-up button like the Weekly split picker, grey with up/down chevrons, top right of the card */
@@ -378,7 +376,14 @@ body.under .edge.top{opacity:1}
 .slothead{padding:14px 16px 10px}
 .slothead .nm{font-weight:700;font-size:17px}
 .slothead .t{text-align:right;font-weight:700;font-size:16px;font-variant-numeric:tabular-nums;font-family:var(--rounded);color:var(--ink)}   /* the meal's totals are the headline */
-.swipe{position:relative;margin-left:16px;border-top:.5px solid var(--sep);overflow:hidden;transition:height .3s var(--out),opacity .3s}
+.swipe{position:relative;overflow:hidden;transition:height .3s var(--out),opacity .3s}
+/* rows run edge to edge; only the separator is inset, so a row can slide off the card's left edge as in Mail */
+.swipe::after{content:"";position:absolute;z-index:1;top:0;left:16px;right:0;height:.5px;background:var(--sep);pointer-events:none;transition:opacity .2s}
+.swipe.dragging::after,.swipe.opened::after,.swipe.dragging+.swipe::after,.swipe.opened+.swipe::after{opacity:0}
+/* the touch highlight and the swiped row are one shape: a grey rounded rectangle inset a little from the card, as in iOS 26 */
+.swipe-fg::before,.ex-head::before{content:"";position:absolute;inset:3px 6px;border-radius:16px;z-index:-1;background:transparent;transition:background-color .2s}
+.entry.swipe-fg:active::before,.ex-head:active::before{background:var(--press)}
+@media (hover:hover){.entry.swipe-fg:hover::before,.ex-head:hover::before{background:var(--fill2)}}
 /* swipe to delete as in iOS 26: the row turns grey and rounds its trailing corners as it slides, and the action is a red
    capsule inset from the row and the edge. It starts as a circle, stretches into a capsule as the swipe goes on, and its
    trash icon springs in with it; past 60% the icon bumps to say letting go deletes. The whole uncovered area is the button. */
@@ -389,11 +394,12 @@ body.under .edge.top{opacity:1}
 .swipe.armed .swipe-del .pill svg{scale:1.2}
 .ex .swipe-del .pill{top:36px}
 .extras .ex .swipe-del .pill{top:31px}
-.swipe-fg{position:relative;background:var(--card);touch-action:pan-y;border-radius:0 var(--fr, 0px) var(--fr, 0px) 0;transition:transform .4s var(--smooth),border-radius .4s var(--smooth)}
+.swipe-fg{position:relative;isolation:isolate;touch-action:pan-y;transition:transform .4s var(--smooth)}
 .swipe.dragging .swipe-fg,.swipe.dragging .swipe-del,.swipe.dragging .pill{transition:none}
-.swipe.dragging .swipe-fg,.swipe.opened .swipe-fg{background:var(--swipe-row)}   /* grey while swiped, so its rounded edge shows */
-.swipe.flash .swipe-fg{animation:rowIn .55s var(--out),flashFg 1.2s var(--out)}
-.entry{width:100%;padding:10px 16px 10px 0;min-height:56px}
+.swipe.dragging .swipe-fg::before,.swipe.opened .swipe-fg::before{background:var(--swipe-row)}   /* grey while swiped, rounded all round */
+.swipe.flash .swipe-fg{animation:rowIn .55s var(--out)}
+.swipe.flash .swipe-fg::before{animation:flashFg 1.2s var(--out)}
+.entry{width:100%;padding:10px 16px;min-height:56px}
 .entry .nm{font-size:15px;font-weight:400;line-height:1.25}
 .entry .q{font-size:12px;color:var(--ink2)}
 .entry .t{text-align:right;font-size:12px;font-variant-numeric:tabular-nums;font-family:var(--rounded);font-weight:500;color:var(--ink2)}   /* each food's macros stay quiet */
@@ -566,7 +572,7 @@ body.lock{overflow:hidden}
 /* ---------- keyframes ---------- */
 @keyframes pop{0%{transform:scale(.55)}55%{transform:scale(1.16)}100%{transform:scale(1)}}
 @keyframes flash{0%{background-color:var(--accent-t)}100%{background-color:transparent}}
-@keyframes flashFg{0%{background-color:var(--flash-row)}100%{background-color:var(--card)}}
+@keyframes flashFg{0%{background-color:var(--flash-row)}100%{background-color:transparent}}
 @keyframes rowIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
 @keyframes ringIn{from{stroke-dashoffset:var(--c)}}
 @keyframes barIn{from{width:0}}
@@ -2524,7 +2530,6 @@ function setSwipe(row, x, dragging){
   $('.swipe-fg', row).style.transform = x ? `translateX(${x}px)` : '';
   row.style.setProperty('--rev', `${-x}px`);
   row.style.setProperty('--ps', Math.min(1, Math.max(0, -x - 18) / 52).toFixed(3));   // the trash icon grows in with the capsule
-  row.style.setProperty('--fr', `${Math.min(22, -x)}px`);
 }
 function closeSwipes(except){ $$('.swipe.opened').forEach(r => { if (r !== except) { r.classList.remove('opened', 'armed'); setSwipe(r, 0); } }); }
 document.addEventListener('pointerdown', e => {
