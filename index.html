@@ -45,7 +45,7 @@
   --closeb:rgba(255,255,255,.6); --closeb-top:rgba(255,255,255,.8);
   --raise:inset 0 0 0 .5px rgba(0,0,0,.06),inset 0 1px 1px #fff,0 2px 8px rgba(0,0,0,.08);
   --track:rgba(120,120,128,.14); --track-ink:rgba(0,0,0,.78); --press:rgba(120,120,128,.1); --tab-sel:rgba(120,120,128,.14);
-  --scrim:rgba(0,0,0,.2); --flash-row:#E3F1FF; --grab:rgba(60,60,67,.3);
+  --scrim:rgba(0,0,0,.2); --flash-row:#E3F1FF; --swipe-row:#E5E5EA; --grab:rgba(60,60,67,.3);
   /* motion: the same springs as SwiftUI .bouncy, .smooth and .snappy */
   --spring:cubic-bezier(.34,1.4,.64,1); --smooth:cubic-bezier(.22,1,.36,1); --snappy:cubic-bezier(.3,1.25,.6,1);
   --out:cubic-bezier(.22,1,.36,1); --io:cubic-bezier(.65,0,.35,1);
@@ -72,7 +72,7 @@
   --closeb:rgba(120,120,128,.3); --closeb-top:rgba(255,255,255,.06);
   --raise:inset 0 0 0 .5px rgba(255,255,255,.08),inset 0 1px 1px rgba(255,255,255,.08),0 2px 8px rgba(0,0,0,.4);
   --track:rgba(120,120,128,.3); --track-ink:rgba(255,255,255,.88); --press:rgba(120,120,128,.24); --tab-sel:rgba(0,0,0,.62);
-  --scrim:rgba(0,0,0,.5); --flash-row:#0B2A47; --grab:rgba(235,235,245,.3);
+  --scrim:rgba(0,0,0,.5); --flash-row:#0B2A47; --swipe-row:#2C2C2E; --grab:rgba(235,235,245,.3);
   color-scheme:dark;
 }}
 @supports (transition-timing-function:linear(0,1)){:root{
@@ -227,8 +227,7 @@ body.under .edge.top{opacity:1}
 .btn.tinted{color:var(--accent);background:var(--tinted) linear-gradient(180deg,var(--tinted-top),transparent 60%);box-shadow:var(--raise)}
 .group .btn.tinted,.sheet .btn.tinted{background-color:var(--fill2)}
 .btn.plain{background:transparent;color:var(--accent);box-shadow:none}
-.btn.plain.red{color:var(--red-ink)}
-.exremove{margin:6px 0 0 -16px}
+
 .btn.soft{color:var(--accent-ink);background:var(--accent-t);box-shadow:none}   /* tinted fill on a solid card, like Fitness's Get Started */
 .btn.danger{color:var(--red-ink);background:var(--red-t);box-shadow:inset 0 0 0 .5px rgba(255,56,60,.12)}
 .btn.block{display:flex;width:100%}
@@ -380,13 +379,19 @@ body.under .edge.top{opacity:1}
 .slothead .nm{font-weight:700;font-size:17px}
 .slothead .t{text-align:right;font-weight:700;font-size:16px;font-variant-numeric:tabular-nums;font-family:var(--rounded);color:var(--ink)}   /* the meal's totals are the headline */
 .swipe{position:relative;margin-left:16px;border-top:.5px solid var(--sep);overflow:hidden;transition:height .3s var(--out),opacity .3s}
-/* swipe to delete as in iOS lists: the red action fills everything the row uncovers, so it grows with the swipe and never
-   leaves a gap; its label rides next to the row's edge */
-.swipe-del{position:absolute;top:0;right:0;bottom:0;width:var(--rev, 0px);overflow:hidden;background:var(--red);color:#fff;font-weight:600;font-size:15px;transition:width .4s var(--smooth)}
-.swipe-del span{position:absolute;top:0;bottom:0;left:0;width:82px;display:grid;place-items:center}
-.swipe-fg{position:relative;background:var(--card);touch-action:pan-y;transition:transform .4s var(--smooth)}
-.swipe.dragging .swipe-fg,.swipe.dragging .swipe-del{transition:none}
-.swipe.dragging .swipe-fg,.swipe.opened .swipe-fg{background:var(--card)}   /* no tap highlight while swiping */
+/* swipe to delete as in iOS 26: the row turns grey and rounds its trailing corners as it slides, and the action is a red
+   capsule inset from the row and the edge. It starts as a circle, stretches into a capsule as the swipe goes on, and its
+   trash icon springs in with it; past 60% the icon bumps to say letting go deletes. The whole uncovered area is the button. */
+.swipe-del{position:absolute;top:0;right:0;bottom:0;width:var(--rev, 0px);background:none;transition:width .4s var(--smooth)}
+.swipe-del .pill{position:absolute;right:10px;top:50%;translate:0 -50%;width:max(0px, calc(var(--rev, 0px) - 18px));height:min(52px, max(0px, calc(var(--rev, 0px) - 18px)));
+  border-radius:99px;background:var(--red);color:#fff;display:grid;place-items:center;transition:width .4s var(--smooth),height .4s var(--smooth)}
+.swipe-del .pill svg{width:22px;height:22px;scale:var(--ps, 0);opacity:var(--ps, 0);transition:scale .4s var(--spring),opacity .2s var(--out)}
+.swipe.armed .swipe-del .pill svg{scale:1.2}
+.ex .swipe-del .pill{top:36px}
+.extras .ex .swipe-del .pill{top:31px}
+.swipe-fg{position:relative;background:var(--card);touch-action:pan-y;border-radius:0 var(--fr, 0px) var(--fr, 0px) 0;transition:transform .4s var(--smooth),border-radius .4s var(--smooth)}
+.swipe.dragging .swipe-fg,.swipe.dragging .swipe-del,.swipe.dragging .pill{transition:none}
+.swipe.dragging .swipe-fg,.swipe.opened .swipe-fg{background:var(--swipe-row)}   /* grey while swiped, so its rounded edge shows */
 .swipe.flash .swipe-fg{animation:rowIn .55s var(--out),flashFg 1.2s var(--out)}
 .entry{width:100%;padding:10px 16px 10px 0;min-height:56px}
 .entry .nm{font-size:15px;font-weight:400;line-height:1.25}
@@ -625,7 +630,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.23';
+const APP_VERSION = '3.24';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1410,6 +1415,7 @@ const ICON = {
   close:'<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
   moon:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.6 14.7A8.6 8.6 0 0 1 9.3 3.4a8.6 8.6 0 1 0 11.3 11.3z"/></svg>',
   missed:'<svg viewBox="0 0 44 44"><path fill="currentColor" fill-rule="evenodd" d="M22 4a18 18 0 1 1 0 36a18 18 0 1 1 0-36zM13.5 14.6v14.8c0 1 1.1 1.6 1.9 1l10-7.4c.7-.5.7-1.5 0-2l-10-7.4c-.8-.6-1.9 0-1.9 1zM27.2 14.5h2.6c.5 0 .9.4.9.9v13.2c0 .5-.4.9-.9.9h-2.6c-.5 0-.9-.4-.9-.9V15.4c0-.5.4-.9.9-.9z"/></svg>',   // a skipped session: skip forward in a filled circle
+  trash:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9.3 2.5h5.4c.6 0 1.1.4 1.3 1l.4 1.3h3.9a1 1 0 0 1 0 2H3.7a1 1 0 0 1 0-2h3.9l.4-1.3c.2-.6.7-1 1.3-1z"/><path fill-rule="evenodd" d="M5.2 8.3h13.6l-.9 12.1a2.4 2.4 0 0 1-2.4 2.2H8.5a2.4 2.4 0 0 1-2.4-2.2zM9.2 11v8.6h1.6V11zm4 0v8.6h1.6V11z"/></svg>',
   zzz:'<svg viewBox="0 0 44 44"><path fill="currentColor" d="M35 28A17 17 0 0 1 15.6 8.6a17 17 0 1 0 19.4 19.4z"/><path d="M24.5 7.5h6.5l-6.5 8h6.5M34 4h4.5L34 9.5h4.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   updown:'<svg viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6l3-3 3 3M2 10l3 3 3-3"/></svg>',
   drop:'<svg viewBox="0 0 24 24"><path d="M12 2.8C9.1 6.8 5.6 10.7 5.6 14.7a6.4 6.4 0 0 0 12.8 0c0-4-3.5-7.9-6.4-11.9z" stroke-linejoin="round"/></svg>',
@@ -1550,13 +1556,14 @@ function setsEditor(it, date){
       <button class="btn tinted small" data-act="addset" data-date="${date}" data-ex="${it.id}">${ICON.plus.replace('<svg','<svg width="14" height="14"')}Add set</button>
       ${rows.length > 1 ? `<button class="btn plain small" data-act="delset" data-date="${date}" data-ex="${it.id}" data-i="${rows.length-1}">Remove last</button>` : ''}
     </div>
-    <button class="btn plain small red exremove" data-act="removeex" data-date="${date}" data-ex="${it.id}">Remove from ${date === todayStr() ? 'today' : 'this day'}</button>
   </div>`;
 }
-function exRow(it, date){
+function exRow(it, date){   // swipe the head left to delete, as with meals
   const key = date + '|' + it.id, open = !!ui.open[key];
-  return `<div class="ex ${ui.flashEx === key ? 'flash' : ''}" data-key="${esc(key)}">${exHead(it, date)}
-    <div class="sets-wrap ${open && ui.justOpen !== key ? 'open' : ''}" ${open ? '' : 'hidden'}><div>${open ? setsEditor(it, date) : ''}</div></div></div>`;
+  return `<div class="ex swipe ${ui.flashEx === key ? 'flash' : ''}" data-key="${esc(key)}">
+    <button class="swipe-del" data-act="swipedelex" data-key="${esc(key)}" tabindex="-1" aria-label="Delete"><span class="pill">${ICON.trash}</span></button>
+    <div class="swipe-fg">${exHead(it, date)}
+    <div class="sets-wrap ${open && ui.justOpen !== key ? 'open' : ''}" ${open ? '' : 'hidden'}><div>${open ? setsEditor(it, date) : ''}</div></div></div></div>`;
 }
 const findEx = key => $$('.ex').find(e => e.dataset.key === key);
 function closeEx(k){
@@ -1689,7 +1696,7 @@ function capChips(date){
 }
 function entryRow(e){
   return `<div class="swipe ${ui.flash === e.id ? 'flash' : ''}" data-id="${e.id}">
-    <button class="swipe-del" data-act="swipedel" data-id="${e.id}" tabindex="-1" aria-hidden="true"><span>Delete</span></button>
+    <button class="swipe-del" data-act="swipedel" data-id="${e.id}" tabindex="-1" aria-label="Delete"><span class="pill">${ICON.trash}</span></button>
     <button class="entry cols swipe-fg" data-act="editentry" data-id="${e.id}">
       <span><span class="nm">${esc(e.name)}</span><br><span class="q">${esc(qtyText(e))}</span></span>
       <span class="t">${r0(e.kcal)}</span><span class="t">${r0(e.p)}</span><span class="t">${r0(e.f)}</span><span class="t">${r0(e.c)}</span></button></div>`;
@@ -2333,6 +2340,23 @@ function removeEntry(id){
   ui.undo = { date:ui.date, entry:d.entries[idx], idx };
   d.entries.splice(idx, 1); saveState();
 }
+/* take a lift off a day: a planned one is remembered as removed (wk.removed), one added by hand just goes. Logged sets go
+   too, after asking. The row closes up, then Undo is offered. */
+function removeLift(date, ex, row){
+  const wk = ensureWk(date), keep = deepClone(wk), name = cfg(ex).name, n = setsDone(wk, ex).length;
+  const finish = () => {
+    const byHand = (wk.added || []).includes(ex);
+    wk.added = (wk.added || []).filter(x => x !== ex); delete wk.ex[ex];
+    if (!byHand && !(wk.removed || []).includes(ex)) wk.removed = [...(wk.removed || []), ex];
+    ui.open[date + '|' + ex] = false; saveState(); render();
+    ui.undo = { fn: () => { S.workouts[date] = keep; saveState(); render(); } };
+    toast(`${name} removed`, { undo:true });
+  };
+  const go = () => { if (!row || reduced()) return finish();
+    row.style.height = row.offsetHeight + 'px'; void row.offsetHeight; row.style.height = '0px'; row.style.opacity = '0'; setTimeout(finish, 280); };
+  if (!n) return go();
+  askGlass(`Remove ${name}?`, `The ${n} set${n === 1 ? '' : 's'} logged for it will be deleted too.`, 'Remove').then(ok => { if (ok) go(); else closeSwipes(); });
+}
 function removeEntryAnimated(id){
   const row = $$('.swipe').find(r => r.dataset.id === id);
   const done = () => { removeEntry(id); render(); toast('Removed', { undo:true }); };
@@ -2363,6 +2387,8 @@ const H = {
   whytoggle(t){ ui.showWhy = !ui.showWhy; const box = $('#whybox'); if (box) box.classList.toggle('open', ui.showWhy);
     t.textContent = ui.showWhy ? 'Show less' : 'Why this plan'; t.setAttribute('aria-expanded', String(ui.showWhy)); },
   openex(t){
+    if (Date.now() - ui.swipeAt < 400) return;
+    if (t.closest('.swipe.opened')) { closeSwipes(); return; }   // a tap on a swiped row just closes it, as in iOS lists
     const k = t.dataset.key, host = findEx(k); if (!host) return;
     const wrap = $('.sets-wrap', host), [date, id] = k.split('|');
     if (ui.open[k]) closeEx(k);
@@ -2404,19 +2430,7 @@ const H = {
   skipsession(){ S.dismissed[ui.date] = true; saveState(); ui.anim = true; render(); ui.undo = { fn: () => { delete S.dismissed[ui.date]; saveState(); render(); } }; toast('Session skipped', { undo:true, bad:true }); },
   unskip(){ delete S.dismissed[ui.date]; saveState(); render(); },
   pastrest(t){ const { rest, train } = t.dataset; fixPast(train, () => swapRest(rest, train), `${WD[wdOf(train)]} is now a rest day`); },
-  removeex(t){   // take a lift off this day; logged sets go too, after asking
-    const { date, ex } = t.dataset, wk = ensureWk(date), keep = deepClone(wk), name = cfg(ex).name, n = setsDone(wk, ex).length;
-    const go = () => {
-      const byHand = (wk.added || []).includes(ex);
-      wk.added = (wk.added || []).filter(x => x !== ex); delete wk.ex[ex];
-      if (!byHand && !(wk.removed || []).includes(ex)) wk.removed = [...(wk.removed || []), ex];
-      ui.open[date + '|' + ex] = false; saveState(); render();
-      ui.undo = { fn: () => { S.workouts[date] = keep; saveState(); render(); } };
-      toast(`${name} removed`, { undo:true });
-    };
-    if (!n) return go();
-    askGlass(`Remove ${name}?`, `The ${n} set${n === 1 ? '' : 's'} logged for it will be deleted too.`, 'Remove').then(ok => { if (ok) go(); });
-  },
+  swipedelex(t){ const [date, ex] = t.dataset.key.split('|'); removeLift(date, ex, t.closest('.ex')); },
   pastclear(t){ const d = t.dataset.d; fixPast(d, () => {}, `${WD[wdOf(d)]} cleared`); },
   pastskip(t){ const d = t.dataset.d; fixPast(d, () => { S.dismissed[d] = true; }, `${WD[wdOf(d)]} marked as skipped`, true); },
   swaprest(t){
@@ -2509,12 +2523,15 @@ function setSwipe(row, x, dragging){
   row.classList.toggle('dragging', !!dragging);
   $('.swipe-fg', row).style.transform = x ? `translateX(${x}px)` : '';
   row.style.setProperty('--rev', `${-x}px`);
+  row.style.setProperty('--ps', Math.min(1, Math.max(0, -x - 18) / 52).toFixed(3));   // the trash icon grows in with the capsule
+  row.style.setProperty('--fr', `${Math.min(22, -x)}px`);
 }
 function closeSwipes(except){ $$('.swipe.opened').forEach(r => { if (r !== except) { r.classList.remove('opened', 'armed'); setSwipe(r, 0); } }); }
 document.addEventListener('pointerdown', e => {
   const head = e.target.closest('.sheet-head');
   if (head && !e.target.closest('button')) { sd = { y0:e.clientY, id:e.pointerId, dy:0 }; $('#sheet').classList.add('dragging'); return; }
-  const fg = e.target.closest('.swipe-fg');
+  let fg = e.target.closest('.swipe-fg');
+  if (fg && fg.parentElement.classList.contains('ex') && !e.target.closest('.ex-head')) fg = null;   // the sets inside an exercise never swipe
   if (!fg) { if (!e.target.closest('.swipe-del')) closeSwipes(); return; }
   const row = fg.parentElement; closeSwipes(row);
   sw = { row, x0:e.clientX, y0:e.clientY, base: row.classList.contains('opened') ? -DEL_W : 0, x:0, v:0, lx:e.clientX, lt:performance.now(), t0:performance.now(), w:row.offsetWidth, active:false, id:e.pointerId };
@@ -2524,7 +2541,7 @@ document.addEventListener('pointermove', e => {
   if (!sw || e.pointerId !== sw.id) return;
   const dx = e.clientX - sw.x0, dy = e.clientY - sw.y0;
   if (!sw.active) {
-    if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) sw.active = true;
+    if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) { if (rd && rd.active) { sw = null; return; } sw.active = true; if (rd) { clearTimeout(rd.t); rd = null; } }
     else if (Math.abs(dy) > 8) { sw = null; return; } else return;
   }
   const now = performance.now(); sw.v = (e.clientX - sw.lx) / Math.max(8, now - sw.lt); sw.lx = e.clientX; sw.lt = now;
@@ -2537,7 +2554,8 @@ function endGesture(){
     if (dy > 110) { el.style.transform = 'translateY(calc(100% + 40px))'; ui.sheet = null; drawSheet(); } else el.style.transform = ''; }
   if (sw) { const s = sw; sw = null; if (!s.active) return; ui.swipeAt = Date.now();
     if (s.row.classList.contains('armed')) {   // a full swipe: the red takes the whole row, then the row closes up
-      s.row.classList.add('opened'); setSwipe(s.row, -s.w); setTimeout(() => removeEntryAnimated(s.row.dataset.id), reduced() ? 0 : 200); return; }
+      s.row.classList.add('opened'); setSwipe(s.row, -s.w);
+      setTimeout(() => { if (s.row.classList.contains('ex')) { const [d, x] = s.row.dataset.key.split('|'); removeLift(d, x, s.row); } else removeEntryAnimated(s.row.dataset.id); }, reduced() ? 0 : 200); return; }
     const flick = s.v < -.4 || (performance.now() - s.t0 < 250 && s.x - s.base < -20);   // fast at the end, or a short quick swipe
     const open = flick || (s.v <= .4 && -s.x > DEL_W / 2);   // a flick left opens, a flick right closes
     s.row.classList.toggle('opened', open); setSwipe(s.row, open ? -DEL_W : 0); }
@@ -2566,7 +2584,8 @@ function liftRow(){
   if (!rd) return;
   const row = rd.row, group = row.parentElement, rows = [...group.children].filter(x => x.classList.contains('ex'));
   if (rows.length < 2) { rd = null; return; }
-  unlight(); rd.active = true; rd.rows = rows; rd.idx = rd.to = rows.indexOf(row); rd.h = row.offsetHeight;
+  if (sw && sw.active) { rd = null; return; }
+  sw = null; unlight(); rd.active = true; rd.rows = rows; rd.idx = rd.to = rows.indexOf(row); rd.h = row.offsetHeight;
   rd.mids = rows.map(r => r.offsetTop + r.offsetHeight / 2);
   group.classList.add('reordering'); row.classList.add('lifting'); if (navigator.vibrate) navigator.vibrate(8);
 }
