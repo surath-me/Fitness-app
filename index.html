@@ -676,7 +676,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.41';
+const APP_VERSION = '3.42';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2029,6 +2029,9 @@ function drawSheet(){
   if (opening) { el.scrollTop = 0; el.style.transform = ''; void el.offsetHeight; requestAnimationFrame(() => { el.classList.add('open'); sc.classList.add('open'); }); }
 }
 const openSheet = s => { ui.sheet = s; drawSheet(); };
+/* Quick entry starts in its name field with the keyboard up. It has to happen inside the tap itself, or the phone
+   focuses the field without showing its keyboard. */
+const focusQuick = () => { const f = $('#qe-name'); if (f) f.focus({ preventScroll:true }); };
 const closeSheet = () => { ui.sheet = null; drawSheet(); };
 
 /* =====================================================================
@@ -2464,7 +2467,7 @@ const H = {
   pickday(t){ if (Date.now() - (ui.weekAt || 0) < 400) return; go(t.dataset.d); },
   menu(t){ if (ui.menu) closeMenu(); else openMenu(t, t.dataset.menu); },
   closemenu(){ closeMenu(); },
-  quickentry(){ openSheet({ type:'food', slot:ui.slot, q:'', sel:null, qty:0, mode:'quick' }); },
+  quickentry(){ openSheet({ type:'food', slot:ui.slot, q:'', sel:null, qty:0, mode:'quick' }); focusQuick(); },
   day(t){ go(addDays(ui.date, +t.dataset.n)); },
   today(){ go(todayStr()); },
   budget(t){ const wk = ensureWk(ui.date), v = +t.dataset.v; if (v === DAY_MINUTES) delete wk.budget; else wk.budget = v; saveState(); render(); },
@@ -2546,7 +2549,7 @@ const H = {
     const i = +t.dataset.i, cur = Math.round(waterOf(ui.date).ml / WATER_STEP), n = cur === i + 1 ? i : i + 1;
     setDrops(n, t); saveWater(n * WATER_STEP); },
   addfood(t){ openSheet({ type:'food', slot:t.dataset.slot || ui.slot, q:'', sel:null, qty:0, mode:'list' }); },
-  sheetmode(t){ ui.sheet.mode = t.dataset.v; ui.sheet.sel = null; drawSheet(); },
+  sheetmode(t){ ui.sheet.mode = t.dataset.v; ui.sheet.sel = null; drawSheet(); if (ui.sheet.mode === 'quick') focusQuick(); },
   pickfood(t){ ui.sheet.sel = t.dataset.id; ui.sheet.qty = foodById(t.dataset.id).step; drawSheet(); },
   backlist(){ ui.sheet.sel = null; drawSheet(); },
   qtystep(t){ const f = foodById(ui.sheet.sel), inc = f.inc || (f.unit === 'g' ? 10 : 0.5);
