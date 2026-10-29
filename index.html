@@ -636,7 +636,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.24';
+const APP_VERSION = '3.25';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1111,6 +1111,7 @@ function buildPlan(date, opts={}){
   const today = todayStr(), budget = opts.budget || S.settings.timeBudget;
   const wd = wdOf(date), why = [], deferred = [];
   const wk = S.workouts[date], removed = new Set((wk && wk.removed) || []);   // lifts taken off this day by hand
+  const byHand = new Set((wk && wk.added) || []);   // added on top of the plan: stays under Added, even a lift the plan left out today
   let tid = sessionOn(date);
   if (S.dismissed[date]) tid = null;
   const tpl = tid && TEMPLATES[tid] ? TEMPLATES[tid] : null;
@@ -1119,7 +1120,8 @@ function buildPlan(date, opts={}){
   if (date < today) {
     const ids = new Set(loggedIds(wk).concat((wk && wk.added) || []));
     const picked = tpl && S.assign[date] === tid ? tpl : null;
-    const mine = (picked ? picked.ex.filter(id => EX[id]) : [...ids]).filter(id => !removed.has(id)), more = picked ? [...ids].filter(id => !picked.ex.includes(id)) : [];
+    const hand = tid ? byHand : new Set();
+    const mine = (picked ? picked.ex.filter(id => EX[id]) : [...ids]).filter(id => !removed.has(id) && !hand.has(id)), more = [...ids].filter(id => !mine.includes(id) && !removed.has(id));
     const items = mine.sort(byOrder(wk)).map(id => ({ id, origin:'logged', sug: suggest(id, date) }));
     const added = more.sort(byOrder(wk)).map(id => ({ id, origin:'added', sug: suggest(id, date) }));
     return { date, tid, title: picked ? picked.name : items.length ? 'Logged workout' : 'No workout logged',
@@ -1129,7 +1131,7 @@ function buildPlan(date, opts={}){
 
   const pool = new Map();
   if (tpl) {
-    tpl.ex.forEach(id => { if (!removed.has(id)) pool.set(id, { id, from:date, origins:['today'], tid }); });
+    tpl.ex.forEach(id => { if (!removed.has(id) && !byHand.has(id)) pool.set(id, { id, from:date, origins:['today'], tid }); });
     const usual = S.settings.schedule[wd];
     why.push(S.assign[date] === tid && usual !== tid ? `${WD[wd]}: you chose ${tpl.name}. The sessions after it shift to cover the week.`
       : usual !== tid ? `${WD[wd]}: ${tpl.name}. Your week changed, so the sessions after it shifted.` : `${WD[wd]}: ${tpl.name} is scheduled.`);
@@ -1168,7 +1170,6 @@ function buildPlan(date, opts={}){
   if (trimmed.length) why.push(`To fit ${budget} minutes, these are left out today: ${joinNames(trimmed.map(i => cfg(i.id).name.toLowerCase()))}.`);
 
   // a skipped or missed session before today: its lifts wait at the bottom, to do if there is time
-  const byHand = new Set((wk && wk.added) || []);
   const mu = date === today && tpl ? makeUp(date, id => pool.has(id) || byHand.has(id) || removed.has(id) || (!setsDone(wk, id).length && !!holdFor(id))) : null;
   const extras = mu ? { ...mu, items: mu.ids.sort(byOrder(wk)).map(id => ({ id, origin:'extra', from:mu.from, sug: suggest(id, date) })) } : null;
   const inExtras = new Set(mu ? mu.ids : []);
