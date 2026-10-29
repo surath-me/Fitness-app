@@ -682,7 +682,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.48';
+const APP_VERSION = '3.49';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1736,7 +1736,6 @@ function viewTrain(){
     h += `<h2>Left out today</h2><p class="why" style="margin:0 4px 10px">Held back for recovery or to fit your time.</p><div class="group">` +
       plan.deferred.map(d => `<div class="lift"><div><strong>${esc(cfg(d.id).name)}</strong><div class="small muted">${esc(d.reason)}</div></div><span></span><span></span></div>`).join('') + `</div>`;
   }
-  if (!plan.past && plan.items.length) h += `<p class="note" style="margin:0 4px">Swipe a lift left if you could not do it. Use ${'⋯'} at the top of the screen to move your rest day, skip this session or train a different one.</p>`;
   return h + `</div>`;
 }
 
@@ -1805,7 +1804,6 @@ function viewEat(){
   h += `<div class="cols legend mealhead"><h2>Meals</h2><span class="h" aria-hidden="true" style="color:var(--kcal-t)">kcal</span><span class="h" aria-hidden="true" style="color:var(--pro-t)">P</span><span class="h" aria-hidden="true" style="color:var(--fat-t)">F</span><span class="h" aria-hidden="true" style="color:var(--carb-t)">C</span></div>`;
   h += SLOTS.map(([k,l]) => slotBlock(k, l, date)).join('') + slotBlock('imported', 'Imported day total', date);
   h += planNote() + topUps(date);
-  h += `<p class="note" style="margin:0 4px 12px">Swipe a food left to delete it, or tap it to change the amount. Quick entry and copying meals from another day are under ${'⋯'} at the top.</p>`;
   return h + `</div>`;
 }
 
