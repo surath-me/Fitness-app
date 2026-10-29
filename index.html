@@ -227,6 +227,8 @@ body.under .edge.top{opacity:1}
 .btn.tinted{color:var(--accent);background:var(--tinted) linear-gradient(180deg,var(--tinted-top),transparent 60%);box-shadow:var(--raise)}
 .group .btn.tinted,.sheet .btn.tinted{background-color:var(--fill2)}
 .btn.plain{background:transparent;color:var(--accent);box-shadow:none}
+.btn.plain.red{color:var(--red-ink)}
+.exremove{margin:6px 0 0 -16px}
 .btn.soft{color:var(--accent-ink);background:var(--accent-t);box-shadow:none}   /* tinted fill on a solid card, like Fitness's Get Started */
 .btn.danger{color:var(--red-ink);background:var(--red-t);box-shadow:inset 0 0 0 .5px rgba(255,56,60,.12)}
 .btn.block{display:flex;width:100%}
@@ -623,7 +625,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.22';
+const APP_VERSION = '3.23';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1097,7 +1099,7 @@ const byOrder = wk => (a, b) => { const o = (wk && wk.order) || [], ia = o.index
 function buildPlan(date, opts={}){
   const today = todayStr(), budget = opts.budget || S.settings.timeBudget;
   const wd = wdOf(date), why = [], deferred = [];
-  const wk = S.workouts[date];
+  const wk = S.workouts[date], removed = new Set((wk && wk.removed) || []);   // lifts taken off this day by hand
   let tid = sessionOn(date);
   if (S.dismissed[date]) tid = null;
   const tpl = tid && TEMPLATES[tid] ? TEMPLATES[tid] : null;
@@ -1106,7 +1108,7 @@ function buildPlan(date, opts={}){
   if (date < today) {
     const ids = new Set(loggedIds(wk).concat((wk && wk.added) || []));
     const picked = tpl && S.assign[date] === tid ? tpl : null;
-    const mine = picked ? picked.ex.filter(id => EX[id]) : [...ids], more = picked ? [...ids].filter(id => !picked.ex.includes(id)) : [];
+    const mine = (picked ? picked.ex.filter(id => EX[id]) : [...ids]).filter(id => !removed.has(id)), more = picked ? [...ids].filter(id => !picked.ex.includes(id)) : [];
     const items = mine.sort(byOrder(wk)).map(id => ({ id, origin:'logged', sug: suggest(id, date) }));
     const added = more.sort(byOrder(wk)).map(id => ({ id, origin:'added', sug: suggest(id, date) }));
     return { date, tid, title: picked ? picked.name : items.length ? 'Logged workout' : 'No workout logged',
@@ -1116,7 +1118,7 @@ function buildPlan(date, opts={}){
 
   const pool = new Map();
   if (tpl) {
-    tpl.ex.forEach(id => pool.set(id, { id, from:date, origins:['today'], tid }));
+    tpl.ex.forEach(id => { if (!removed.has(id)) pool.set(id, { id, from:date, origins:['today'], tid }); });
     const usual = S.settings.schedule[wd];
     why.push(S.assign[date] === tid && usual !== tid ? `${WD[wd]}: you chose ${tpl.name}. The sessions after it shift to cover the week.`
       : usual !== tid ? `${WD[wd]}: ${tpl.name}. Your week changed, so the sessions after it shifted.` : `${WD[wd]}: ${tpl.name} is scheduled.`);
@@ -1156,14 +1158,14 @@ function buildPlan(date, opts={}){
 
   // a skipped or missed session before today: its lifts wait at the bottom, to do if there is time
   const byHand = new Set((wk && wk.added) || []);
-  const mu = date === today && tpl ? makeUp(date, id => pool.has(id) || byHand.has(id) || (!setsDone(wk, id).length && !!holdFor(id))) : null;
+  const mu = date === today && tpl ? makeUp(date, id => pool.has(id) || byHand.has(id) || removed.has(id) || (!setsDone(wk, id).length && !!holdFor(id))) : null;
   const extras = mu ? { ...mu, items: mu.ids.sort(byOrder(wk)).map(id => ({ id, origin:'extra', from:mu.from, sug: suggest(id, date) })) } : null;
   const inExtras = new Set(mu ? mu.ids : []);
 
   // anything added by hand or already logged today
   const present = new Set(chosen.map(i => i.id));
   const extra = new Set(((wk && wk.added) || []).concat(loggedIds(wk)));
-  extra.forEach(id => { if (EX[id] && !present.has(id) && !inExtras.has(id)) { chosen.push({ id, from:date, origins:['added'] }); present.add(id); } });
+  extra.forEach(id => { if (EX[id] && !present.has(id) && !inExtras.has(id) && !removed.has(id)) { chosen.push({ id, from:date, origins:['added'] }); present.add(id); } });
 
   // lifts added on top of the plan sit in their own section and do not count towards the session
   const ord = byOrder(wk), isAdded = it => it.origins.includes('added');
@@ -1548,6 +1550,7 @@ function setsEditor(it, date){
       <button class="btn tinted small" data-act="addset" data-date="${date}" data-ex="${it.id}">${ICON.plus.replace('<svg','<svg width="14" height="14"')}Add set</button>
       ${rows.length > 1 ? `<button class="btn plain small" data-act="delset" data-date="${date}" data-ex="${it.id}" data-i="${rows.length-1}">Remove last</button>` : ''}
     </div>
+    <button class="btn plain small red exremove" data-act="removeex" data-date="${date}" data-ex="${it.id}">Remove from ${date === todayStr() ? 'today' : 'this day'}</button>
   </div>`;
 }
 function exRow(it, date){
@@ -2401,6 +2404,19 @@ const H = {
   skipsession(){ S.dismissed[ui.date] = true; saveState(); ui.anim = true; render(); ui.undo = { fn: () => { delete S.dismissed[ui.date]; saveState(); render(); } }; toast('Session skipped', { undo:true, bad:true }); },
   unskip(){ delete S.dismissed[ui.date]; saveState(); render(); },
   pastrest(t){ const { rest, train } = t.dataset; fixPast(train, () => swapRest(rest, train), `${WD[wdOf(train)]} is now a rest day`); },
+  removeex(t){   // take a lift off this day; logged sets go too, after asking
+    const { date, ex } = t.dataset, wk = ensureWk(date), keep = deepClone(wk), name = cfg(ex).name, n = setsDone(wk, ex).length;
+    const go = () => {
+      const byHand = (wk.added || []).includes(ex);
+      wk.added = (wk.added || []).filter(x => x !== ex); delete wk.ex[ex];
+      if (!byHand && !(wk.removed || []).includes(ex)) wk.removed = [...(wk.removed || []), ex];
+      ui.open[date + '|' + ex] = false; saveState(); render();
+      ui.undo = { fn: () => { S.workouts[date] = keep; saveState(); render(); } };
+      toast(`${name} removed`, { undo:true });
+    };
+    if (!n) return go();
+    askGlass(`Remove ${name}?`, `The ${n} set${n === 1 ? '' : 's'} logged for it will be deleted too.`, 'Remove').then(ok => { if (ok) go(); });
+  },
   pastclear(t){ const d = t.dataset.d; fixPast(d, () => {}, `${WD[wdOf(d)]} cleared`); },
   pastskip(t){ const d = t.dataset.d; fixPast(d, () => { S.dismissed[d] = true; }, `${WD[wdOf(d)]} marked as skipped`, true); },
   swaprest(t){
@@ -2410,7 +2426,8 @@ const H = {
     toast(`${WD[wdOf(train)]} is now a rest day`, { undo:true });
   },
   addex(){ openSheet({ type:'exercise' }); },
-  pickex(t){ const wk = ensureWk(ui.date); if (!wk.added) wk.added = []; if (!wk.added.includes(t.dataset.id)) wk.added.push(t.dataset.id);
+  pickex(t){ const wk = ensureWk(ui.date), id = t.dataset.id; if (!wk.added) wk.added = [];
+    if ((wk.removed || []).includes(id)) wk.removed = wk.removed.filter(x => x !== id); else if (!wk.added.includes(id)) wk.added.push(id);
     const key = ui.date + '|' + t.dataset.id; Object.keys(ui.open).forEach(k => { ui.open[k] = false; }); ui.open[key] = true; ui.justOpen = key; ui.flashEx = key; saveState(); closeSheet(); render(); },
   daytype(t){ const d = S.days[ui.date] || (S.days[ui.date] = { entries:[] }); if (dayType(ui.date) === t.dataset.v) return; d.type = t.dataset.v; saveState(); render({ meters:true }); },
   slot(t){ ui.slot = t.dataset.v; $$('[data-act="slot"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === ui.slot))); },
@@ -2588,7 +2605,7 @@ document.addEventListener('pointerdown', e => {
   }
   if (e.target.closest('.week')) wk = { id:e.pointerId, x0:e.clientX, y0:e.clientY, drag:false };
   const timer = e.target.closest('#timer');
-  if (timer) { timer.classList.add('seen'); if (!e.target.closest('.tb')) tm = { id:e.pointerId, y0:e.clientY, t0:performance.now(), dy:0 }; }   // touched: stop pulsing
+  if (timer) { timer.classList.add('seen'); if (RT.done && !e.target.closest('.tb')) tm = { id:e.pointerId, y0:e.clientY, t0:performance.now(), dy:0 }; }   // touched: stop pulsing; only a finished rest can be swiped away
   const head = e.target.closest('.ex-head');
   if (head && e.button === 0) rd = { id:e.pointerId, x0:e.clientX, y0:e.clientY, row:head.closest('.ex'), active:false, t:setTimeout(liftRow, 450) };
   if (ui.tab === 'setup' && ui.setupPage && e.clientX < 28 && !ui.sheet) eb = { id:e.pointerId, x0:e.clientX, y0:e.clientY };   // swipe from the left edge to go back
