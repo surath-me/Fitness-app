@@ -25,7 +25,7 @@
   --red:#FF383C; --red-t:rgba(255,56,60,.12); --red-ink:#D70015; --gray:#8E8E93;
   --green:#34C759; --green-t:rgba(52,199,89,.16); --green-ink:#1F8A3B;
   /* macro colours: data only */
-  --kcal:#0088FF; --pro:#6155F5; --fat:#FFCC00; --carb:#34C759;
+  --kcal:#0088FF; --pro:#6155F5; --fat:#FFCC00; --carb:#34C759; --water:#00A9E0; --water-on:#fff;
   --kcal-t:#006FD6; --pro-t:#4B3FE0; --fat-t:#9A7400; --carb-t:#1F8A3B;
   --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",system-ui,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --rounded:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
@@ -59,7 +59,7 @@
   --accent:#0091FF; --accent-press:#3AA7FF; --accent-t:rgba(0,145,255,.22); --accent-glow:rgba(0,145,255,.38); --accent-ink:#45ADFF;
   --red:#FF4245; --red-t:rgba(255,66,69,.2); --red-ink:#FF6B6E; --gray:#98989D;
   --green:#30D158; --green-t:rgba(48,209,88,.22); --green-ink:#30D158;
-  --kcal:#0091FF; --pro:#6D7CFF; --fat:#FFD600; --carb:#30D158;
+  --kcal:#0091FF; --pro:#6D7CFF; --fat:#FFD600; --carb:#30D158; --water:#3CD3FE; --water-on:rgba(0,0,0,.78);
   --kcal-t:#4DB0FF; --pro-t:#9AA4FF; --fat-t:#FFD600; --carb-t:#30D158;
   --glass:rgba(96,96,100,.36); --glass-thick:rgba(52,52,56,.64); --glass-solid:rgba(38,38,40,.97);
   --glass-fx:blur(7px) saturate(170%) brightness(.9);
@@ -269,7 +269,7 @@ body.under .edge.top{opacity:1}
 .gaps .qchip small{display:block;font-size:10.5px;font-weight:500;opacity:.8}
 
 /* press feedback for content, like the UIKit highlight */
-.capsule:active,.icb:active,.wd:active,.check:active,.drop:active{transform:scale(.92)}
+.capsule:active,.icb:active,.wd:active,.check:active{transform:scale(.92)}
 .food:active,.addline:active,summary:active{background:var(--press)}
 
 /* ---------- session card ---------- */
@@ -297,8 +297,8 @@ body.under .edge.top{opacity:1}
 .rc-text{font-size:14px;line-height:1.4;color:var(--ink2);margin:0}
 .restcard.bad .rc-ic{color:var(--red)}
 /* lifts from a skipped session, to fit in if there is time: quieter than the day's own */
-.extras h3,.added h3{margin-top:24px}
-.extras .note,.added .note{margin:-4px 8px 8px}
+.extras h3{margin-top:24px}
+.extras .note{margin:-4px 8px 8px}
 /* hold an exercise, then drag it to a new place */
 .ex-head{-webkit-touch-callout:none}
 .group.reordering{overflow:visible}
@@ -353,7 +353,7 @@ body.under .edge.top{opacity:1}
 
 /* ---------- eat ---------- */
 /* the day type: a quiet pop-up button like the Weekly split picker, grey with up/down chevrons, top right of the card */
-.dtrow{display:flex;justify-content:flex-end;margin:-10px -6px 2px 0}
+.dtrow{display:flex;justify-content:flex-end;margin:-12px -6px -6px 0}
 .dtpick{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 6px;color:var(--ink2);font-size:14px;font-weight:500;transition:opacity .15s}
 .dtpick svg:first-child{width:15px;height:15px}
 .dtpick svg:last-child{width:8px;height:13px}
@@ -362,10 +362,12 @@ body.under .edge.top{opacity:1}
 .rings{flex:none}
 .rings .arc{transition:stroke-dashoffset .9s var(--out)}
 .rings.anim .arc{animation:ringIn 1.1s var(--out) both}
-.rings.anim .arc:nth-of-type(2){animation-delay:.08s}
+.rings.anim .arc:nth-of-type(4){animation-delay:.08s}
+.rings.anim .arc:nth-of-type(6){animation-delay:.16s}
 .hero .num{font-size:44px;line-height:1}
 .hl{font-size:13px;font-weight:600;color:var(--ink2);margin-top:2px}
 .hp{font-size:12px;font-weight:600;margin-top:6px}
+.hp.hf{margin-top:2px}
 /* macro bars in the style of Health's comparison bars: a big number, then a thick bar with its name inside.
    The name is drawn twice, dark on the track and light on the fill, so it reads wherever the fill ends. */
 .macro{margin:18px 0 0;--on:#fff}
@@ -384,14 +386,23 @@ body.under .edge.top{opacity:1}
 .cap{font-size:11px;font-weight:600;padding:5px 11px;border-radius:99px;background:var(--fill2);color:var(--ink2);transition:background .3s,color .3s}
 .cap.full{background:var(--accent-t);color:var(--accent)}
 .cap.over{background:var(--red-t);color:var(--red-ink)}
-.drops{display:flex;justify-content:space-between;padding:4px 16px 14px}
-.drop{width:24px;height:30px;display:grid;place-items:center;color:var(--ink3);transition:transform .3s var(--spring),color .25s}
-.drop svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8}
-.drop.on{color:#00C0E8}
-.drop.on svg{fill:currentColor}
+/* water: a bar like the macro bars that you drag along (or tap) to set the day's water */
+.water .wtop{padding:16px 16px 0}
+.water .wtop .macro{margin:0}
+.wbar{height:40px;border-radius:12px;cursor:ew-resize;touch-action:pan-y;-webkit-user-select:none;user-select:none}
+.wbar .ml{line-height:40px}
+.wbar>i{border-radius:12px;transition:width .45s var(--spring)}
+.wbar.dragging>i{transition:none}
+.wbar:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wticks{position:relative;height:14px;font-size:11px;font-weight:500;color:var(--ink3);margin:6px 2px 4px}
+.wticks span{position:absolute;top:0;translate:-50% 0}
+.wticks span:first-child{translate:0 0}
+.wticks span:last-child{translate:-100% 0}
 .cols{display:grid;grid-template-columns:1fr 46px 34px 34px 38px;gap:4px;align-items:baseline}
 .cols .h{font-size:10px;font-weight:700;text-align:right}
 .legend{padding:0 16px;margin:0 0 6px}
+.legend.mealhead{padding:0 16px 0 4px;margin:28px 0 10px}   /* Meals, with the kcal P F C columns on the same line */
+.mealhead h2{margin:0}
 .slot{margin-bottom:14px}
 .slothead{padding:14px 16px 10px}
 .slothead .nm{font-weight:700;font-size:17px}
@@ -504,7 +515,7 @@ body.pushed .nb-inner{opacity:1;transform:none}
 @keyframes ringPulse{50%{scale:1.16}}
 
 /* ---------- menus morph out of the button that opens them ---------- */
-.menuscrim{position:fixed;inset:0;z-index:34}
+.menuscrim{position:fixed;inset:0;z-index:34;touch-action:none}
 .menu{position:fixed;z-index:35;width:max-content;min-width:230px;max-width:min(310px,calc(100vw - 32px));max-height:72vh;overflow:auto;border-radius:28px;padding:8px 0;overscroll-behavior:contain}
 .menu .mh{font-size:11px;font-weight:500;color:var(--ink2);padding:8px 20px 4px}
 .menu .mi{display:flex;align-items:center;gap:12px;width:calc(100% - 12px);margin:0 6px;min-height:46px;padding:0 14px;border-radius:18px;font-size:15px;text-align:left;transition:background .15s}
@@ -640,7 +651,7 @@ body.lock{overflow:hidden}
     <button class="tab" data-act="tab" data-tab="train"><svg viewBox="0 0 28 28"><rect x="2.2" y="10" width="3.6" height="8" rx="1.6"/><rect x="5.6" y="6.4" width="4.3" height="15.2" rx="2.1"/><rect x="9.6" y="12.5" width="8.8" height="3" rx="1.3"/><rect x="18.1" y="6.4" width="4.3" height="15.2" rx="2.1"/><rect x="22.2" y="10" width="3.6" height="8" rx="1.6"/></svg><span class="tl">Train</span></button>
     <button class="tab" data-act="tab" data-tab="eat"><svg viewBox="0 0 28 28"><path d="M8.2 3.2a.9.9 0 0 1 1.8 0v6.3h.9V3.2a.9.9 0 0 1 1.8 0v6.3h.9V3.2a.9.9 0 0 1 1.8 0v7a3.4 3.4 0 0 1-2.6 3.3v11a1.5 1.5 0 0 1-3 0v-11A3.4 3.4 0 0 1 7.2 10.2v-7a.9.9 0 0 1 1 0z"/><path d="M21 3.1c.8-.4 1.6.2 1.6 1.1V24.5a1.5 1.5 0 0 1-3 0v-8.3h-1.2a1.4 1.4 0 0 1-1.4-1.4v-3.2C17 7.6 18.6 4.3 21 3.1z"/></svg><span class="tl">Eat</span></button>
     <button class="tab" data-act="tab" data-tab="progress"><svg viewBox="0 0 28 28"><rect x="3.5" y="14.5" width="5.6" height="10" rx="1.8"/><rect x="11.2" y="4" width="5.6" height="20.5" rx="1.8"/><rect x="18.9" y="9.5" width="5.6" height="15" rx="1.8"/></svg><span class="tl">Progress</span></button>
-    <button class="tab" data-act="tab" data-tab="setup"><svg viewBox="0 0 28 28"><defs><mask id="gearhole"><rect width="28" height="28" fill="#fff"/><circle cx="14" cy="14" r="3.7" fill="#000"/></mask></defs><g mask="url(#gearhole)"><circle cx="14" cy="14" r="8.6"/><circle cx="14" cy="14" r="10.4" fill="none" stroke="currentColor" stroke-width="3.6" stroke-dasharray="3.7 4.47"/></g></svg><span class="tl">Setup</span></button>
+    <button class="tab" data-act="tab" data-tab="setup"><svg viewBox="0 0 28 28"><defs><mask id="gearhole"><rect width="28" height="28" fill="#fff"/><circle cx="14" cy="14" r="3.7" fill="#000"/></mask></defs><g mask="url(#gearhole)"><circle cx="14" cy="14" r="8.6"/><circle cx="14" cy="14" r="10.4" fill="none" stroke="currentColor" stroke-width="3.6" stroke-dasharray="3.7 4.47"/></g></svg><span class="tl">Settings</span></button>
   </nav>
 </div>
 <div id="menuscrim" class="menuscrim" data-act="closemenu" hidden></div>
@@ -656,7 +667,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.30';
+const APP_VERSION = '3.32';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1421,16 +1432,25 @@ function planDay(date, alt = {}){
 
 /* water and creatine */
 const waterOf = date => S.water[date] || { ml:0, creatine:false };
+const WATER_MAX = 3000, WATER_STEP = 250;   // the bar runs to the daily 3 L and snaps to a glass
+const fmtL = ml => (ml / 1000).toFixed(2).replace(/\.?0+$/, '');
+const waterLeft = ml => ml >= WATER_MAX ? 'Goal reached' : `${fmtL(WATER_MAX - ml)} L to go`;
+function waterRow(ml){   // the macro bar look, with Water drawn on both the track and the fill
+  return `<div class="macro" style="--c:var(--water);--on:var(--water-on)">
+    <div class="mtop"><span class="num" id="waterNum">${fmtL(ml)}</span><span class="u">/ 3 L water</span><span class="st" id="waterSt">${waterLeft(ml)}</span></div>
+    <div class="mbar wbar" id="wbar" role="slider" tabindex="0" aria-label="Water" aria-valuemin="0" aria-valuemax="${WATER_MAX}" aria-valuenow="${ml}" aria-valuetext="${fmtL(ml)} litres"><span class="ml" aria-hidden="true">Water</span><i style="width:${Math.min(100, ml / WATER_MAX * 100)}%"><span class="ml" aria-hidden="true">Water</span></i></div>
+    <div class="wticks" aria-hidden="true"><span style="left:0">0</span><span style="left:33.33%">1 L</span><span style="left:66.67%">2 L</span><span style="left:100%">3 L</span></div></div>`;
+}
 
 /* =====================================================================
    UI STATE, ICONS, SHARED PIECES, TRAIN VIEW
    ===================================================================== */
 function defaultSlot(){ const h = new Date().getHours(); return h < 10 ? 'breakfast' : h < 15 ? 'lunch' : h < 18 ? 'snack' : 'dinner'; }
-const ui = { tab:'train', date:todayStr(), slot:defaultSlot(), open:{}, sheet:null, showWhy:false, gap:[], plan:null, planAlt:{},
+const ui = { tab:'train', date:todayStr(), slot:defaultSlot(), open:{}, sheet:null, gap:[], plan:null, planAlt:{},
              anim:true, flash:null, flashEx:null, justOpen:null, popKey:null, lastLeft:null, nfUnit:'g', swipeAt:0 };
 const fmtInt = n => Math.round(n).toLocaleString('en-US');
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const TAB_TITLES = { train:'Train', eat:'Eat', progress:'Progress', setup:'Setup' };
+const TAB_TITLES = { train:'Train', eat:'Eat', progress:'Progress', setup:'Settings' };   // the setup tab is called Settings
 const reduced = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 const longDate = s => { const d = parseD(s); return `${WD[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`; };
 
@@ -1446,7 +1466,6 @@ const ICON = {
   trash:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9.3 2.5h5.4c.6 0 1.1.4 1.3 1l.4 1.3h3.9a1 1 0 0 1 0 2H3.7a1 1 0 0 1 0-2h3.9l.4-1.3c.2-.6.7-1 1.3-1z"/><path fill-rule="evenodd" d="M5.2 8.3h13.6l-.9 12.1a2.4 2.4 0 0 1-2.4 2.2H8.5a2.4 2.4 0 0 1-2.4-2.2zM9.2 11v8.6h1.6V11zm4 0v8.6h1.6V11z"/></svg>',
   zzz:'<svg viewBox="0 0 44 44"><path fill="currentColor" d="M35 28A17 17 0 0 1 15.6 8.6a17 17 0 1 0 19.4 19.4z"/><path d="M24.5 7.5h6.5l-6.5 8h6.5M34 4h4.5L34 9.5h4.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   updown:'<svg viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6l3-3 3 3M2 10l3 3 3-3"/></svg>',
-  drop:'<svg viewBox="0 0 24 24"><path d="M12 2.8C9.1 6.8 5.6 10.7 5.6 14.7a6.4 6.4 0 0 0 12.8 0c0-4-3.5-7.9-6.4-11.9z" stroke-linejoin="round"/></svg>',
   target:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/></svg>',
   leaf:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4c-8 0-14 3.6-14 10.2 0 1.5.4 2.9 1.1 4.1L4.6 20.8l1.2 1.2 2.6-2.6c1.2.7 2.5 1.1 4 1.1C19 20.5 20 12 20 4z"/></svg>',
   cal:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3.5" y="5" width="17" height="15.5" rx="3.5" fill="none" stroke="currentColor" stroke-width="2.2"/><rect x="7" y="2.5" width="2.4" height="5" rx="1.2"/><rect x="14.6" y="2.5" width="2.4" height="5" rx="1.2"/><rect x="7" y="11" width="3" height="3" rx="1"/><rect x="11" y="11" width="3" height="3" rx="1"/></svg>',
@@ -1678,10 +1697,7 @@ function sessionCard(plan, date){
       ${plan.past ? '' : `<button class="cardmore" data-act="menu" data-menu="session" aria-label="Time and options" aria-haspopup="menu">${ICON.more}</button>`}
     </div>
     <p class="why gap16">${esc(plan.why[0])}</p>`;
-  if (plan.why.length > 1) {
-    h += `<div class="collapse ${ui.showWhy ? 'open' : ''}" id="whybox"><div>${plan.why.slice(1).map(w => `<p class="why">${esc(w)}</p>`).join('')}</div></div>
-      <button class="link" data-act="whytoggle" aria-expanded="${ui.showWhy}">${ui.showWhy ? 'Show less' : 'Why this plan'}</button>`;
-  }
+
   return h + `</div>`;
 }
 function refreshSession(date){
@@ -1694,7 +1710,7 @@ function viewTrain(){
   const date = ui.date, plan = getPlan(date);
   let h = `<h1 class="lt">Train</h1>` + weekStrip() + `<div class="daybody">` + sessionCard(plan, date);
   if (plan.items.length) h += `<div class="group">${plan.items.map(it => exRow(it, date)).join('')}</div>`;
-  if (plan.added.length) h += `<section class="added" aria-label="Added"><h3>Added</h3><p class="note">On top of the plan, not counted in the session.</p>
+  if (plan.added.length) h += `<section class="added" aria-label="Added"><h2>Added</h2><p class="why" style="margin:0 4px 10px">On top of the plan, not counted in the session.</p>
     <div class="group">${plan.added.map(it => exRow(it, date)).join('')}</div></section>`;
   const x = plan.extras;
   if (x) h += `<section class="extras" aria-label="If you have time"><h3>If you have time</h3><p class="note">${x.notDone ? `Not done in ${WD[wdOf(x.from)]}'s ${esc(TEMPLATES[x.tid].name)}` : `From ${WD[wdOf(x.from)]}'s ${x.skipped ? 'skipped' : 'missed'} ${esc(TEMPLATES[x.tid].name)}`}. Fit these in if your session goes quickly.</p>
@@ -1751,27 +1767,27 @@ function viewEat(){
   const date = ui.date, entries = dayEntries(date), cur = sumMacros(entries), T = dayTarget(date), type = dayType(date);
   const left = T.kcal - cur.kcal, w = waterOf(date), pLeft = T.p - cur.p;
   let h = `<h1 class="lt">Eat</h1>` + weekStrip() + `<div class="daybody">`;
-  h += `<div class="group pad summary"><div class="dtrow">
-      <button class="dtpick" data-act="menu" data-menu="daytype" aria-haspopup="menu" aria-label="Day type: ${type === 'training' ? 'training day' : 'rest day'}">${type === 'training' ? ICON.dumb : ICON.moon}<span>${type === 'training' ? 'Training day' : 'Rest day'}</span>${ICON.updown}</button></div>
-    <div class="sum-top">
-      ${ringSVG([{ pct:cur.kcal/T.kcal, color:'var(--kcal)' }, { pct:cur.p/T.p, color:'var(--pro)' }], 118, 15, ui.anim)}
+  // the rings sit at the top of the card, with the day type above the numbers beside them: calories outside, protein, then fat (a ceiling, red once over)
+  const fLeft = T.f - cur.f;
+  h += `<div class="group pad summary"><div class="sum-top">
+      ${ringSVG([{ pct:cur.kcal/T.kcal, color:'var(--kcal)' }, { pct:cur.p/T.p, color:'var(--pro)' }, { pct:cur.f/T.f, color: fLeft < 0 ? 'var(--red)' : 'var(--fat)' }], 124, 14, ui.anim)}
       <div class="grow">
+        <div class="dtrow"><button class="dtpick" data-act="menu" data-menu="daytype" aria-haspopup="menu" aria-label="Day type: ${type === 'training' ? 'training day' : 'rest day'}">${type === 'training' ? ICON.dumb : ICON.moon}<span>${type === 'training' ? 'Training day' : 'Rest day'}</span>${ICON.updown}</button></div>
         <div class="hero"><span class="num" id="heroLeft" data-v="${r0(Math.abs(left))}">${fmtInt(Math.abs(left))}</span></div>
         <div class="hl">${left >= 0 ? (date === todayStr() ? 'kcal left today' : 'kcal left') : 'kcal over target'}</div>
         <div class="hp" style="color:var(--pro-t)">${pLeft > 0 ? `${r0(pLeft)} g protein to go` : 'Protein floor reached'}</div>
+        <div class="hp hf" style="color:${fLeft < 0 ? 'var(--red-ink)' : 'var(--fat-t)'}">${fLeft >= 0 ? `${r0(fLeft)} g fat room` : `${r0(-fLeft)} g fat over`}</div>
       </div></div>
     <div class="bars ${ui.anim ? 'anim' : ''}">${macroRow('Calories','--kcal',cur.kcal,T.kcal,'target') + macroRow('Protein','--pro',cur.p,T.p,'floor') + macroRow('Fat','--fat',cur.f,T.f,'ceiling','rgba(0,0,0,.78)') + macroRow('Carbs','--carb',cur.c,T.c,'target')}</div>
     <div class="caps" aria-label="Daily food limits">${capChips(date)}</div>
     <p class="note" style="margin:12px 0 0">Protein is a floor, fat is a ceiling.</p></div>`;
 
-  const cups = Math.round(w.ml / 250);
-  h += `<div class="group"><div class="item"><div class="grow"><strong>Water</strong><div class="small muted">${(w.ml/1000).toFixed(2).replace(/0$/,'')} of 3 L. Tap a drop to set it.</div></div></div>
-    <div class="drops">${Array.from({ length:12 }, (_, i) => `<button class="drop ${i < cups ? 'on' : ''}" data-act="waterset" data-ml="${(i+1)*250}" aria-label="${(i+1)*250} ml">${ICON.drop}</button>`).join('')}</div>
+  h += `<div class="group water"><div class="wtop">${waterRow(w.ml)}</div>
     <label class="switch"><input type="checkbox" data-chg="creatine" ${w.creatine ? 'checked' : ''}>Creatine 5 g taken</label></div>`;
 
   ui.plan = date >= todayStr() ? planDay(date, ui.planAlt[date] || {}) : null;
 
-  h += `<h2>Meals</h2><div class="cols legend" aria-hidden="true"><span></span><span class="h" style="color:var(--kcal-t)">kcal</span><span class="h" style="color:var(--pro-t)">P</span><span class="h" style="color:var(--fat-t)">F</span><span class="h" style="color:var(--carb-t)">C</span></div>`;
+  h += `<div class="cols legend mealhead"><h2>Meals</h2><span class="h" aria-hidden="true" style="color:var(--kcal-t)">kcal</span><span class="h" aria-hidden="true" style="color:var(--pro-t)">P</span><span class="h" aria-hidden="true" style="color:var(--fat-t)">F</span><span class="h" aria-hidden="true" style="color:var(--carb-t)">C</span></div>`;
   h += SLOTS.map(([k,l]) => slotBlock(k, l, date)).join('') + slotBlock('imported', 'Imported day total', date);
   h += planNote() + topUps(date);
   h += `<p class="note" style="margin:0 4px 12px">Swipe a food left to delete it, or tap it to change the amount. Quick entry and copying meals from another day are under ${'⋯'} at the top.</p>`;
@@ -2165,7 +2181,7 @@ function placeIndicator(fromX){
 /* ---------- toolbar: glass buttons in the navigation bar ---------- */
 function toolbarHTML(){
   const t = ui.tab;
-  const l = t === 'setup' && ui.setupPage ? `<button class="tbtn glass" data-act="setupback" aria-label="Back to Setup">${ICON.chevL}</button>` : '';
+  const l = t === 'setup' && ui.setupPage ? `<button class="tbtn glass" data-act="setupback" aria-label="Back to Settings">${ICON.chevL}</button>` : '';
   let r = '';
   if (t === 'train') r = `<button class="tbtn glass" data-act="addex" aria-label="Add an exercise">${ICON.plus}</button>${getPlan(ui.date).past && !pastFixes(ui.date).length ? '' : `<button class="tbtn glass" data-act="menu" data-menu="train" aria-label="More" aria-haspopup="menu">${ICON.more}</button>`}`;
   if (t === 'eat') r = `<button class="tbtn glass" data-act="addfood" aria-label="Add food">${ICON.plus}</button><button class="tbtn glass" data-act="menu" data-menu="eat" aria-label="More" aria-haspopup="menu">${ICON.more}</button>`;
@@ -2267,7 +2283,10 @@ function openMenu(btn, kind){
   let left = r.left + r.width / 2 > vw / 2 ? r.right - W : r.left;
   left = Math.max(12, Math.min(left, vw - W - 12));
   let top = r.top; if (top + Hh > vh - 12) top = Math.max(12, r.bottom - Hh);
-  m.style.left = left + 'px'; m.style.top = top + 'px';
+  // a menu from a button in the page (a card's ⋯, the day type) stays with it when the page scrolls; one from the nav bar or a sheet stays on screen
+  const pinned = !!btn.closest('.navbar, .sheet, .tabbar, #tabs, .accessory');
+  m.style.position = pinned ? 'fixed' : 'absolute';
+  m.style.left = left + (pinned ? 0 : scrollX) + 'px'; m.style.top = top + (pinned ? 0 : scrollY) + 'px';
   m.style.transformOrigin = `${r.left + r.width / 2 - left}px ${r.top + r.height / 2 - top}px`;
   ui.menu.host.classList.add('morphing');
   if (!reduced()) {
@@ -2277,6 +2296,11 @@ function openMenu(btn, kind){
   }
   const first = $('.mi', m); if (first) first.focus({ preventScroll:true });
 }
+/* An open menu freezes the page, as in iOS: tap outside to close it, then scroll. Only a menu too tall for the screen scrolls. */
+const menuScrolls = t => { const m = t && t.closest && t.closest('#menu'); return !!m && m.scrollHeight > m.clientHeight + 1; };
+const freezeForMenu = e => { if (ui.menu && !menuScrolls(e.target)) e.preventDefault(); };
+document.addEventListener('touchmove', freezeForMenu, { passive:false });
+document.addEventListener('wheel', freezeForMenu, { passive:false });
 function closeMenu(){
   const m = $('#menu'); if (m.hidden || !ui.menu) return;
   const { src, host } = ui.menu; ui.menu = null; $('#menuscrim').hidden = true;
@@ -2446,8 +2470,6 @@ const H = {
     ui.undo = { fn: () => { wk.notDone = was; saveState(); render(); } };
     toast(`${cfg(ex).name} not done`, { undo:true, bad:true });
   },
-  whytoggle(t){ ui.showWhy = !ui.showWhy; const box = $('#whybox'); if (box) box.classList.toggle('open', ui.showWhy);
-    t.textContent = ui.showWhy ? 'Show less' : 'Why this plan'; t.setAttribute('aria-expanded', String(ui.showWhy)); },
   openex(t){
     if (Date.now() - ui.swipeAt < 400) return;
     if (t.closest('.swipe.opened')) { closeSwipes(); return; }   // a tap on a swiped row just closes it, as in iOS lists
@@ -2510,10 +2532,6 @@ const H = {
     addAndFlash(p.meal.items.map(i => [i.food, i.qty]), p.slot); delete (ui.planAlt[ui.date] || {})[p.slot]; render({ meters:true }); toast(`Added to ${slotName(p.slot)}`); },
   planalt(t){ const a = ui.planAlt[ui.date] = ui.planAlt[ui.date] || {}; a[t.dataset.slot] = (a[t.dataset.slot] || 0) + 1; render(); },
   gapadd(t){ const p = ui.gap[+t.dataset.i]; if (!p) return; addAndFlash([[p.food, p.qty]], ui.slot); render(); toast(`Added to ${slotName(ui.slot)}`); },
-  waterset(t){ const w = S.water[ui.date] || (S.water[ui.date] = { ml:0, creatine:false }), ml = +t.dataset.ml;
-    w.ml = w.ml === ml ? ml - 250 : ml; saveState();
-    $$('.drop').forEach((b, i) => b.classList.toggle('on', i < w.ml / 250));
-    const lbl = $$('.drops')[0] && $$('.drops')[0].previousElementSibling; if (lbl) lbl.querySelector('.small').textContent = `${(w.ml/1000).toFixed(2).replace(/0$/,'')} of 3 L. Tap a drop to set it.`; },
   addfood(t){ openSheet({ type:'food', slot:t.dataset.slot || ui.slot, q:'', sel:null, qty:0, mode:'list' }); },
   sheetmode(t){ ui.sheet.mode = t.dataset.v; ui.sheet.sel = null; drawSheet(); },
   pickfood(t){ ui.sheet.sel = t.dataset.id; ui.sheet.qty = foodById(t.dataset.id).step; drawSheet(); },
@@ -2625,6 +2643,39 @@ function endGesture(){
 }
 document.addEventListener('pointerup', endGesture);
 document.addEventListener('pointercancel', endGesture);
+
+/* water: drag along the bar, or tap it, to set the day's water in steps of 250 ml. It is saved when the finger lifts;
+   if the page takes the touch to scroll instead, the bar goes back. Arrow keys move it a glass at a time. */
+let wdr = null;
+const waterAt = (bar, x) => { const r = bar.getBoundingClientRect(); return Math.max(0, Math.min(WATER_MAX, Math.round((x - r.left) / r.width * WATER_MAX / WATER_STEP) * WATER_STEP)); };
+function showWater(ml){
+  const bar = $('#wbar'); if (!bar) return;
+  $('i', bar).style.width = Math.min(100, ml / WATER_MAX * 100) + '%';
+  $('#waterNum').textContent = fmtL(ml); $('#waterSt').textContent = waterLeft(ml);
+  bar.setAttribute('aria-valuenow', ml); bar.setAttribute('aria-valuetext', `${fmtL(ml)} litres`);
+}
+function saveWater(ml){ const w = S.water[ui.date] || (S.water[ui.date] = { ml:0, creatine:false }); if (w.ml !== ml) { w.ml = ml; saveState(); } }
+document.addEventListener('pointerdown', e => {
+  const bar = e.target.closest('#wbar'); if (!bar) return;
+  wdr = { id:e.pointerId, bar, x0:e.clientX, ml:waterAt(bar, e.clientX), moved:false };
+  try { bar.setPointerCapture(e.pointerId); } catch (_) {}
+  showWater(wdr.ml);
+}, { passive:true });
+document.addEventListener('pointermove', e => {
+  if (!wdr || e.pointerId !== wdr.id) return;
+  if (!wdr.moved && Math.abs(e.clientX - wdr.x0) < 4) return;
+  wdr.moved = true; wdr.bar.classList.add('dragging');
+  const ml = waterAt(wdr.bar, e.clientX); if (ml !== wdr.ml) { wdr.ml = ml; showWater(ml); }
+}, { passive:true });
+const endWater = e => { if (!wdr || e.pointerId !== wdr.id) return; const d = wdr; wdr = null; d.bar.classList.remove('dragging');
+  if (e.type === 'pointercancel') showWater(waterOf(ui.date).ml); else saveWater(d.ml); };
+document.addEventListener('pointerup', endWater);
+document.addEventListener('pointercancel', endWater);
+document.addEventListener('keydown', e => {
+  if (!e.target.closest || !e.target.closest('#wbar')) return;
+  const k = { ArrowRight:1, ArrowUp:1, ArrowLeft:-1, ArrowDown:-1 }[e.key]; if (!k) return;
+  e.preventDefault(); const ml = Math.max(0, Math.min(WATER_MAX, waterOf(ui.date).ml + k * WATER_STEP)); showWater(ml); saveWater(ml);
+});
 
 /* ---------- Liquid Glass touch: light from the fingertip, lenses you can drag, week swipe ---------- */
 const LIT = '.btn,.qchip,.tbtn,.closeb,.accessory .tb,.glass';
