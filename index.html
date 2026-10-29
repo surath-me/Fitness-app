@@ -286,8 +286,13 @@ body.under .edge.top{opacity:1}
 .rc-text{font-size:14px;line-height:1.4;color:var(--ink2);margin:0}
 .restcard.bad .rc-ic{color:var(--red)}
 /* lifts from a skipped session, to fit in if there is time: quieter than the day's own */
-.extras h3{margin-top:24px}
-.extras .note{margin:-4px 8px 8px}
+.extras h3,.added h3{margin-top:24px}
+.extras .note,.added .note{margin:-4px 8px 8px}
+/* hold an exercise, then drag it to a new place */
+.ex-head{-webkit-touch-callout:none}
+.group.reordering{overflow:visible}
+.ex.lifting{position:relative;z-index:5;background:var(--card);border-radius:20px;box-shadow:0 14px 34px rgba(0,0,0,.2);scale:1.03;transition:scale .3s var(--spring),box-shadow .3s var(--out)}
+.ex.shifting{transition:transform .25s var(--out)}
 .extras .ex-head{min-height:62px}
 .extras .wt{font-size:24px;color:var(--ink2)}
 .extras .ex-name{font-weight:500;font-size:16px}
@@ -453,7 +458,17 @@ body.pushed .nb-inner{opacity:1;transform:none}
 .accessory .tb{white-space:nowrap;min-height:38px;padding:0 14px;border-radius:99px;background:var(--track);font-weight:600;font-size:12px;transition:scale .5s var(--spring)}
 .accessory .tb.lit{scale:1.1}
 .accessory.done .prg{stroke:var(--green)}
-.accessory.done{animation:nudge .6s var(--spring)}
+/* rest over: the accessory turns green and pulses until it is touched, shows how long ago the rest ended, and stays until
+   closed or swiped down */
+.accessory{touch-action:none}
+.accessory .tover{font-size:13px;font-weight:600;color:var(--ink2);white-space:nowrap}
+.accessory:not(.done) .tover{display:none}
+.accessory.done{box-shadow:var(--glass-shadow),var(--glass-edge),0 0 0 2px var(--green),0 0 24px var(--green-t);animation:restOver 2.4s var(--out) infinite}
+.accessory.done .tl{color:var(--green-ink)}
+.accessory.done .tring{animation:ringPulse 1.2s var(--out) infinite}
+.accessory.done.seen,.accessory.done.seen .tring{animation:none}
+@keyframes restOver{0%,22%,100%{scale:1}10%{scale:1.045}}
+@keyframes ringPulse{50%{scale:1.16}}
 
 /* ---------- menus morph out of the button that opens them ---------- */
 .menuscrim{position:fixed;inset:0;z-index:34}
@@ -584,7 +599,8 @@ body.lock{overflow:hidden}
   <div id="timer" class="accessory glass ghost" hidden role="timer" aria-live="polite">
     <svg class="tring" viewBox="0 0 36 36" aria-hidden="true"><circle class="trk" cx="18" cy="18" r="15"/><circle class="prg" id="tprg" cx="18" cy="18" r="15" stroke-dasharray="94.25" stroke-dashoffset="0"/></svg>
     <div class="tt"><span class="tl" id="timerl">Rest</span><span class="tv num" id="timerv">2:00</span></div>
-    <button class="tb" data-act="timeradd">+15 s</button><button class="tb" data-act="timerskip">Skip</button>
+    <span class="tover num" id="timero" aria-label="Time since the rest ended"></span>
+    <button class="tb" data-act="timeradd">+15 s</button><button class="tb" id="timerx" data-act="timerskip">Skip</button>
   </div>
   <nav id="tabs" class="tabbar glass" aria-label="Sections">
     <span id="tabind" class="tab-ind" aria-hidden="true"></span>
@@ -607,7 +623,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.21';
+const APP_VERSION = '3.22';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -904,7 +920,8 @@ saveLocal();
 function cfg(id){ return Object.assign({}, EX[id], (S.settings.exCfg||{})[id] || {}); }
 
 /* ---------- workouts ---------- */
-const setsDone  = (wk, id) => ((wk && wk.ex && wk.ex[id]) || []).filter(s => +s.r > 0);
+const isDoneSet = s => s.d !== undefined ? !!s.d : +s.r > 0;   // a set counts once its tick is pressed (older sets: once it had reps)
+const setsDone  = (wk, id) => ((wk && wk.ex && wk.ex[id]) || []).filter(isDoneSet);
 const loggedIds = wk => wk && wk.ex ? Object.keys(wk.ex).filter(id => EX[id] && setsDone(wk,id).length) : [];
 const workoutDates = () => Object.keys(S.workouts).sort();
 
@@ -1075,6 +1092,8 @@ function makeUp(date, skip){
 }
 function minutesFor(id){ const c = cfg(id); return c.muscle === 'abs' ? ABS_MIN : (MINUTES[c.kind] || 8); }
 
+/* the order of a day's exercises: the order Surath dragged them into (wk.order), then the usual order */
+const byOrder = wk => (a, b) => { const o = (wk && wk.order) || [], ia = o.indexOf(a), ib = o.indexOf(b); return (ia < 0 ? 1e3 + cfg(a).ord : ia) - (ib < 0 ? 1e3 + cfg(b).ord : ib); };
 function buildPlan(date, opts={}){
   const today = todayStr(), budget = opts.budget || S.settings.timeBudget;
   const wd = wdOf(date), why = [], deferred = [];
@@ -1087,11 +1106,12 @@ function buildPlan(date, opts={}){
   if (date < today) {
     const ids = new Set(loggedIds(wk).concat((wk && wk.added) || []));
     const picked = tpl && S.assign[date] === tid ? tpl : null;
-    if (picked) picked.ex.forEach(id => { if (EX[id]) ids.add(id); });
-    const items = Array.from(ids).sort((a,b) => EX[a].ord - EX[b].ord).map(id => ({ id, origin:'logged', sug: suggest(id, date) }));
+    const mine = picked ? picked.ex.filter(id => EX[id]) : [...ids], more = picked ? [...ids].filter(id => !picked.ex.includes(id)) : [];
+    const items = mine.sort(byOrder(wk)).map(id => ({ id, origin:'logged', sug: suggest(id, date) }));
+    const added = more.sort(byOrder(wk)).map(id => ({ id, origin:'added', sug: suggest(id, date) }));
     return { date, tid, title: picked ? picked.name : items.length ? 'Logged workout' : 'No workout logged',
              why:[ picked ? `You chose ${picked.name} for this day. Open a lift to log what you did.` : items.length ? 'Editing a past day.' : 'Nothing was logged on this day.' ],
-             items, deferred:[], minutes:0, budget, past:true, extras:null };
+             items, added, deferred:[], minutes:0, budget, past:true, extras:null };
   }
 
   const pool = new Map();
@@ -1135,9 +1155,9 @@ function buildPlan(date, opts={}){
   if (trimmed.length) why.push(`To fit ${budget} minutes, these are left out today: ${joinNames(trimmed.map(i => cfg(i.id).name.toLowerCase()))}.`);
 
   // a skipped or missed session before today: its lifts wait at the bottom, to do if there is time
-  const added = new Set((wk && wk.added) || []);
-  const mu = date === today && tpl ? makeUp(date, id => pool.has(id) || added.has(id) || (!setsDone(wk, id).length && !!holdFor(id))) : null;
-  const extras = mu ? { ...mu, items: mu.ids.sort((a,b) => cfg(a).ord - cfg(b).ord).map(id => ({ id, origin:'extra', from:mu.from, sug: suggest(id, date) })) } : null;
+  const byHand = new Set((wk && wk.added) || []);
+  const mu = date === today && tpl ? makeUp(date, id => pool.has(id) || byHand.has(id) || (!setsDone(wk, id).length && !!holdFor(id))) : null;
+  const extras = mu ? { ...mu, items: mu.ids.sort(byOrder(wk)).map(id => ({ id, origin:'extra', from:mu.from, sug: suggest(id, date) })) } : null;
   const inExtras = new Set(mu ? mu.ids : []);
 
   // anything added by hand or already logged today
@@ -1145,11 +1165,13 @@ function buildPlan(date, opts={}){
   const extra = new Set(((wk && wk.added) || []).concat(loggedIds(wk)));
   extra.forEach(id => { if (EX[id] && !present.has(id) && !inExtras.has(id)) { chosen.push({ id, from:date, origins:['added'] }); present.add(id); } });
 
-  chosen.sort((a,b) => cfg(a.id).ord - cfg(b.id).ord);
-  const items = chosen.map(it => ({ id:it.id, origin: it.origins.includes('added') ? 'added' : 'today', from:it.from, sug: suggest(it.id, date) }));
+  // lifts added on top of the plan sit in their own section and do not count towards the session
+  const ord = byOrder(wk), isAdded = it => it.origins.includes('added');
+  const items = chosen.filter(it => !isAdded(it)).sort((a, b) => ord(a.id, b.id)).map(it => ({ id:it.id, origin:'today', from:it.from, sug: suggest(it.id, date) }));
+  const added = chosen.filter(isAdded).sort((a, b) => ord(a.id, b.id)).map(it => ({ id:it.id, origin:'added', from:it.from, sug: suggest(it.id, date) }));
 
   const title = tpl ? tpl.name : items.length ? 'Workout' : 'Rest day';
-  return { date, tid, title, why, items, deferred, minutes:used, budget, past:false, extras };
+  return { date, tid, title, why, items, added, deferred, minutes:used, budget, past:false, extras };
 }
 const getPlan = date => buildPlan(date);
 
@@ -1174,7 +1196,7 @@ function dayType(date){
   const d = S.days[date]; if (d && d.type) return d.type;
   if (loggedIds(S.workouts[date]).length) return 'training';
   if (date < todayStr()) return S.assign[date] && !isRestDay(date) ? 'training' : 'rest';
-  return buildPlan(date).items.length ? 'training' : 'rest';
+  const p = buildPlan(date); return p.items.length || p.added.length ? 'training' : 'rest';
 }
 const dayTarget = date => S.settings.targets[dayType(date)];
 function capUsage(date){
@@ -1497,12 +1519,11 @@ function exHead(it, date){
     const lab = { go:'Add weight', hold:'Hold', low:'Lighter', new:'New' }[sug.status];
     chip = `<span class="${cls}">${lab}</span>`;
   }
-  const tag = it.origin === 'added' ? `<span class="tag">Added</span>` : '';
   const reps = `<b>${sug.sets} × ${sug.low === sug.high ? sug.high : `${sug.low}–${sug.high}`}</b> reps${c.single ? '/side' : ''}`;
   // closed: the weight to load, the lift, the reps needed and its status; what was logged and the reasoning sit inside (exWhy)
   return `<button class="ex-head" data-act="openex" data-key="${esc(key)}" aria-expanded="${!!ui.open[key]}">
     <div class="wt num">${fmtW(wShow)}<small>${esc(c.unit)}</small></div>
-    <div><div class="ex-name">${esc(c.name)}</div><div class="ex-reps">${reps}${tag}</div></div>
+    <div><div class="ex-name">${esc(c.name)}</div><div class="ex-reps">${reps}</div></div>
     <div>${chip}</div></button>`;
 }
 /* the reasoning behind the target and what was logged, shown only once the exercise is opened */
@@ -1517,7 +1538,7 @@ function setsEditor(it, date){
     <p class="ex-why">${esc(exWhy(it, date))}</p>
     ${c.cue ? `<p class="cue">${esc(c.cue)}${c.single ? ' Left leads, right matches the reps.' : ''}</p>` : ''}
     <div class="setlab"><span>Set</span><span>${esc(c.unit)}</span><span>${c.single ? 'Reps/side' : 'Reps'}</span><span></span></div>
-    ${rows.map((r, i) => { const on = +r.r > 0; return `<div class="setrow ${on ? 'on' : ''}">
+    ${rows.map((r, i) => { const on = isDoneSet(r); return `<div class="setrow ${on ? 'on' : ''}">
       <span class="n">${i+1}</span>
       <input type="text" inputmode="decimal" enterkeyhint="next" autocomplete="off" aria-label="Set ${i+1} weight" data-bind="set" data-f="w" data-date="${date}" data-ex="${it.id}" data-i="${i}" value="${esc(r.w ?? '')}">
       <input type="text" inputmode="numeric" enterkeyhint="done" autocomplete="off" aria-label="Set ${i+1} reps" placeholder="${it.sug.high}" data-bind="set" data-f="r" data-date="${date}" data-ex="${it.id}" data-i="${i}" value="${esc(r.r ?? '')}">
@@ -1535,7 +1556,14 @@ function exRow(it, date){
     <div class="sets-wrap ${open && ui.justOpen !== key ? 'open' : ''}" ${open ? '' : 'hidden'}><div>${open ? setsEditor(it, date) : ''}</div></div></div>`;
 }
 const findEx = key => $$('.ex').find(e => e.dataset.key === key);
-const planItem = (date, id) => { const p = getPlan(date); return p.items.find(i => i.id === id) || (p.extras && p.extras.items.find(i => i.id === id)); };
+function closeEx(k){
+  ui.open[k] = false; const host = findEx(k); if (!host) return;
+  const head = $('.ex-head', host), wrap = $('.sets-wrap', host);
+  if (head) head.setAttribute('aria-expanded', 'false'); wrap.classList.remove('open');
+  const fin = () => { if (!ui.open[k]) { wrap.hidden = true; wrap.firstElementChild.innerHTML = ''; } };
+  if (reduced()) fin(); else setTimeout(fin, 400);
+}
+const planItem = (date, id) => { const p = getPlan(date); return p.items.find(i => i.id === id) || p.added.find(i => i.id === id) || (p.extras && p.extras.items.find(i => i.id === id)); };
 function refreshHead(date, id){
   const host = findEx(date + '|' + id); if (!host) return;
   const it = planItem(date, id); if (!it) return;
@@ -1620,6 +1648,8 @@ function viewTrain(){
   const date = ui.date, plan = getPlan(date);
   let h = `<h1 class="lt">Train</h1>` + weekStrip() + `<div class="daybody">` + sessionCard(plan, date);
   if (plan.items.length) h += `<div class="group">${plan.items.map(it => exRow(it, date)).join('')}</div>`;
+  if (plan.added.length) h += `<section class="added" aria-label="Added"><h3>Added</h3><p class="note">On top of the plan, not counted in the session.</p>
+    <div class="group">${plan.added.map(it => exRow(it, date)).join('')}</div></section>`;
   const x = plan.extras;
   if (x) h += `<section class="extras" aria-label="If you have time"><h3>If you have time</h3><p class="note">From ${WD[wdOf(x.from)]}'s ${x.skipped ? 'skipped' : 'missed'} ${esc(TEMPLATES[x.tid].name)}. Fit these in if your session goes quickly.</p>
     <div class="group">${x.items.map(it => exRow(it, date)).join('')}</div></section>`;
@@ -1892,13 +1922,17 @@ function entrySheet(){
     ${fixed ? '' : `<button class="btn block gap8" data-act="entryupdate">Update</button>`}
     <button class="btn danger block gap8" data-act="entrydelete">Delete</button>`;
 }
-function exerciseSheet(){
-  const plan = getPlan(ui.date), have = new Set(plan.items.map(i => i.id));
-  const groups = {};
-  Object.keys(EX).filter(id => !have.has(id)).forEach(id => (groups[EX[id].muscle] = groups[EX[id].muscle] || []).push(id));
-  let out = sheetHead('Add an exercise');
+function exListHTML(){
+  const plan = getPlan(ui.date), have = new Set([...plan.items, ...plan.added, ...(plan.extras ? plan.extras.items : [])].map(i => i.id));
+  const q = ((ui.sheet && ui.sheet.q) || '').trim().toLowerCase(), groups = {};
+  Object.keys(EX).filter(id => !have.has(id) && (!q || cfg(id).name.toLowerCase().includes(q) || MUSCLE_LABEL[EX[id].muscle].toLowerCase().includes(q)))
+    .forEach(id => (groups[EX[id].muscle] = groups[EX[id].muscle] || []).push(id));
+  let out = '';
   Object.keys(MUSCLE_LABEL).forEach(m => { if (groups[m]) out += `<h3>${MUSCLE_LABEL[m]}</h3><div class="group">` + groups[m].map(id => `<button class="food" data-act="pickex" data-id="${id}"><span class="nm">${esc(cfg(id).name)}</span><span class="add">${ICON.plus}</span></button>`).join('') + `</div>`; });
-  return out;
+  return out || `<p class="empty">No exercise matches “${esc(q)}”.</p>`;
+}
+function exerciseSheet(){
+  return sheetHead('Add an exercise') + `<input id="exq" class="search" style="margin-top:4px" type="search" placeholder="Search exercises" autocomplete="off" aria-label="Search exercises" value="${esc((ui.sheet && ui.sheet.q) || '')}"><div id="exlist">${exListHTML()}</div>`;
 }
 function copySheet(){
   return sheetHead('Copy meals') + `<p class="note" style="margin:4px 4px 0">Copies every logged meal from the day you pick onto ${longDate(ui.date)}. Good for repeating your base day.</p>
@@ -1971,29 +2005,37 @@ function chime(){
       o.connect(g); g.connect(ac.destination); o.start(s); o.stop(s + 0.42); });
   } catch(e) {}
 }
-const RT = { end:0, total:1, iv:null, hideT:null };
+const RT = { end:0, total:1, iv:null, done:false };
 const clock = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${pad(s % 60)}`; };
 function startRest(id){
   const c = cfg(id), secs = c.muscle === 'abs' ? 45 : c.kind === 'compound' ? 120 : 75;
   audioCtx();
   RT.total = secs * 1000; RT.end = Date.now() + RT.total;
-  const el = $('#timer'); clearTimeout(RT.hideT); el.classList.remove('done'); $('#timerl').textContent = 'Rest';
+  RT.done = false;
+  const el = $('#timer'); el.classList.remove('done', 'seen'); el.style.translate = el.style.opacity = el.style.transition = '';
+  $('#timerl').textContent = 'Rest'; $('#timerx').textContent = 'Skip';
   el.hidden = false; void el.offsetWidth; requestAnimationFrame(() => el.classList.remove('ghost'));
   tickRest(); clearInterval(RT.iv); RT.iv = setInterval(tickRest, 250);
 }
 function tickRest(){
-  const left = RT.end - Date.now();
-  $('#tprg').setAttribute('stroke-dashoffset', (94.25 * (1 - Math.max(0, left) / RT.total)).toFixed(2));
-  if (left <= 0) {
-    clearInterval(RT.iv); $('#timerv').textContent = '0:00'; $('#timerl').textContent = 'Rest done';
-    $('#timer').classList.add('done'); chime(); if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
-    RT.hideT = setTimeout(hideRest, 6000); return;
+  const left = RT.end - Date.now(), el = $('#timer');
+  $('#tprg').setAttribute('stroke-dashoffset', left > 0 ? (94.25 * (1 - left / RT.total)).toFixed(2) : '0');   // a full green ring once the rest is over
+  if (left > 0) { $('#timerv').textContent = clock(left); return; }
+  if (!RT.done) {   // rest over: green, pulsing, and it stays until closed or swiped away
+    RT.done = true; el.classList.add('done'); $('#timerl').textContent = 'Rest over'; $('#timerv').textContent = 'Next set'; $('#timerx').textContent = 'Done';
+    chime(); if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
   }
-  $('#timerv').textContent = clock(left);
+  const s = Math.floor(-left / 1000); $('#timero').textContent = `−${Math.floor(s / 60)}:${pad(s % 60)}`;   // how long ago the rest ended
 }
-function hideRest(){
-  clearInterval(RT.iv); clearTimeout(RT.hideT);
-  const el = $('#timer'); el.classList.add('ghost');
+function hideRest(slide){
+  clearInterval(RT.iv);
+  const el = $('#timer');
+  if (slide && !reduced()) {   // swiped down: it slides off the bottom instead of dematerialising
+    el.style.transition = 'translate .32s var(--out),opacity .28s var(--out)'; el.style.translate = '0 140px'; el.style.opacity = '0';
+    setTimeout(() => { el.hidden = true; el.classList.add('ghost'); el.style.translate = el.style.opacity = el.style.transition = ''; }, 340);
+    return;
+  }
+  el.classList.add('ghost');
   setTimeout(() => { if (el.classList.contains('ghost')) el.hidden = true; }, reduced() ? 0 : 550);
 }
 
@@ -2261,11 +2303,12 @@ function go(date, dx = 0){
 
 function onSetInput(el){
   const { date, ex, i, f } = el.dataset, rows = materialize(date, ex), row = rows[+i]; if (!row) return;
-  const raw = el.value.replace(',', '.').trim();
+  const raw = el.value.replace(',', '.').trim(), was = isDoneSet(row);
   if (raw === '') row[f] = ''; else if (!isNaN(+raw)) row[f] = +raw; else return;
+  row.d = was && +row.r > 0;   // typing never logs a set, only the tick does; a logged set stays logged unless its reps are cleared
   saveState();
   const sr = el.closest('.setrow');
-  if (sr) { const on = +row.r > 0; sr.classList.toggle('on', on); const cb = $('.check', sr); cb.classList.toggle('on', on); cb.setAttribute('aria-pressed', String(on)); }
+  if (sr) { const on = isDoneSet(row); sr.classList.toggle('on', on); const cb = $('.check', sr); cb.classList.toggle('on', on); cb.setAttribute('aria-pressed', String(on)); }
   refreshHead(date, ex); refreshSession(date);
 }
 function setPath(path, raw){
@@ -2319,12 +2362,11 @@ const H = {
   openex(t){
     const k = t.dataset.key, host = findEx(k); if (!host) return;
     const wrap = $('.sets-wrap', host), [date, id] = k.split('|');
-    if (ui.open[k]) {
-      ui.open[k] = false; t.setAttribute('aria-expanded', 'false'); wrap.classList.remove('open');
-      const fin = () => { if (!ui.open[k]) { wrap.hidden = true; wrap.firstElementChild.innerHTML = ''; } };
-      if (reduced()) fin(); else setTimeout(fin, 400);
-    } else {
+    if (ui.open[k]) closeEx(k);
+    else {
       const it = planItem(date, id); if (!it) return;
+      Object.keys(ui.open).forEach(o => { if (o !== k && ui.open[o]) closeEx(o); });   // one exercise open at a time
+      if (!reduced()) setTimeout(() => { const r = host.getBoundingClientRect(); if (r.top < 80) window.scrollBy({ top: r.top - 90, behavior:'smooth' }); }, 420);
       ui.open[k] = true; t.setAttribute('aria-expanded', 'true');
       wrap.firstElementChild.innerHTML = setsEditor(it, date); wrap.hidden = false; void wrap.offsetHeight;
       requestAnimationFrame(() => wrap.classList.add('open'));
@@ -2332,13 +2374,13 @@ const H = {
   },
   checkset(t){
     const { date, ex, i } = t.dataset, rows = materialize(date, ex), row = rows[+i]; if (!row) return;
-    if (+row.r > 0) row.r = '';
+    if (isDoneSet(row)) row.d = false;   // untick: the numbers stay, the set is no longer logged
     else {
       const host = findEx(date + '|' + ex), sug = suggest(ex, date);
       const wIn = host && host.querySelector(`input[data-f="w"][data-i="${i}"]`), rIn = host && host.querySelector(`input[data-f="r"][data-i="${i}"]`);
       const wv = wIn ? num(wIn.value) : null, rv = rIn ? num(rIn.value) : null;
       row.w = wv !== null ? wv : (row.w !== '' ? row.w : (sug.w ?? ''));
-      row.r = rv && rv > 0 ? rv : sug.high;
+      row.r = rv && rv > 0 ? rv : sug.high; row.d = true;
       ui.popKey = date + '|' + ex + '|' + i; startRest(ex);
     }
     saveState(); refreshEx(date, ex); ui.popKey = null; refreshSession(date);
@@ -2369,7 +2411,7 @@ const H = {
   },
   addex(){ openSheet({ type:'exercise' }); },
   pickex(t){ const wk = ensureWk(ui.date); if (!wk.added) wk.added = []; if (!wk.added.includes(t.dataset.id)) wk.added.push(t.dataset.id);
-    const key = ui.date + '|' + t.dataset.id; ui.open[key] = true; ui.justOpen = key; ui.flashEx = key; saveState(); closeSheet(); render(); },
+    const key = ui.date + '|' + t.dataset.id; Object.keys(ui.open).forEach(k => { ui.open[k] = false; }); ui.open[key] = true; ui.justOpen = key; ui.flashEx = key; saveState(); closeSheet(); render(); },
   daytype(t){ const d = S.days[ui.date] || (S.days[ui.date] = { entries:[] }); if (dayType(ui.date) === t.dataset.v) return; d.type = t.dataset.v; saveState(); render({ meters:true }); },
   slot(t){ ui.slot = t.dataset.v; $$('[data-act="slot"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === ui.slot))); },
   quick(t){ const q = QUICK[+t.dataset.i]; addAndFlash(q.items.map(([id, qty]) => [foodById(id), qty]), ui.slot); render(); toast(`${q.label} added`); },
@@ -2431,8 +2473,9 @@ const H = {
   reset(){ askGlass('Erase everything?', cloud.token ? 'All logs, foods and settings on this device will be deleted. Your cloud backup is kept, and this device stops syncing.'
       : 'All logs, foods and settings on this device will be deleted. This cannot be undone.', 'Erase').then(ok => {
     if (!ok) return; cloudOff(); try { localStorage.removeItem(LS_KEY); } catch(e) {} S = freshState(); saveLocal(); render(); toast('Everything erased'); }); },
-  timeradd(){ RT.end = Math.max(RT.end, Date.now()) + 15000; RT.total += 15000; $('#timer').classList.remove('done'); $('#timerl').textContent = 'Rest';
-    clearTimeout(RT.hideT); clearInterval(RT.iv); RT.iv = setInterval(tickRest, 250); tickRest(); },
+  timeradd(){ const now = Date.now(); if (RT.end <= now) { RT.end = now + 15000; RT.total = 15000; } else { RT.end += 15000; RT.total += 15000; }
+    RT.done = false; $('#timer').classList.remove('done', 'seen'); $('#timerl').textContent = 'Rest'; $('#timerx').textContent = 'Skip';
+    clearInterval(RT.iv); RT.iv = setInterval(tickRest, 250); tickRest(); },
   timerskip(){ hideRest(); },
   closesheet(){ closeSheet(); }
 };
@@ -2487,7 +2530,7 @@ document.addEventListener('pointercancel', endGesture);
 
 /* ---------- Liquid Glass touch: light from the fingertip, lenses you can drag, week swipe ---------- */
 const LIT = '.btn,.qchip,.tbtn,.closeb,.accessory .tb,.glass';
-let lit = [], td = null, sg = null, wk = null, eb = null;
+let lit = [], td = null, sg = null, wk = null, eb = null, tm = null, rd = null;
 function unlight(){ lit.forEach(g => g.classList.remove('lit')); lit = []; }
 function lightUp(g, e){
   const r = g.getBoundingClientRect();
@@ -2500,6 +2543,35 @@ function settleFrom(el, fromLeft){
   const d = fromLeft - el.getBoundingClientRect().left; if (Math.abs(d) < 1) return;
   el.animate([{ transform:`translateX(${d}px)` }, { transform:'none' }], { duration:520, easing:EASE.spring });
 }
+/* Reordering: hold an exercise for a moment, then drag it up or down. The rows it passes slide out of the way, and the
+   new order is saved for that day (wk.order). */
+function liftRow(){
+  if (!rd) return;
+  const row = rd.row, group = row.parentElement, rows = [...group.children].filter(x => x.classList.contains('ex'));
+  if (rows.length < 2) { rd = null; return; }
+  unlight(); rd.active = true; rd.rows = rows; rd.idx = rd.to = rows.indexOf(row); rd.h = row.offsetHeight;
+  rd.mids = rows.map(r => r.offsetTop + r.offsetHeight / 2);
+  group.classList.add('reordering'); row.classList.add('lifting'); if (navigator.vibrate) navigator.vibrate(8);
+}
+function moveRow(dy){
+  const c = rd.mids[rd.idx] + dy; let to = rd.idx;
+  rd.mids.forEach((m, i) => { if (i < rd.idx && c < m) to = Math.min(to, i); if (i > rd.idx && c > m) to = Math.max(to, i); });
+  rd.to = to; rd.row.style.transform = `translateY(${dy}px)`;
+  rd.rows.forEach((r, i) => { if (r === rd.row) return;
+    const shift = i >= to && i < rd.idx ? rd.h : i <= to && i > rd.idx ? -rd.h : 0;
+    r.classList.add('shifting'); r.style.transform = shift ? `translateY(${shift}px)` : ''; });
+}
+function dropRow(r){
+  ui.swallowClick = Date.now();   // the click that follows the drop must not open or close the row
+  const ids = r.rows.map(x => x.dataset.key.split('|')[1]), [date, id] = r.row.dataset.key.split('|');
+  ids.splice(r.to, 0, ids.splice(r.idx, 1)[0]);
+  const wk = ensureWk(date); wk.order = [...ids, ...(wk.order || []).filter(x => !ids.includes(x))];
+  const before = r.row.getBoundingClientRect().top; saveState(); render();
+  const nr = findEx(r.row.dataset.key);
+  if (nr && !reduced()) nr.animate([{ transform:`translateY(${before - nr.getBoundingClientRect().top}px) scale(1.03)` }, { transform:'none' }], { duration:320, easing:EASE.smooth });
+}
+document.addEventListener('touchmove', e => { if ((rd && rd.active) || tm) e.preventDefault(); }, { passive:false });   // no scrolling while a row or the timer is held
+document.addEventListener('contextmenu', e => { if (e.target.closest('.ex-head')) e.preventDefault(); });
 document.addEventListener('touchstart', () => {}, { passive:true });   // lets :active work on iOS
 /* Safari ignores user-scalable=no, so cancel its pinch gesture too: the app never zooms */
 ['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive:false }));
@@ -2515,6 +2587,10 @@ document.addEventListener('pointerdown', e => {
     seg.classList.add('lens'); clearTimeout(seg._lt);
   }
   if (e.target.closest('.week')) wk = { id:e.pointerId, x0:e.clientX, y0:e.clientY, drag:false };
+  const timer = e.target.closest('#timer');
+  if (timer) { timer.classList.add('seen'); if (!e.target.closest('.tb')) tm = { id:e.pointerId, y0:e.clientY, t0:performance.now(), dy:0 }; }   // touched: stop pulsing
+  const head = e.target.closest('.ex-head');
+  if (head && e.button === 0) rd = { id:e.pointerId, x0:e.clientX, y0:e.clientY, row:head.closest('.ex'), active:false, t:setTimeout(liftRow, 450) };
   if (ui.tab === 'setup' && ui.setupPage && e.clientX < 28 && !ui.sheet) eb = { id:e.pointerId, x0:e.clientX, y0:e.clientY };   // swipe from the left edge to go back
 }, { passive:true });
 document.addEventListener('pointermove', e => {
@@ -2533,6 +2609,14 @@ document.addEventListener('pointermove', e => {
     th.style.transform = `translateX(${sg.dx}px)`;
     const c = th.offsetLeft + sg.dx + th.offsetWidth / 2;
     sg.btns.forEach(b => b.classList.toggle('mag', Math.abs(b.offsetLeft + b.offsetWidth / 2 - c) < th.offsetWidth * .5));
+  }
+  if (tm && e.pointerId === tm.id) {   // the rest timer follows the finger down
+    tm.dy = Math.max(0, e.clientY - tm.y0); const el = $('#timer');
+    el.style.transition = 'none'; el.style.translate = `0 ${tm.dy < 0 ? 0 : tm.dy}px`;
+  }
+  if (rd && e.pointerId === rd.id) {
+    if (!rd.active) { if (Math.hypot(e.clientX - rd.x0, e.clientY - rd.y0) > 8) { clearTimeout(rd.t); rd = null; } }
+    else moveRow(e.clientY - rd.y0);
   }
   if (wk && e.pointerId === wk.id) {   // the week strip follows the finger, with last and next week coming in from the sides
     const dx = e.clientX - wk.x0, dy = e.clientY - wk.y0, now = performance.now();
@@ -2572,6 +2656,12 @@ function endLiquid(e){
     const dx = e.clientX - eb.x0, dy = e.clientY - eb.y0; eb = null;
     if (e.type === 'pointerup' && dx > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) H.setupback();
   }
+  if (tm && e.pointerId === tm.id) {
+    const t = tm, el = $('#timer'); tm = null;
+    if (t.dy > 36 || (t.dy > 12 && performance.now() - t.t0 < 220)) hideRest(true);   // swiped down: it slides away
+    else { el.style.transition = 'translate .45s var(--spring)'; el.style.translate = ''; }
+  }
+  if (rd && e.pointerId === rd.id) { const r = rd; rd = null; clearTimeout(r.t); if (r.active) dropRow(r); }
   if (wk && e.pointerId === wk.id) {
     const w = wk; wk = null;
     if (w.drag) {
@@ -2592,6 +2682,7 @@ document.addEventListener('pointercancel', endLiquid);
    EVENTS
    ===================================================================== */
 document.addEventListener('click', e => {
+  if (ui.swallowClick && Date.now() - ui.swallowClick < 400 && e.target.closest('.ex-head')) { ui.swallowClick = 0; return; }
   const t = e.target.closest('[data-act]');
   if (!t || !H[t.dataset.act] || t.tagName === 'INPUT') return;
   if (t.closest('#menu')) closeMenu();
@@ -2602,6 +2693,7 @@ document.addEventListener('input', e => {
   const t = e.target;
   if (t.dataset && t.dataset.bind === 'set') onSetInput(t);
   else if (t.id === 'q' && ui.sheet) { ui.sheet.q = t.value; $('#foodlist').innerHTML = foodListHTML(); }
+  else if (t.id === 'exq' && ui.sheet) { ui.sheet.q = t.value; $('#exlist').innerHTML = exListHTML(); }
   else if (t.id === 'qtyin' && ui.sheet) { const q = num(t.value); ui.sheet.qty = q === null ? 0 : q; updateQtyPreview(); }
   else if (t.id === 'entryqty' && ui.sheet) { const e2 = dayEntries(ui.date).find(x => x.id === ui.sheet.id), q = num(t.value) || 0; if (e2) $('#entryprev').innerHTML = previewHTML({ kcal:e2.k.kcal*q, p:e2.k.p*q, f:e2.k.f*q, c:e2.k.c*q }); }
 });
@@ -2682,7 +2774,7 @@ function merge3(base, a, b){
       return { ...y, ...x, entries: [...x.entries, ...y.entries.filter(e => !ids.has(e.id) && !sigs.has(entrySig(e)))] }; },
     workouts: (x, y) => { if (!x || !y) return x || y;
       const ex = { ...y.ex };
-      Object.entries(x.ex || {}).forEach(([id, sets]) => { const done = l => (l || []).filter(s => +s.r > 0).length; if (!ex[id] || done(sets) >= done(ex[id])) ex[id] = sets; });
+      Object.entries(x.ex || {}).forEach(([id, sets]) => { const done = l => (l || []).filter(isDoneSet).length; if (!ex[id] || done(sets) >= done(ex[id])) ex[id] = sets; });
       return { ...y, ...x, ex, added: [...new Set([...(y.added || []), ...(x.added || [])])] }; },
     water: (x, y) => (!x || !y) ? x || y : { ml: Math.max(x.ml || 0, y.ml || 0), creatine: !!(x.creatine || y.creatine) },
     dismissed: (x, y) => x || y,
@@ -2772,7 +2864,7 @@ Object.assign(H, {
 window.addEventListener('online', () => syncNow());
 document.addEventListener('visibilitychange', () => { if (!cloud.token) return; if (document.hidden) { if (syncTimer) syncNow(); } else syncNow(); });
 
-if (typeof window !== 'undefined') window.__coach = { S: () => S, setS: v => { S = v; }, ui, render, getPlan, sessionOn, isRestDay, suggest, suggestGap, H, dayType, sumMacros, addEntry, foodById, mergeHistory, saveState: () => saveState(), cloud, syncNow, merge3, planDay };
+if (typeof window !== 'undefined') window.__coach = { S: () => S, setS: v => { S = v; }, ui, render, getPlan, sessionOn, isRestDay, RT, suggest, suggestGap, H, dayType, sumMacros, addEntry, foodById, mergeHistory, saveState: () => saveState(), cloud, syncNow, merge3, planDay };
 render();
 if (cloud.token) syncNow();
 </script>
