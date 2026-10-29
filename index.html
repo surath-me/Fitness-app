@@ -682,7 +682,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.44';
+const APP_VERSION = '3.45';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1977,8 +1977,8 @@ function foodSheet(){
   }
   const tabs = `<div class="seg gap8" role="group" aria-label="How to add"><button data-act="sheetmode" data-v="list" aria-pressed="${sh.mode !== 'quick'}">Foods</button><button data-act="sheetmode" data-v="quick" aria-pressed="${sh.mode === 'quick'}">Quick entry</button></div>`;
   if (sh.mode === 'quick') {
-    return sheetHead(`Add to ${slotName(sh.slot)}`) + tabs + `<p class="note">Type the totals for what you ate. Good for canteen meals and eating out.</p>
-      <input id="qe-name" class="field" style="text-align:left;font-family:var(--font);font-weight:400;margin:12px 0 10px" placeholder="What was it? (optional)" aria-label="Name">
+    return sheetHead(`Add to ${slotName(sh.slot)}`) + tabs + `
+      <input id="qe-name" class="field" style="text-align:left;font-family:var(--font);font-weight:400;margin:14px 0 10px" placeholder="What was it? (optional)" aria-label="Name">
       <div class="row"><input id="qe-k" class="field" inputmode="decimal" placeholder="kcal" aria-label="kcal"><input id="qe-p" class="field" inputmode="decimal" placeholder="P" aria-label="Protein g"><input id="qe-f" class="field" inputmode="decimal" placeholder="F" aria-label="Fat g"><input id="qe-c" class="field" inputmode="decimal" placeholder="C" aria-label="Carbs g"></div>
       <div class="group" style="margin:16px 0 14px"><label class="switch"><input type="checkbox" id="qe-save">Also save to my foods</label></div>
       <button class="btn block" data-act="confirmquick">Add to ${slotName(sh.slot)}</button>`;
