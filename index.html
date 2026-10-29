@@ -544,7 +544,10 @@ body.pushed .nb-inner{opacity:1;transform:none}
 .sheet.open{transform:none}
 .sheet.dragging{transition:none}
 /* full height has a fixed top, so a short result list stays under the search field instead of dropping behind the keyboard */
-.sheet.full{left:0;right:0;top:calc(env(safe-area-inset-top) + 12px);bottom:var(--kb, 0px);max-height:none;max-width:560px;border-radius:38px 38px 0 0}
+/* it runs to the bottom of the screen and the keyboard slides over it, as in iOS; the content gets the keyboard's height as
+   padding so the end of a list can still scroll above it */
+.sheet.full{left:0;right:0;top:calc(env(safe-area-inset-top) + 12px);bottom:0;max-height:none;max-width:560px;border-radius:38px 38px 0 0;
+  padding-bottom:calc(max(20px, env(safe-area-inset-bottom)) + var(--kb, 0px))}
 @supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
   .sheet.glass{background:var(--sheet-glass);-webkit-backdrop-filter:var(--sheet-fx);backdrop-filter:var(--sheet-fx)}
   .sheet.glass.full{background:rgb(var(--sheet-rgb) / .97)}}
@@ -676,7 +679,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.42';
+const APP_VERSION = '3.43';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
