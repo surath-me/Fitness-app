@@ -656,7 +656,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.29';
+const APP_VERSION = '3.30';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -783,16 +783,6 @@ const FOODS = [
   F('choc_strawberry','Chocolate strawberry','piece','Snacks',40,0.4,1.8,5.6,{step:5,inc:1})
 ];
 
-/* One-tap adds. items: [foodId, quantity] */
-const QUICK = [
-  { label:'3 eggs and whey', items:[['egg',3],['whey',1]] },
-  { label:'Quark 250 g',     items:[['quark',250]] },
-  { label:'Rice 350 g',      items:[['rice',350]] },
-  { label:'Chicken 150 g',   items:[['chicken_c',150]] },
-  { label:'Banana',          items:[['banana',1]] },
-  { label:'Grapes 150 g',    items:[['grapes',150]] },
-  { label:'Oil 1 tsp',       items:[['oil_tsp',1]] }
-];
 const SLOTS = [['breakfast','Breakfast'],['lunch','Lunch'],['snack','Snack'],['dinner','Dinner']];
 
 /* ---------- Meal ideas for the planner ----------
@@ -1779,9 +1769,6 @@ function viewEat(){
     <div class="drops">${Array.from({ length:12 }, (_, i) => `<button class="drop ${i < cups ? 'on' : ''}" data-act="waterset" data-ml="${(i+1)*250}" aria-label="${(i+1)*250} ml">${ICON.drop}</button>`).join('')}</div>
     <label class="switch"><input type="checkbox" data-chg="creatine" ${w.creatine ? 'checked' : ''}>Creatine 5 g taken</label></div>`;
 
-  h += `<h2>Quick add</h2><div class="seg" role="group" aria-label="Add to">${SLOTS.map(([k,l]) => `<button data-act="slot" data-v="${k}" aria-pressed="${ui.slot===k}">${l}</button>`).join('')}</div>
-    <div class="hscroll">${QUICK.map((q,i) => `<button class="qchip" data-act="quick" data-i="${i}">${esc(q.label)}</button>`).join('')}</div>`;
-
   ui.plan = date >= todayStr() ? planDay(date, ui.planAlt[date] || {}) : null;
 
   h += `<h2>Meals</h2><div class="cols legend" aria-hidden="true"><span></span><span class="h" style="color:var(--kcal-t)">kcal</span><span class="h" style="color:var(--pro-t)">P</span><span class="h" style="color:var(--fat-t)">F</span><span class="h" style="color:var(--carb-t)">C</span></div>`;
@@ -2519,8 +2506,6 @@ const H = {
     if ((wk.removed || []).includes(id)) wk.removed = wk.removed.filter(x => x !== id); else if (!wk.added.includes(id)) wk.added.push(id);
     const key = ui.date + '|' + t.dataset.id; Object.keys(ui.open).forEach(k => { ui.open[k] = false; }); ui.open[key] = true; ui.justOpen = key; ui.flashEx = key; saveState(); closeSheet(); render(); },
   daytype(t){ const d = S.days[ui.date] || (S.days[ui.date] = { entries:[] }); if (dayType(ui.date) === t.dataset.v) return; d.type = t.dataset.v; saveState(); render({ meters:true }); },
-  slot(t){ ui.slot = t.dataset.v; $$('[data-act="slot"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === ui.slot))); },
-  quick(t){ const q = QUICK[+t.dataset.i]; addAndFlash(q.items.map(([id, qty]) => [foodById(id), qty]), ui.slot); render(); toast(`${q.label} added`); },
   planadd(t){ const p = ui.plan && ui.plan.slots.find(x => x.slot === t.dataset.slot); if (!p) return;
     addAndFlash(p.meal.items.map(i => [i.food, i.qty]), p.slot); delete (ui.planAlt[ui.date] || {})[p.slot]; render({ meters:true }); toast(`Added to ${slotName(p.slot)}`); },
   planalt(t){ const a = ui.planAlt[ui.date] = ui.planAlt[ui.date] || {}; a[t.dataset.slot] = (a[t.dataset.slot] || 0) + 1; render(); },

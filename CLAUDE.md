@@ -48,7 +48,7 @@ A single-file web app for one person (Surath). It tracks meals and macros, lift 
 ## Code layout inside `index.html`
 
 1. CSS in `<style>`.
-2. **CONFIG**: `DEFAULT_TARGETS`, `DEFAULT_CAPS`, `EX` (lifts), `TEMPLATES` (sessions), `DEFAULT_SCHEDULE`, `FOODS`, `QUICK`, `SLOTS`, and the starting data (`SEED_SETS`, `SEED_WAIST`, `SEED_DAYS`).
+2. **CONFIG**: `DEFAULT_TARGETS`, `DEFAULT_CAPS`, `EX` (lifts), `TEMPLATES` (sessions), `DEFAULT_SCHEDULE`, `FOODS`, `SLOTS`, and the starting data (`SEED_SETS`, `SEED_WAIST`, `SEED_DAYS`).
 3. **CORE**: helpers, storage, `liftHistory`, `suggest` (progression), `computeOwed` and `buildPlan` (planner), macro maths, `suggestGap`.
 4. **Views**: `viewTrain`, `viewEat`, `viewProgress`, `viewSetup`.
 5. **Sheets, timer, render, gestures and events**: `drawSheet` and `morphSheet`, `toast`, `askGlass`, the rest timer (`startRest`), `render` and `afterRender` (tab indicator `placeIndicator`, `setToolbar`, `initSegs`, nav bar, number tween), menus (`menuSpec`, `openMenu`, `closeMenu`), the `H` handler object, pointer gestures (swipe rows, sheet drag, then the Liquid Glass block: touch light, tab and segment lens drags, week swipe) and delegated click, input, change and keydown listeners.
@@ -119,7 +119,6 @@ Do not name top-level functions or variables after browser globals (`history`, `
 - **Link a food to a limit:** pass `{cap:'egg'|'whey'|'quark'|'chicken'|'pudding'}`, and `capMul` to convert units.
 - **Add or change a lift:** edit its entry in `EX` (rep range `low`/`high`, `sets`, `inc`, `prio`, `ord`, `unit`). Add its id to a session in `TEMPLATES`.
 - **Change the week:** edit `DEFAULT_SCHEDULE` for new installs. For the existing user use Setup, or a migration.
-- **Change a one-tap meal:** edit `QUICK`.
 - **Add or change a planner meal idea:** edit `MEALS` (and `OFFICE_DAYS` if the office days change).
 - **Change the accent colour:** edit `--accent`, `--accent-t` and `--accent-press` in `:root`.
 
