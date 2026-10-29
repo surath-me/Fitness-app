@@ -19,7 +19,7 @@
 <style>
 @property --lit{syntax:'<number>';inherits:false;initial-value:0}
 :root{
-  --bg:#F2F2F7; --card:#FFFFFF; --ink:#000; --ink2:#6C6C70; --ink3:#AEAEB2;
+  --bg:#F2F2F7; --card:#FFFFFF; --ink:#000; --ink2:#6C6C70; --ink3:#AEAEB2; --drop-line:#D1D1D6;
   --sep:rgba(60,60,67,.14); --fill:rgba(120,120,128,.16); --fill2:rgba(120,120,128,.10);
   --accent:#0088FF; --accent-press:#006FD6; --accent-t:rgba(0,136,255,.12); --accent-glow:rgba(0,136,255,.32); --accent-ink:#007AEB;
   --red:#FF383C; --red-t:rgba(255,56,60,.12); --red-ink:#D70015; --gray:#8E8E93;
@@ -54,7 +54,7 @@
 }
 /* Dark mode follows the system, with Apple's iOS 26 dark colours */
 @media (prefers-color-scheme:dark){:root{
-  --bg:#000000; --card:#1C1C1E; --ink:#FFFFFF; --ink2:#98989F; --ink3:#5B5B60;
+  --bg:#000000; --card:#1C1C1E; --ink:#FFFFFF; --ink2:#98989F; --ink3:#5B5B60; --drop-line:#3A3A3C;
   --sep:rgba(84,84,88,.6); --fill:rgba(120,120,128,.36); --fill2:rgba(120,120,128,.24);
   --accent:#0091FF; --accent-press:#3AA7FF; --accent-t:rgba(0,145,255,.22); --accent-glow:rgba(0,145,255,.38); --accent-ink:#45ADFF;
   --red:#FF4245; --red-t:rgba(255,66,69,.2); --red-ink:#FF6B6E; --gray:#98989D;
@@ -394,7 +394,7 @@ body.under .edge.top{opacity:1}
 .drops{display:flex;justify-content:space-between;padding:6px 10px 12px;touch-action:pan-y;-webkit-user-select:none;user-select:none}
 .drop{position:relative;width:27px;height:44px;display:grid;place-items:center;transition:transform .35s var(--spring)}
 .drop svg{grid-area:1/1;width:20px;height:28px;stroke-linejoin:round;overflow:visible}   /* the drop fills its box, so the gaps between drops are smaller */
-.drop .o{fill:none;stroke:var(--ink3);stroke-width:1.35;transition:stroke .3s var(--out) calc(var(--k, 0) * 40ms)}
+.drop .o{fill:none;stroke:var(--drop-line);stroke-width:1.2;transition:stroke .3s var(--out) calc(var(--k, 0) * 40ms)}
 .drop .f{fill:var(--water);clip-path:inset(100% 0 0 0);transition:clip-path .45s var(--out) calc(var(--k, 0) * 40ms)}
 .drop.on .o{stroke:var(--water)}
 .drop.on .f{clip-path:inset(0 0 0 0)}
@@ -675,7 +675,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.37';
+const APP_VERSION = '3.38';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
