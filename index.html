@@ -22,7 +22,7 @@
   --bg:#F2F2F7; --card:#FFFFFF; --ink:#000; --ink2:#6C6C70; --ink3:#AEAEB2;
   --sep:rgba(60,60,67,.14); --fill:rgba(120,120,128,.16); --fill2:rgba(120,120,128,.10);
   --accent:#0088FF; --accent-press:#006FD6; --accent-t:rgba(0,136,255,.12); --accent-glow:rgba(0,136,255,.32); --accent-ink:#007AEB;
-  --red:#FF383C; --red-t:rgba(255,56,60,.12); --red-ink:#D70015;
+  --red:#FF383C; --red-t:rgba(255,56,60,.12); --red-ink:#D70015; --gray:#8E8E93;
   --green:#34C759; --green-t:rgba(52,199,89,.16); --green-ink:#1F8A3B;
   /* macro colours: data only */
   --kcal:#0088FF; --pro:#6155F5; --fat:#FFCC00; --carb:#34C759;
@@ -57,7 +57,7 @@
   --bg:#000000; --card:#1C1C1E; --ink:#FFFFFF; --ink2:#98989F; --ink3:#5B5B60;
   --sep:rgba(84,84,88,.6); --fill:rgba(120,120,128,.36); --fill2:rgba(120,120,128,.24);
   --accent:#0091FF; --accent-press:#3AA7FF; --accent-t:rgba(0,145,255,.22); --accent-glow:rgba(0,145,255,.38); --accent-ink:#45ADFF;
-  --red:#FF4245; --red-t:rgba(255,66,69,.2); --red-ink:#FF6B6E;
+  --red:#FF4245; --red-t:rgba(255,66,69,.2); --red-ink:#FF6B6E; --gray:#98989D;
   --green:#30D158; --green-t:rgba(48,209,88,.22); --green-ink:#30D158;
   --kcal:#0091FF; --pro:#6D7CFF; --fat:#FFD600; --carb:#30D158;
   --kcal-t:#4DB0FF; --pro-t:#9AA4FF; --fat-t:#FFD600; --carb-t:#30D158;
@@ -282,10 +282,9 @@ body.under .edge.top{opacity:1}
 .cardmore::after{content:"";position:absolute;inset:-7px}   /* a 44 px target */
 .cardmore svg{width:17px;height:17px}
 .cardmore:active{transform:scale(.9)}
-/* the foot of an opened lift: mark it as not done */
-.ndlink{display:inline-flex;align-items:center;gap:6px;min-height:44px;margin:0 0 -10px;padding:0 2px;font-size:14px;font-weight:500;color:var(--ink2)}
-.ndlink svg{width:15px;height:15px}
-.ndlink.back{color:var(--accent)}
+/* a planned lift's swipe action: grey to mark it as not done, blue to bring it back */
+.swipe-del.nd .pill{background:var(--gray)}
+.swipe-del.back .pill{background:var(--accent)}
 .ex.nd .wt{color:var(--ink3)}
 .ex.nd .ex-name,.ex.nd .ex-reps,.ex.nd .ex-reps b{color:var(--ink2)}
 /* a day with nothing to train: one card in the style of Apple Fitness tips */
@@ -657,7 +656,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.27';
+const APP_VERSION = '3.28';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1595,21 +1594,24 @@ function setsEditor(it, date){
       <input type="text" inputmode="numeric" enterkeyhint="done" autocomplete="off" aria-label="Set ${i+1} reps" placeholder="${it.sug.high}" data-bind="set" data-f="r" data-date="${date}" data-ex="${it.id}" data-i="${i}" value="${esc(r.r ?? '')}">
       <button class="check ${on ? 'on' : ''} ${zero ? 'zero' : ''} ${ui.popKey === key + '|' + i ? 'pop' : ''}" data-act="checkset" data-date="${date}" data-ex="${it.id}" data-i="${i}" aria-pressed="${on}" aria-label="${on ? 'Undo' : 'Complete'} set ${i+1}">${ICON.check}</button>
     </div></div>`; }).join('')}
-    ${ndButton(it, date)}
   </div>`;
 }
-/* a planned lift that could not be done today: mark it, and it waits for the next training day under If you have time */
-function ndButton(it, date){
+/* The swipe action of a lift. Added by hand (or offered if there is time): delete it. Planned, today or on a past day: mark it
+   as not done (a grey capsule), and it waits for the next training day under If you have time; once marked, the same swipe
+   brings it back. Future days and finished lifts have none. */
+function swipeAction(it, date){
+  const key = date + '|' + it.id, wk = S.workouts[date];
+  if (it.origin === 'added' || it.origin === 'extra') return `<button class="swipe-del" data-act="swipedelex" data-key="${esc(key)}" tabindex="-1" aria-label="Delete"><span class="pill">${ICON.trash}</span></button>`;
   if (!((it.origin === 'today' && date <= todayStr()) || it.origin === 'logged')) return '';
-  const wk = S.workouts[date];
-  if (isNotDone(wk, it.id)) return `<button class="ndlink back" data-act="notdone" data-date="${date}" data-ex="${it.id}">${ICON.undo}Bring it back</button>`;
+  const btn = (cls, icon, label) => `<button class="swipe-del ${cls}" data-act="notdone" data-date="${date}" data-ex="${it.id}" tabindex="-1" aria-label="${label}"><span class="pill">${icon}</span></button>`;
+  if (isNotDone(wk, it.id)) return btn('back', ICON.undo, 'Bring it back');
   if (setsDone(wk, it.id).length >= setTarget(wk, it)) return '';
-  return `<button class="ndlink" data-act="notdone" data-date="${date}" data-ex="${it.id}">${ICON.skip}Mark as not done</button>`;
+  return btn('nd', ICON.skip, 'Mark as not done');
 }
-function exRow(it, date){   // lifts added by hand (and those offered if there is time) swipe left to delete; the planned ones are marked as not done instead
-  const key = date + '|' + it.id, open = !!ui.open[key], del = it.origin === 'added' || it.origin === 'extra';
+function exRow(it, date){   // swipe the head left: delete a lift added by hand, mark a planned one as not done
+  const key = date + '|' + it.id, open = !!ui.open[key];
   return `<div class="ex swipe ${ui.flashEx === key ? 'flash' : ''} ${isNotDone(S.workouts[date], it.id) ? 'nd' : ''}" data-key="${esc(key)}">
-    ${del ? `<button class="swipe-del" data-act="swipedelex" data-key="${esc(key)}" tabindex="-1" aria-label="Delete"><span class="pill">${ICON.trash}</span></button>` : ''}
+    ${swipeAction(it, date)}
     <div class="swipe-fg">${exHead(it, date)}
     <div class="sets-wrap ${open && ui.justOpen !== key ? 'open' : ''}" ${open ? '' : 'hidden'}><div>${open ? setsEditor(it, date) : ''}</div></div></div></div>`;
 }
@@ -1711,7 +1713,7 @@ function viewTrain(){
     h += `<h2>Left out today</h2><p class="why" style="margin:0 4px 10px">Held back for recovery or to fit your time.</p><div class="group">` +
       plan.deferred.map(d => `<div class="lift"><div><strong>${esc(cfg(d.id).name)}</strong><div class="small muted">${esc(d.reason)}</div></div><span></span><span></span></div>`).join('') + `</div>`;
   }
-  if (!plan.past && plan.items.length) h += `<p class="note" style="margin:0 4px">Use ${'⋯'} at the top of the screen to move your rest day, skip this session or train a different one.</p>`;
+  if (!plan.past && plan.items.length) h += `<p class="note" style="margin:0 4px">Swipe a lift left if you could not do it. Use ${'⋯'} at the top of the screen to move your rest day, skip this session or train a different one.</p>`;
   return h + `</div>`;
 }
 
@@ -2362,9 +2364,11 @@ function go(date, dx = 0){
 
 function onSetInput(el){
   const { date, ex, i, f } = el.dataset, rows = materialize(date, ex), row = rows[+i]; if (!row) return;
-  const raw = el.value.replace(',', '.').trim(), was = isDoneSet(row);
+  const raw = el.value.replace(',', '.').trim(), was = isDoneSet(row), wasZero = was && +row.r === 0 && row.r !== '';
   if (raw === '') row[f] = ''; else if (!isNaN(+raw)) row[f] = +raw; else return;
-  row.d = was && row.r !== '';   // typing never logs a set, only the tick does; a logged set stays logged unless its reps are cleared
+  // typing never logs a set, only the tick does, with one exception: 0 reps logs it at once (a grey dot, no rest timer).
+  // A logged set stays logged unless its reps are cleared; one logged only by its 0 needs the tick once it gets reps.
+  row.d = row.r === 0 || (was && row.r !== '' && !(wasZero && f === 'r'));
   saveState();
   const sr = el.closest('.setrow');
   if (sr) { const on = isDoneSet(row), zero = on && +row.r === 0; sr.classList.toggle('on', on); sr.classList.toggle('zero', zero); const cb = $('.check', sr); cb.classList.toggle('on', on); cb.classList.toggle('zero', zero); cb.setAttribute('aria-pressed', String(on)); }
@@ -2446,10 +2450,12 @@ const H = {
   budget(t){ const wk = ensureWk(ui.date), v = +t.dataset.v; if (v === DAY_MINUTES) delete wk.budget; else wk.budget = v; saveState(); render(); },
   returning(){ S.settings.returning = !S.settings.returning; saveState(); render(); toast(S.settings.returning ? 'Back after a break: set 1 one step lighter' : 'Back after a break is off'); },
   notdone(t){   // mark a planned lift as not done, or bring it back
-    const { date, ex } = t.dataset, wk = ensureWk(date), key = date + '|' + ex, was = (wk.notDone || []).slice();
-    if (isNotDone(wk, ex)) { wk.notDone = was.filter(x => x !== ex); saveState(); refreshEx(date, ex); refreshSession(date); return; }
-    wk.notDone = [...was, ex]; saveState();
-    closeEx(key); const host = findEx(key); if (host) host.classList.add('nd'); refreshHead(date, ex); refreshSession(date);
+    const { date, ex } = t.dataset, wk = ensureWk(date), key = date + '|' + ex, was = (wk.notDone || []).slice(), back = isNotDone(wk, ex);
+    wk.notDone = back ? was.filter(x => x !== ex) : [...was, ex]; saveState();
+    closeSwipes();   // the row slides back, then shows its new state
+    const redraw = () => { refreshEx(date, ex); refreshSession(date); };
+    if (ui.open[key]) { closeEx(key); setTimeout(redraw, reduced() ? 0 : 420); } else setTimeout(redraw, reduced() ? 0 : 300);
+    if (back) return;
     ui.undo = { fn: () => { wk.notDone = was; saveState(); render(); } };
     toast(`${cfg(ex).name} not done`, { undo:true, bad:true });
   },
@@ -2474,7 +2480,7 @@ const H = {
     if (Date.now() - ui.swipeAt < 400) return;
     if (t.closest('.swipe.opened')) { closeSwipes(); return; }   // a tap on a swiped set just closes it
     const { date, ex, i } = t.dataset, rows = materialize(date, ex), row = rows[+i]; if (!row) return;
-    if (isDoneSet(row)) row.d = false;   // untick: the numbers stay, the set is no longer logged
+    if (isDoneSet(row)) { row.d = false; if (row.r === 0) row.r = ''; }   // untick: the numbers stay, the set is no longer logged (a 0 is cleared)
     else {
       const host = findEx(date + '|' + ex), sug = suggest(ex, date);
       const wIn = host && host.querySelector(`input[data-f="w"][data-i="${i}"]`), rIn = host && host.querySelector(`input[data-f="r"][data-i="${i}"]`);
@@ -2482,7 +2488,7 @@ const H = {
       row.w = wv !== null ? wv : (row.w !== '' ? row.w : (sug.w ?? ''));
       row.r = rv !== null && rv >= 0 ? rv : sug.high; row.d = true;   // 0 reps is a valid set (a grey dot instead of the tick)
       const wk = S.workouts[date]; if (isNotDone(wk, ex)) wk.notDone = wk.notDone.filter(x => x !== ex);   // done after all
-      ui.popKey = date + '|' + ex + '|' + i; startRest(ex);
+      ui.popKey = date + '|' + ex + '|' + i; if (row.r > 0) startRest(ex);   // no rest after a set of 0 reps
     }
     saveState(); refreshEx(date, ex); ui.popKey = null; refreshSession(date);
   },
@@ -2622,6 +2628,8 @@ function endGesture(){
   if (sd) { const el = $('#sheet'), dy = sd.dy; sd = null; el.classList.remove('dragging'); $('#scrim').style.opacity = '';
     if (dy > 110) { el.style.transform = 'translateY(calc(100% + 40px))'; ui.sheet = null; drawSheet(); } else el.style.transform = ''; }
   if (sw) { const s = sw; sw = null; if (!s.active) return; ui.swipeAt = Date.now();
+    const act = $(':scope > .swipe-del', s.row);
+    if (s.row.classList.contains('armed') && act && act.dataset.act === 'notdone') { s.row.classList.remove('armed'); setSwipe(s.row, 0); H.notdone(act); return; }   // a full swipe marks it, and the row springs back
     if (s.row.classList.contains('armed')) {   // a full swipe: the red takes the whole row, then the row closes up
       s.row.classList.add('opened'); setSwipe(s.row, -s.w);
       setTimeout(() => { if (s.row.classList.contains('setswipe')) { const b = $('.swipe-del', s.row); removeSet(b.dataset.date, b.dataset.ex, +b.dataset.i, s.row); }
