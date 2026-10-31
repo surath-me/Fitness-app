@@ -706,7 +706,9 @@ body.lock{overflow:hidden}
 .chat-empty{margin:18vh 12px 0;text-align:center;color:var(--ink2);font-size:15px;line-height:1.4}
 .chat-empty .btn{margin-top:16px}
 .chat-in{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:6px 12px max(12px,env(safe-area-inset-bottom))}
-.chat-in::before{content:"";position:absolute;inset:-30px 0 0;z-index:-1;pointer-events:none;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);background:linear-gradient(transparent,var(--chat-veil));-webkit-mask-image:linear-gradient(transparent,#000 50%);mask-image:linear-gradient(transparent,#000 50%)}
+/* nothing above the field dims or blurs (Surath did not want that band): text stays sharp until it slides under the glass;
+   only the strip beside and below the capsule blurs, fading in from its top edge so its rounded ends show no seam */
+.chat-in::before{content:"";position:absolute;inset:6px 0 0;z-index:-1;pointer-events:none;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);background:linear-gradient(transparent,var(--chat-veil) 60%);-webkit-mask-image:linear-gradient(transparent,#000 28px);mask-image:linear-gradient(transparent,#000 28px)}
 .kbopen .chat-in{padding-bottom:8px}
 /* the field throws no shadow: what scrolls under it only blurs into the glass */
 .composer{display:flex;align-items:flex-end;gap:8px;min-height:54px;padding:7px 7px 7px 20px;border-radius:27px;box-shadow:var(--glass-edge)}
@@ -718,10 +720,9 @@ body.lock{overflow:hidden}
 .send svg{width:20px;height:20px}
 .composer:not(.has) .send{scale:.3;opacity:0;pointer-events:none}
 .send.gone{transition:none}
-/* the send arrow turning into your bubble, drawn over the message field while the real bubble waits */
-.bub.fly{position:absolute;z-index:3;margin:0;max-width:none;pointer-events:none;will-change:transform,clip-path}
-.bub.fly>i{position:absolute;right:0;bottom:0;display:grid;place-items:center;color:var(--send-ink)}
-.bub.fly>i svg{width:20px;height:20px}
+/* your message on its way from the field to its place, while the real bubble waits */
+.bub.fly{position:absolute;z-index:1;margin:0;padding:0;max-width:none;overflow:hidden;pointer-events:none}   /* above the conversation, under the field's glass */
+.bub.fly>span{position:absolute;left:0;top:0;transform-origin:0 0}
 .field.area{height:auto;min-height:190px;text-align:left;font-family:var(--font);font-weight:400;font-size:15px;line-height:1.4;padding:12px;resize:vertical}
 .improw input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
 .improw .grow{display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -3353,7 +3354,8 @@ function chatGrow(html, toEnd){
   if (pin) {
     log.scrollTop = log.scrollHeight;
     const d = top0 - inner.getBoundingClientRect().top;
-    if (d > 0 && d < log.clientHeight && !reduced()) inner.animate([{ transform:`translateY(${d}px)` }, { transform:'translateY(0px)' }], { duration:560, easing:EASE.spring, composite:'add' });
+    if (d > 0 && d < log.clientHeight && !reduced()) inner.animate([{ transform:`translateY(${d}px)` }, { transform:'translateY(0px)' }],
+      toEnd ? { duration:320, easing:'cubic-bezier(.25,.75,.3,1)', composite:'add' } : { duration:560, easing:EASE.spring, composite:'add' });   // a send moves it up briskly, as Messages does
   }
   return nodes;
 }
@@ -3362,32 +3364,37 @@ function chatFadeOut(el){
   if (reduced()) { el.remove(); return; }
   el.animate([{ opacity:1 }, { opacity:0 }], { duration:160, easing:'ease-out', fill:'forwards' }).finished.then(() => el.remove(), () => el.remove());
 }
-/* Your message grows out of the send arrow: the dark circle under the arrow rises on a spring to where the bubble will
-   sit and opens into it there, turning grey as the arrow fades and the words appear. It is drawn over the message field
-   (the conversation is under it), and the real bubble shows, with its tail springing out, once it has landed. */
-function chatFlyIn(node, typed){
-  const bub = node && $('.bub', node), btn = $('#chat .send'), box = $('#chat'), log = $('#chatlog'), inner = log && $('.chat-inner', log);
-  if (!bub || !btn || !box || !inner || reduced()) return;
-  const c = box.getBoundingClientRect(), b = bub.getBoundingClientRect(), sb = btn.getBoundingClientRect(), lr = log.getBoundingClientRect();
+/* Sending, as in iOS 26 Messages (traced frame by frame from Surath's recording): the bubble starts as the whole message
+   field, behind its glass, and draws in towards the field's right end; then, still a little small, it rises out of the
+   field and grows into its place, its right edge never moving. Key moments from the recording: 100 ms in, the left edge
+   is about halfway in; at 200 ms it is out of the field at three quarters of its size; at 500 ms it has landed. The
+   real bubble then shows, its tail springing out. Nothing else is drawn until then (it resolves on landing). */
+function chatFlyIn(node){
+  const bub = node && $('.bub', node), field = $('#chat .composer'), btn = $('#chat .send'), box = $('#chat'), log = $('#chatlog'), inner = log && $('.chat-inner', log);
+  if (!bub || !field || !box || !inner || reduced()) return Promise.resolve();
+  const c = box.getBoundingClientRect(), b = bub.getBoundingClientRect(), f = field.getBoundingClientRect(), lr = log.getBoundingClientRect();
   const lift = inner.getBoundingClientRect().top - (lr.top + inner.offsetTop - log.scrollTop);   // the conversation's glide still to come
-  const w = b.width, h = b.height, d = Math.min(h, w, 40), x = b.left - c.left, y = b.top - lift - c.top;
-  const k = btn.offsetWidth * (typed ? 1 : .3) / d, dx = sb.left + sb.width / 2 - c.left - (x + w - d / 2), dy = sb.top + sb.height / 2 - c.top - (y + h - d / 2);
+  const W = b.width, H = b.height, R = b.right - c.left, T = b.top - lift - c.top, r = parseFloat(getComputedStyle(bub).borderTopRightRadius) || 19;
+  const fl = f.left - c.left, fr = f.right - c.left, ft = f.top - c.top, fh = f.height, s = .76;
+  const midY = ft + fh / 2 - .57 * (ft + fh / 2 - T - H / 2), r1 = fr + .46 * (R - fr), l1 = fl + .46 * (R - s * W - fl), py0 = (fh - H) / 2 + 7;
   const fly = document.createElement('div'); fly.className = 'bub fly';
-  fly.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px;transform-origin:${w - d / 2}px ${h - d / 2}px`;
-  fly.innerHTML = `<span>${bub.innerHTML}</span><i style="width:${d}px;height:${d}px">${CI.send}</i>`;
+  fly.innerHTML = `<span style="width:${W - 26}px">${bub.innerHTML}</span>`;
   box.appendChild(fly); bub.style.visibility = 'hidden';
-  btn.classList.add('gone'); requestAnimationFrame(() => requestAnimationFrame(() => btn.classList.remove('gone')));   // the arrow leaves with the circle, at once
-  const from = getComputedStyle(btn).backgroundColor, to = getComputedStyle(bub).backgroundColor, r = parseFloat(getComputedStyle(bub).borderTopRightRadius) || 19;
-  const move = fly.animate([{ transform:`translate(${dx}px,${dy}px) scale(${k})` }, { transform:'none' }], { duration:600, easing:EASE.spring });
-  fly.animate([{ clipPath:`inset(${h - d}px 0 0 ${w - d}px round ${d / 2}px)`, backgroundColor:from }, { clipPath:`inset(0px 0 0 0px round ${r}px)`, backgroundColor:to }],
-    { delay:110, duration:460, easing:EASE.smooth, fill:'both' });   // a circle while it rises, then it opens
-  fly.lastChild.animate([{ opacity:1, transform:'none' }, { opacity:0, transform:'scale(.5)' }], { delay:40, duration:170, easing:'ease-in', fill:'both' });
-  fly.firstChild.animate([{ opacity:0 }, { opacity:1 }], { delay:230, duration:260, easing:'ease-out', fill:'both' });
+  btn.classList.add('gone'); requestAnimationFrame(() => requestAnimationFrame(() => btn.classList.remove('gone')));   // the arrow goes at once, as in Messages
+  const IN = 'cubic-bezier(.55,0,.9,.55)', OUT = 'cubic-bezier(.3,.35,.5,1)', SETTLE = 'cubic-bezier(.25,.7,.3,1)';
+  const shape = fly.animate([
+    { left:`${fl}px`, top:`${ft}px`, width:`${fr - fl}px`, height:`${fh}px`, borderRadius:`${fh / 2}px`, filter:'blur(3px)', easing:IN },
+    { offset:.2, left:`${l1}px`, top:`${ft}px`, width:`${r1 - l1}px`, height:`${fh}px`, borderRadius:`${fh / 2}px`, filter:'blur(3px)', easing:OUT },
+    { offset:.4, left:`${R - s * W}px`, top:`${midY - s * H / 2}px`, width:`${s * W}px`, height:`${s * H}px`, borderRadius:`${s * r}px`, filter:'blur(0px)', easing:SETTLE },
+    { left:`${R - W}px`, top:`${T}px`, width:`${W}px`, height:`${H}px`, borderRadius:`${r}px`, filter:'blur(0px)' }], { duration:500, fill:'both' });
+  fly.firstChild.animate([   // the words keep their size and ride the left edge while it draws in, then scale with the bubble
+    { transform:`translate(13px,${py0}px)`, easing:IN }, { offset:.2, transform:`translate(13px,${py0}px)`, easing:OUT },
+    { offset:.4, transform:`translate(${13 * s}px,${7 * s}px) scale(${s})`, easing:SETTLE }, { transform:'translate(13px,7px)' }], { duration:500, fill:'both' });
   const land = () => {
     if (!fly.isConnected) return; fly.remove(); bub.style.visibility = '';
     try { bub.animate([{ transform:'scale(0)', opacity:0 }, { transform:'none', opacity:1 }], { duration:380, easing:EASE.spring, pseudoElement:'::after' }); } catch(e) {}
   };
-  move.finished.then(land, land);
+  return shape.finished.then(land, land);
 }
 /* Claude's words arrive in bursts; they are shown at a steady pace instead (faster when far behind), and the view follows
    them softly while it is at the end */
@@ -3440,13 +3447,14 @@ async function chatSend(text){
   const temp = { n:'p' + Date.now(), role:'user', text, ts: Date.now(), pending:true }, prev = chat.msgs[chat.msgs.length - 1];
   if (!chat.msgs.length) $$('#chatlog .cm.a').forEach(chatFadeOut);   // the hello goes once the conversation starts
   chat.msgs.push(temp);
-  const ta = $('#chatq'), typed = !!ta && ta.value.trim() === text; if (typed) { ta.value = ''; chatInput(); }   // first, so the field has its final height
+  const ta = $('#chatq'); if (ta && ta.value.trim() === text) { ta.value = ''; chatInput(); }   // first, so the field has its final height
   const [node] = chatGrow(chatTimeLine(temp, prev) + chatMsgHTML(temp, { tail:true }), true).filter(n => n.classList.contains('u'));
-  chatFlyIn(node, typed);
+  const landed = chatFlyIn(node);
   let res;
   try { res = await fetch('/api/chat', { method:'POST', cache:'no-store', headers:{ Authorization:'Bearer ' + cloud.token, 'Content-Type':'application/json' },
     body: JSON.stringify({ text, snapshot: chatSnapshot() }) }); }
-  catch(e) { return chatFail(temp, { message:'No connection. Try again when you are back online.', retry:text }); }
+  catch(e) { await landed; return chatFail(temp, { message:'No connection. Try again when you are back online.', retry:text }); }
+  await landed;   // the status line and the reply wait for your bubble to land
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));
     return chatFail(temp, j.error === 'cap' ? { message:`That's today's €${j.spend ? j.spend.capEur : 1} for Coach. It's back tomorrow.` }
