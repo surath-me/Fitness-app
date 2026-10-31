@@ -674,7 +674,7 @@ body.lock{overflow:hidden}
    on straight down, then flicks out to a fine point 6 px below the bubble, and its inner side sweeps back to where the
    bottom edge starts to curve. The tail is that outline as a mask, so it takes the bubble's colour in light and dark */
 .bub{position:relative;max-width:75%;padding:7px 13px 8px;border-radius:19px;background:var(--chat-bub);color:var(--ink);font-size:17px;line-height:22px;letter-spacing:-.01em;white-space:pre-wrap;overflow-wrap:anywhere}
-.cm.u.tail .bub::after{content:"";position:absolute;right:0;bottom:-7px;width:20px;height:12px;transform-origin:55% 30%;background:var(--chat-bub);
+.cm.u.tail .bub::after,.bub.fly>b{content:"";position:absolute;right:0;bottom:-7px;width:20px;height:12px;transform-origin:55% 30%;background:var(--chat-bub);
   -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 12'%3E%3Cpath d='M0 0H10.7V2C10.7 6 12.8 8 12.5 10.6Q12.3 11.8 11.3 11.6Q5.2 9.6 1 5H0Z'/%3E%3C/svg%3E") center/100% 100% no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 12'%3E%3Cpath d='M0 0H10.7V2C10.7 6 12.8 8 12.5 10.6Q12.3 11.8 11.3 11.6Q5.2 9.6 1 5H0Z'/%3E%3C/svg%3E") center/100% 100% no-repeat}
 .chat-time{margin:4px 0 14px;text-align:center;font-size:12px;line-height:16px;color:var(--ink2)}
 .chat-time b{font-weight:600}
@@ -723,8 +723,9 @@ body.lock{overflow:hidden}
 .composer:not(.has) .send{scale:.3;opacity:0;pointer-events:none}
 .send.gone{transition:none}
 /* your message on its way from the field to its place, while the real bubble waits */
-.bub.fly{position:absolute;z-index:1;margin:0;padding:0;max-width:none;overflow:hidden;pointer-events:none}   /* above the conversation, under the field's glass */
-.bub.fly>span{position:absolute;left:0;top:0;transform-origin:0 0}
+.bub.fly{position:absolute;z-index:1;margin:0;padding:0;max-width:none;background:none;pointer-events:none}   /* above the conversation, under the field's glass */
+.bub.fly>div{position:absolute;inset:0;border-radius:inherit;overflow:hidden;background:var(--chat-bub)}   /* the body; its tail (b) hangs outside it */
+.bub.fly span{position:absolute;left:0;top:0;transform-origin:0 0}
 .field.area{height:auto;min-height:190px;text-align:left;font-family:var(--font);font-weight:400;font-size:15px;line-height:1.4;padding:12px;resize:vertical}
 .improw input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
 .improw .grow{display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -3370,7 +3371,8 @@ function chatFadeOut(el){
    field, behind its glass, and draws in towards the field's right end; then, still a little small, it rises out of the
    field and grows into its place, its right edge never moving. Key moments from the recording: 100 ms in, the left edge
    is about halfway in; at 200 ms it is out of the field at three quarters of its size; at 500 ms it has landed. The
-   real bubble then shows, its tail springing out. Nothing else is drawn until then (it resolves on landing). */
+   tail grows in as it leaves the field, so the real bubble that replaces it on landing looks the same. Nothing else is
+   drawn until then (it resolves on landing). */
 function chatFlyIn(node){
   const bub = node && $('.bub', node), field = $('#chat .composer'), btn = $('#chat .send'), box = $('#chat'), log = $('#chatlog'), inner = log && $('.chat-inner', log);
   if (!bub || !field || !box || !inner || reduced()) return Promise.resolve();
@@ -3380,7 +3382,7 @@ function chatFlyIn(node){
   const fl = f.left - c.left, fr = f.right - c.left, ft = f.top - c.top, fh = f.height, s = .76;
   const midY = ft + fh / 2 - .57 * (ft + fh / 2 - T - H / 2), r1 = fr + .46 * (R - fr), l1 = fl + .46 * (R - s * W - fl), py0 = (fh - H) / 2 + 7;
   const fly = document.createElement('div'); fly.className = 'bub fly';
-  fly.innerHTML = `<span style="width:${W - 26}px">${bub.innerHTML}</span>`;
+  fly.innerHTML = `<div><span style="width:${W - 26}px">${bub.innerHTML}</span></div><b></b>`;
   box.appendChild(fly); bub.style.visibility = 'hidden';
   btn.classList.add('gone'); requestAnimationFrame(() => requestAnimationFrame(() => btn.classList.remove('gone')));   // the arrow goes at once, as in Messages
   const IN = 'cubic-bezier(.55,0,.9,.55)', OUT = 'cubic-bezier(.3,.35,.5,1)', SETTLE = 'cubic-bezier(.25,.7,.3,1)';
@@ -3389,13 +3391,13 @@ function chatFlyIn(node){
     { offset:.2, left:`${l1}px`, top:`${ft}px`, width:`${r1 - l1}px`, height:`${fh}px`, borderRadius:`${fh / 2}px`, filter:'blur(3px)', easing:OUT },
     { offset:.4, left:`${R - s * W}px`, top:`${midY - s * H / 2}px`, width:`${s * W}px`, height:`${s * H}px`, borderRadius:`${s * r}px`, filter:'blur(0px)', easing:SETTLE },
     { left:`${R - W}px`, top:`${T}px`, width:`${W}px`, height:`${H}px`, borderRadius:`${r}px`, filter:'blur(0px)' }], { duration:500, fill:'both' });
-  fly.firstChild.animate([   // the words keep their size and ride the left edge while it draws in, then scale with the bubble
+  fly.querySelector('span').animate([   // the words keep their size and ride the left edge while it draws in, then scale with the bubble
     { transform:`translate(13px,${py0}px)`, easing:IN }, { offset:.2, transform:`translate(13px,${py0}px)`, easing:OUT },
     { offset:.4, transform:`translate(${13 * s}px,${7 * s}px) scale(${s})`, easing:SETTLE }, { transform:'translate(13px,7px)' }], { duration:500, fill:'both' });
-  const land = () => {
-    if (!fly.isConnected) return; fly.remove(); bub.style.visibility = '';
-    try { bub.animate([{ transform:'scale(0)', opacity:0 }, { transform:'none', opacity:1 }], { duration:380, easing:EASE.spring, pseudoElement:'::after' }); } catch(e) {}
-  };
+  fly.lastChild.animate([   // the tail: none inside the field, grown in by the time the bubble is out of it
+    { transform:'scale(0)', opacity:0, easing:IN }, { offset:.2, transform:'scale(.3)', opacity:0, easing:OUT },
+    { offset:.4, transform:`scale(${s})`, opacity:1, easing:SETTLE }, { transform:'none', opacity:1 }], { duration:500, fill:'both' });
+  const land = () => { if (fly.isConnected) { fly.remove(); bub.style.visibility = ''; } };
   return shape.finished.then(land, land);
 }
 /* Claude's words arrive in bursts; they are shown at a steady pace instead (faster when far behind), and the view follows
