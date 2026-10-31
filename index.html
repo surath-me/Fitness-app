@@ -660,6 +660,9 @@ body.lock{overflow:hidden}
    bar over the keyboard, and while the screen settles), and that has to be Coach AI, not the page (Surath saw the page
    there). Not while it closes, when it shrinks into a card over the page */
 .chat:not(.leaving){box-shadow:0 0 0 100vmax var(--chat-bg)}
+/* the page itself in Coach AI's grey: see chatSolid */
+.chatsolid,.chatsolid body{background:var(--chat-bg)}
+.chatsolid body>.edge,.chatsolid #navbar,.chatsolid #app,.chatsolid #dock{visibility:hidden}
 .chatting .toast{z-index:46}
 .chat-top{position:absolute;top:0;left:0;right:0;z-index:2;display:grid;grid-template-columns:44px 1fr 44px;align-items:center;padding:calc(env(safe-area-inset-top) + 4px) 12px 14px;pointer-events:none}
 .chat-top>*{pointer-events:auto}
@@ -781,7 +784,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.54';
+const APP_VERSION = '3.55';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3562,11 +3565,15 @@ function openChat(){
     $('.fxb', fx).animate([{ opacity:0 }, { opacity:1 }], { duration:330, easing:'cubic-bezier(.25,0,.2,1)', fill:'forwards' });
     $('.fxt', fx).animate([{ opacity:0 }, { opacity:.85 }], { duration:750, easing:'cubic-bezier(.4,0,.2,1)', fill:'forwards' });
     el.animate([{ opacity:0, transform:'scale(1.012)' }, { opacity:0, transform:'scale(1.012)', offset:.47 }, { opacity:1, transform:'none' }],
-      { duration:990, delay:120, easing:'cubic-bezier(.3,0,.2,1)', fill:'backwards' });
-  } else { fx.style.setProperty('--fxr', '4000px'); $('.fxb', fx).style.opacity = 1; }
+      { duration:990, delay:120, easing:'cubic-bezier(.3,0,.2,1)', fill:'backwards' }).finished.then(chatSolid, () => {});
+  } else { fx.style.setProperty('--fxr', '4000px'); $('.fxb', fx).style.opacity = 1; chatSolid(); }
   el.focus({ preventScroll:true });   // focus moves into the conversation, without a ring on the close button
   chatLoad();
 }
+/* once Coach AI covers the screen the page under it is hidden and the page's own background turns its grey (`chatsolid`):
+   with the keyboard up Safari shows a strip of the page outside the area that fixed elements, Coach AI included, are
+   drawn in, and only the page itself paints there (Surath saw the Train list in it) */
+function chatSolid(){ if (chat.open) document.documentElement.classList.add('chatsolid'); }
 function closeChat(){
   if (!chat.open) return;
   chat.open = false;
@@ -3577,7 +3584,7 @@ function closeChat(){
   const back = () => { if (window.scrollY !== chat.pageY) window.scrollTo(0, chat.pageY); };
   const fin = () => { if (chat.open) return; el.hidden = true; fx.hidden = true; el.getAnimations().concat(fx.getAnimations(), $$('i', fx).flatMap(i => i.getAnimations())).forEach(a => a.cancel()); fx.style.removeProperty('--fxr');
     el.classList.remove('leaving'); document.body.classList.remove('lock', 'chatting'); back(); };
-  el.classList.add('leaving'); back();
+  el.classList.add('leaving'); document.documentElement.classList.remove('chatsolid'); back();   // the page is there again behind the closing card
   if (reduced()) return fin();
   $$('i', fx).forEach(i => i.animate([{ opacity: getComputedStyle(i).opacity }, { opacity:0 }], { duration:340, easing:'cubic-bezier(.4,0,.2,1)', fill:'forwards' }));
   el.animate([{ transform:'none', borderRadius:'0px', opacity:1 }, { transform:'scale(.84) translateY(3%)', borderRadius:'48px', opacity:0 }],
