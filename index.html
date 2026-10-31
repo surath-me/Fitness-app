@@ -3542,7 +3542,9 @@ function chatFail(temp, err){
 /* opening and closing, after Revolut's AI (measured from Surath's recording at 60 fps): when the finger lets go, the page
    springs back up from where it was pulled while the blur comes up fast (about 0.33 s) and a milky wash builds behind it
    (about 0.75 s); the conversation then fades in, sharp, over the wash. Opening runs half as long again as Revolut's
-   (Surath found it too quick to see). No blur filter on the conversation itself: on a phone that is what made it stutter. */
+   (Surath found it too quick to see), and the blur spreads down slower still (he wanted to see it), with the conversation
+   coming a little later so it does not cover the spread. No blur filter on the conversation itself: on a phone that is
+   what made it stutter. */
 function openChat(){
   if (chat.open) return;
   chat.open = true; closeMenu();
@@ -3550,11 +3552,11 @@ function openChat(){
   pullSpringBack();   // the pulled parts spring back up under the blur, the top first
   el.hidden = false; renderChatLog(true); fx.hidden = false; document.body.classList.add('lock', 'chatting');
   if (!reduced()) {
-    fx.animate([{ '--fxr':'0px' }, { '--fxr': Math.round(Math.hypot(innerWidth, innerHeight) + 40) + 'px' }], { duration:840, easing:'cubic-bezier(.3,0,.25,1)', fill:'forwards' });
+    fx.animate([{ '--fxr':'0px' }, { '--fxr': Math.round(Math.hypot(innerWidth, innerHeight) + 40) + 'px' }], { duration:1260, easing:'cubic-bezier(.3,0,.25,1)', fill:'forwards' });
     $('.fxb', fx).animate([{ opacity:0 }, { opacity:1 }], { duration:330, easing:'cubic-bezier(.25,0,.2,1)', fill:'forwards' });
     $('.fxt', fx).animate([{ opacity:0 }, { opacity:.85 }], { duration:750, easing:'cubic-bezier(.4,0,.2,1)', fill:'forwards' });
     el.animate([{ opacity:0, transform:'scale(1.012)' }, { opacity:0, transform:'scale(1.012)', offset:.47 }, { opacity:1, transform:'none' }],
-      { duration:990, easing:'cubic-bezier(.3,0,.2,1)' });
+      { duration:990, delay:120, easing:'cubic-bezier(.3,0,.2,1)', fill:'backwards' });
   } else { fx.style.setProperty('--fxr', '4000px'); $('.fxb', fx).style.opacity = 1; }
   el.focus({ preventScroll:true });   // focus moves into the conversation, without a ring on the close button
   chatLoad();
