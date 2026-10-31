@@ -3407,7 +3407,7 @@ function closeChat(){
 
 /* pull down at the top of the page: it follows the finger with resistance and a hint appears; let go past the line to open */
 const PULL_OPEN = 64;
-const pull = { id:null, x0:0, y0:0, on:false, d:0 };
+const pull = { id:null, tid:null, x0:0, y0:0, on:false, d:0 };
 const pullBlocked = t => !!(t.closest && t.closest('.week, .wk-head, .swipe, .drops, input, textarea, select, .dock, .sheet, .menu, .chat, .alertwrap'));
 function pullSet(d){
   if (!pull.d && d) { const sel = window.getSelection && getSelection(); if (sel) sel.removeAllRanges(); }   // a mouse drag must not leave text selected
@@ -3416,14 +3416,16 @@ function pullSet(d){
   const h = $('#pullhint'); h.style.opacity = Math.min(1, d / PULL_OPEN).toFixed(2); h.textContent = d >= PULL_OPEN ? 'Let go to ask Coach' : 'Pull to ask Coach';
 }
 function pullReset(instant){
-  const was = pull.d; pull.on = false; pull.id = null; pull.d = 0;
+  const was = pull.d; pull.on = false; pull.id = null; pull.tid = null; pull.d = 0;
   document.body.classList.remove('pulling'); if (was && !instant && !reduced()) document.body.classList.add('pullback');
   [$('#app'), $('#navbar')].forEach(e => { e.style.transform = ''; }); $('#pullhint').style.opacity = 0;
   setTimeout(() => document.body.classList.remove('pullback'), 600);
 }
 const pullDist = dy => 150 * (1 - Math.exp(-Math.max(0, dy) / 240));
+const pullCan = target => chatFor(ui.tab) && !chat.open && !ui.sheet && !ui.menu && window.scrollY <= 0 && !pullBlocked(target);
+// a mouse: pointer events. A finger: touch events, because Safari takes a vertical drag for scrolling and cancels pointer events
 document.addEventListener('pointerdown', e => {
-  if (!chatFor(ui.tab) || chat.open || ui.sheet || ui.menu || e.button > 0 || window.scrollY > 0 || pullBlocked(e.target)) return;
+  if (e.pointerType !== 'mouse' || e.button > 0 || !pullCan(e.target)) return;
   pull.id = e.pointerId; pull.x0 = e.clientX; pull.y0 = e.clientY; pull.on = false;
 }, { passive:true });
 document.addEventListener('pointermove', e => {
@@ -3439,7 +3441,28 @@ const pullEnd = e => { if (pull.id !== e.pointerId) return; const open = pull.on
   if (open) { if (navigator.vibrate) navigator.vibrate(8); openChat(); } else if (pull.d) pullReset(); };
 document.addEventListener('pointerup', pullEnd);
 document.addEventListener('pointercancel', pullEnd);
-document.addEventListener('touchmove', e => { if (pull.on) e.preventDefault(); }, { passive:false });   // the page holds still while it is pulled
+document.addEventListener('touchstart', e => {
+  if (e.touches.length !== 1 || !pullCan(e.target)) { pull.tid = null; return; }
+  const t = e.touches[0]; pull.tid = t.identifier; pull.x0 = t.clientX; pull.y0 = t.clientY; pull.on = false;
+}, { passive:true });
+document.addEventListener('touchmove', e => {
+  if (pull.tid === null) return;
+  const t = [...e.changedTouches].find(x => x.identifier === pull.tid); if (!t) return;
+  const dx = t.clientX - pull.x0, dy = t.clientY - pull.y0;
+  if (!pull.on) {
+    if (dy > 8 && dy > Math.abs(dx) * 1.4 && window.scrollY <= 0) pull.on = true;
+    else { if (Math.abs(dx) > 10 || dy < -6) pull.tid = null; return; }
+  }
+  if (e.cancelable) e.preventDefault();   // the page holds still while it is pulled
+  pullSet(pullDist(dy - 8));
+}, { passive:false });
+const touchEnd = e => {
+  if (pull.tid === null || ![...e.changedTouches].some(x => x.identifier === pull.tid)) return;
+  const open = pull.on && pull.d >= PULL_OPEN && e.type === 'touchend'; pull.tid = null; pull.on = false;
+  if (open) { if (navigator.vibrate) navigator.vibrate(8); openChat(); } else if (pull.d) pullReset();
+};
+document.addEventListener('touchend', touchEnd);
+document.addEventListener('touchcancel', touchEnd);
 // a trackpad (testing on the Mac): scrolling up past the top pulls the same way
 let wheelPull = 0, wheelAt = 0, wheelT = 0, wheelOk = false;
 window.addEventListener('wheel', e => {
