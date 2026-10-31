@@ -16,13 +16,11 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Coach</title>
-<script>/* opened from the home screen: Coach's icon and name show from the first frame, until launch() reveals the app */
-if (window.__LAUNCH__ || navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)) document.documentElement.classList.add('launching');</script>
 <style>
 @property --lit{syntax:'<number>';inherits:false;initial-value:0}
 :root{
   --bg:#F2F2F7; --card:#FFFFFF; --ink:#000; --ink2:#6C6C70; --ink3:#AEAEB2; --drop-line:#D1D1D6;
-  --chat-bg:#F3F3F3; --chat-veil:rgba(243,243,243,.55); --launch-fx:blur(26px) brightness(.8) saturate(120%); --chat-bub:#E5E5EA; --send-bg:#1C1C1E; --send-ink:#FFFFFF;
+  --chat-bg:#F3F3F3; --chat-veil:rgba(243,243,243,.55); --chat-bub:#E5E5EA; --send-bg:#1C1C1E; --send-ink:#FFFFFF;
   --sep:rgba(60,60,67,.12); --sep-w:1px; --fill:rgba(120,120,128,.16); --fill2:rgba(120,120,128,.10);
   --accent:#0088FF; --accent-press:#006FD6; --accent-t:rgba(0,136,255,.12); --accent-glow:rgba(0,136,255,.32); --accent-ink:#007AEB;
   --red:#FF383C; --red-t:rgba(255,56,60,.12); --red-ink:#D70015; --gray:#8E8E93;
@@ -58,7 +56,7 @@ if (window.__LAUNCH__ || navigator.standalone || (window.matchMedia && matchMedi
 /* Dark mode follows the system, with Apple's iOS 26 dark colours */
 @media (prefers-color-scheme:dark){:root{
   --bg:#000000; --card:#1C1C1E; --ink:#FFFFFF; --ink2:#98989F; --ink3:#5B5B60; --drop-line:#3A3A3C;
-  --chat-bg:#000000; --chat-veil:rgba(0,0,0,.5); --launch-fx:blur(26px) brightness(1.6); --chat-bub:#2C2C2E; --send-bg:#FFFFFF; --send-ink:#000000;
+  --chat-bg:#000000; --chat-veil:rgba(0,0,0,.5); --chat-bub:#2C2C2E; --send-bg:#FFFFFF; --send-ink:#000000;
   --sep:rgba(84,84,88,.4); --fill:rgba(120,120,128,.36); --fill2:rgba(120,120,128,.24);
   --accent:#0091FF; --accent-press:#3AA7FF; --accent-t:rgba(0,145,255,.22); --accent-glow:rgba(0,145,255,.38); --accent-ink:#45ADFF;
   --red:#FF4245; --red-t:rgba(255,66,69,.2); --red-ink:#FF6B6E; --gray:#98989D;
@@ -743,23 +741,12 @@ body.lock{overflow:hidden}
 .improw .grow{display:flex;flex-direction:column;gap:2px;min-width:0}
 .improw strong{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chat-busy{padding:40px 8px;text-align:center}
-/* ---------- launch: opened from the home screen, Coach's icon and name, then the page sharpens out of a grey blur
-   and the cards fade in from much larger, shrinking to their size (launch, reveal) ---------- */
-.launch{display:none}
-.launching .launch{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding-bottom:6vh;background:var(--bg)}
-.launch img{width:96px;height:96px;border-radius:22px;box-shadow:0 6px 18px rgba(0,0,0,.14)}
-.launch b{font-size:30px;line-height:1.2;font-weight:700;letter-spacing:.004em;color:var(--ink)}
-/* the grey is the blur dimmed, not a tint: a coloured layer at the top would turn the status bar grey for good */
-.launchfx{position:fixed;inset:0;z-index:18;pointer-events:none;-webkit-backdrop-filter:var(--launch-fx);backdrop-filter:var(--launch-fx);
-  animation:launchClear .17s var(--out) .03s forwards}
-@keyframes launchClear{to{-webkit-backdrop-filter:blur(0) brightness(1) saturate(100%);backdrop-filter:blur(0) brightness(1) saturate(100%)}}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
 }
 </style>
 </head>
 <body>
-<div id="launch" class="launch" aria-hidden="true"><img src="apple-touch-icon.png" alt="" width="96" height="96"><b>Coach</b></div>
 <div class="edge top" aria-hidden="true"></div>
 <header id="navbar" class="navbar">
   <div class="nb-row">
@@ -805,7 +792,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.61';
+const APP_VERSION = '3.62';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3136,30 +3123,24 @@ if (window.visualViewport) {
     apply(false, r.clientHeight, 0, 0); setTimeout(kb, 400);   // then checked against what iOS reports
   });
 }
-/* Opened from the home screen: Coach's icon and name stay until about LAUNCH_HOLD ms after the tap, then the app comes in
-   the way iOS apps do: the page is there at once under a grey blur that clears, the toolbar glass materialises and the
-   day's cards come in one after another, each fading in from much larger while it shrinks to its own size */
-const LAUNCH_HOLD = 800, LAUNCH_MIN = 350;
+/* Opened from the home screen: the title and week fade in, the toolbar glass materialises, and the day's cards come in one
+   at a time, each fading in from half as large again while it shrinks to its own size, mostly settled before the next starts.
+   Nothing moves before LAUNCH_AT ms after the tap: iOS puts the page on screen a moment after it has drawn it (about
+   0.3 s on the simulator), and the start of the motion was lost before that. */
+const LAUNCH_AT = 400;
 function launch(){
-  const el = $('#launch');
-  if (!document.documentElement.classList.contains('launching')) { el.remove(); return; }
-  setTimeout(reveal, Math.max(LAUNCH_HOLD - performance.now(), LAUNCH_MIN));
-}
-function reveal(){
-  document.documentElement.classList.remove('launching'); $('#launch').remove();
-  if (reduced()) return;
-  ui.anim = true; render();   // the rings and bars fill as their cards land
-  const fx = document.createElement('div'); fx.className = 'launchfx';
-  document.body.append(fx); fx.addEventListener('animationend', () => fx.remove()); setTimeout(() => fx.remove(), 600);
+  if (!(window.__LAUNCH__ || navigator.standalone || matchMedia('(display-mode: standalone)').matches) || reduced()) return;
+  const at = Math.max(0, Math.round(LAUNCH_AT - performance.now())), vh = document.documentElement.clientHeight, body = $('.daybody');
+  const fade = (el, delay, duration) => el.animate([{ opacity:0 }, { opacity:1 }], { duration, delay, easing:'cubic-bezier(.3,0,.3,1)', fill:'backwards' });
+  [...$('#app').children].filter(c => c !== body).forEach(c => fade(c, at, 600));
   const tools = $$('#navbar .glass:not(.ghost)'); tools.forEach(g => g.classList.add('ghost'));
-  setTimeout(() => tools.forEach(g => g.classList.remove('ghost')), 120);
-  const vh = document.documentElement.clientHeight, body = $('.daybody');
+  setTimeout(() => tools.forEach(g => g.classList.remove('ghost')), at + 150);
   let k = 0;
-  [...(body ? body.children : $$('#app > .group'))].forEach(c => {
+  [...(body ? body.children : [])].forEach(c => {
     const r = c.getBoundingClientRect(); if (r.top > vh || !r.width) return;   // out of sight: nothing to show
-    const delay = 120 + 50 * k++;
-    c.animate([{ transform:'scale(1.3)' }, { transform:'none' }], { duration:620, delay, easing:'cubic-bezier(.25,.8,.25,1)', fill:'backwards' });
-    c.animate([{ opacity:0 }, { opacity:1 }], { duration:280, delay, easing:'cubic-bezier(.2,0,.4,1)', fill:'backwards' });
+    const delay = at + 250 + 380 * k++;
+    c.animate([{ transform:'scale(1.5)' }, { transform:'none' }], { duration:950, delay, easing:'cubic-bezier(.3,.6,.15,1)', fill:'backwards' });
+    fade(c, delay, 450);
   });
 }
 let _today = todayStr();
