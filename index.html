@@ -16,6 +16,10 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Coach</title>
+<script>/* opened from the home screen: the tab bar waits below the screen from the first frame until launch() slides it up */
+if (window.__LAUNCH__ || navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)) {
+  const r = document.documentElement; r.classList.add('launching'); setTimeout(() => r.classList.remove('launching'), 3000);   // in case launch() never runs
+}</script>
 <style>
 @property --lit{syntax:'<number>';inherits:false;initial-value:0}
 :root{
@@ -741,6 +745,11 @@ body.lock{overflow:hidden}
 .improw .grow{display:flex;flex-direction:column;gap:2px;min-width:0}
 .improw strong{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chat-busy{padding:40px 8px;text-align:center}
+/* ---------- launch from the home screen (launch): the tab bar comes last, sliding up from below the screen once the
+   cards have landed; html.launching keeps it down there from the first frame ---------- */
+.launching #tabs{translate:0 150px;pointer-events:none}
+#tabs.arrive{animation:tabsUp .6s var(--smooth) both}
+@keyframes tabsUp{from{translate:0 150px}}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
 }
@@ -792,7 +801,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.63';
+const APP_VERSION = '3.64';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3123,14 +3132,17 @@ if (window.visualViewport) {
     apply(false, r.clientHeight, 0, 0); setTimeout(kb, 400);   // then checked against what iOS reports
   });
 }
-/* Opened from the home screen: the title and week fade in, the toolbar glass materialises, and the day's cards come in one
-   after another, each fading in from half as large again while it shrinks to its own size; they overlap, landing a beat apart.
+/* Opened from the home screen: the title and week fade in, the toolbar glass materialises, the day's cards come in one
+   after another, each fading in from half as large again while it shrinks to its own size, landing just apart, and last
+   the tab bar slides up from the bottom.
    Nothing moves before LAUNCH_AT ms after the tap: iOS puts the page on screen a moment after it has drawn it (about
    0.3 s on the simulator), and the start of the motion was lost before that. */
 const LAUNCH_AT = 400;
 function launch(){
-  if (!(window.__LAUNCH__ || navigator.standalone || matchMedia('(display-mode: standalone)').matches) || reduced()) return;
-  const at = Math.max(0, Math.round(LAUNCH_AT - performance.now())), vh = document.documentElement.clientHeight, body = $('.daybody');
+  const html = document.documentElement, tabs = $('#tabs');
+  if (!html.classList.contains('launching')) return;
+  if (reduced()) { html.classList.remove('launching'); return; }
+  const at = Math.max(0, Math.round(LAUNCH_AT - performance.now())), vh = html.clientHeight, body = $('.daybody');
   const fade = (el, delay, duration) => el.animate([{ opacity:0 }, { opacity:1 }], { duration, delay, easing:'cubic-bezier(.3,0,.3,1)', fill:'backwards' });
   [...$('#app').children].filter(c => c !== body).forEach(c => fade(c, at, 350));
   const tools = $$('#navbar .glass:not(.ghost)'); tools.forEach(g => g.classList.add('ghost'));
@@ -3138,10 +3150,13 @@ function launch(){
   let k = 0;
   [...(body ? body.children : [])].forEach(c => {
     const r = c.getBoundingClientRect(); if (r.top > vh || !r.width) return;   // out of sight: nothing to show
-    const delay = at + 120 + 150 * k++;
+    const delay = at + 120 + 70 * k++;
     c.animate([{ transform:'scale(1.5)' }, { transform:'none' }], { duration:600, delay, easing:'cubic-bezier(.3,.6,.15,1)', fill:'backwards' });
     fade(c, delay, 300);
   });
+  setTimeout(() => {   // as the last card settles
+    tabs.classList.add('arrive'); html.classList.remove('launching'); setTimeout(() => tabs.classList.remove('arrive'), 700);
+  }, at + 120 + 70 * Math.max(0, k - 1) + 250);
 }
 let _today = todayStr();
 document.addEventListener('visibilitychange', () => {
