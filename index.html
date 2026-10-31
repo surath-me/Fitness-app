@@ -663,7 +663,11 @@ body.lock{overflow:hidden}
 .chat:not(.leaving){box-shadow:0 0 0 100vmax var(--chat-bg)}
 /* the page itself in Coach AI's grey: see chatSolid */
 .chatsolid,.chatsolid body{background:var(--chat-bg)}
-.chatsolid body>.edge,.chatsolid #navbar,.chatsolid #app,.chatsolid #dock{visibility:hidden}
+.chatsolid body>.edge,.chatsolid #navbar,.chatsolid #dock{visibility:hidden}
+/* and the page itself out of the flow, so there is nothing for iOS to scroll when the keyboard comes up: it scrolled the
+   page 547 pt for a 396 pt slide, so Coach AI first dropped 151 pt, and it left the page scrolled for the next tap (pinned
+   rather than display:none, so the page keeps its sideways scroll positions) */
+.chatsolid #app{position:fixed;inset:0;overflow:hidden;visibility:hidden}
 .chatting .toast{z-index:46}
 .chat-top{position:absolute;top:0;left:0;right:0;z-index:2;display:grid;grid-template-columns:44px 1fr 44px;align-items:center;padding:calc(env(safe-area-inset-top) + 4px) 12px 14px;pointer-events:none}
 .chat-top>*{pointer-events:auto}
@@ -715,7 +719,7 @@ body.lock{overflow:hidden}
 /* nothing above the field dims or blurs (Surath did not want that band): text stays sharp until it slides under the glass;
    only the strip beside and below the capsule blurs, fading in from its top edge so its rounded ends show no seam */
 .chat-in::before{content:"";position:absolute;inset:6px 0 0;z-index:-1;pointer-events:none;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);background:linear-gradient(transparent,var(--chat-veil) 60%);-webkit-mask-image:linear-gradient(transparent,#000 28px);mask-image:linear-gradient(transparent,#000 28px)}
-.kbopen .chat-in{padding-bottom:8px}
+.kbopen .chat-in{padding-bottom:8px;transition:padding-bottom .2s cubic-bezier(.4,0,.2,1)}   /* settles onto the keyboard once it is up; back at once when it goes */
 /* the field throws no shadow: what scrolls under it only blurs into the glass */
 .composer{display:flex;align-items:flex-end;gap:8px;min-height:46px;padding:5px 5px 5px 18px;border-radius:23px;box-shadow:var(--glass-edge)}   /* 46 px: Surath found 54 too big */
 .composer:focus-within{outline:2px solid var(--accent-t);outline-offset:1px}
@@ -786,7 +790,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.56';
+const APP_VERSION = '3.57';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3059,13 +3063,49 @@ let scrollRaf = 0;
 window.addEventListener('scroll', () => { if (scrollRaf) return; scrollRaf = requestAnimationFrame(() => { scrollRaf = 0; onScroll(); }); }, { passive:true });
 window.addEventListener('resize', () => closeMenu());
 /* the on-screen keyboard: Safari shrinks the visual viewport, and sheets move up to sit on top of the keyboard */
+const KB_RISE = 250;   // iOS's keyboard slide, measured on the simulator (it ends 220 to 250 ms after iOS tells us)
 if (window.visualViewport) {
   // The keyboard is up when the visible area is much shorter than the page's viewport. For a field near the end of the page
   // iOS also shifts the visible area up (offsetTop), which lifts the bottom bar with it, so the dock moves down by that too.
   // --kb is the part of the keyboard below the visible area's bottom, which is what a sheet has to clear.
-  const kb = () => { const v = visualViewport, r = document.documentElement, up = innerHeight - v.height > 120, k = Math.round(innerHeight - v.height - v.offsetTop);
-    r.style.setProperty('--kb', (up && k > 40 ? k : 0) + 'px'); r.style.setProperty('--vvh', Math.round(v.height) + 'px'); r.style.setProperty('--vvt', (up ? Math.round(v.offsetTop) : 0) + 'px'); r.classList.toggle('kbopen', up); };
+  // Measured against the page's own viewport (the root's clientHeight), not innerHeight: on the iPhone innerHeight follows
+  // the keyboard and once came out as short as the visible area, so the keyboard looked closed and Coach AI sat above the
+  // screen. Only what changed is written.
+  const set = (p, v) => { const r = document.documentElement; if (r.style.getPropertyValue(p) !== v) r.style.setProperty(p, v); };
+  const apply = (up, h, top, k) => {
+    const r = document.documentElement, log = chat.open && $('#chatlog'), t0 = parseFloat(r.style.getPropertyValue('--vvt')) || 0, t1 = up ? Math.round(top) : 0;
+    const end = log && log.scrollHeight - log.scrollTop - log.clientHeight < 30;
+    set('--kb', (up && k > 40 ? k : 0) + 'px'); set('--vvh', Math.round(h) + 'px'); set('--vvt', t1 + 'px'); r.classList.toggle('kbopen', up);
+    if (log) { if (end) log.scrollTop = log.scrollHeight; else if (t1 !== t0) log.scrollTop += t1 - t0; }   // the conversation keeps what is on screen in place
+  };
+  /* Coach AI and the keyboard, measured on the simulator frame by frame. Opening: iOS tells us as its slide starts,
+     already with where it ends, then slides the screen up for about 0.25 s. Moving Coach AI there at once drew it low and
+     it came up from the bottom (Surath). So nothing changes during the slide: Coach AI stays full height and the keyboard
+     pushes it up; once the slide is over it takes the visible area, its title bar (pushed off the top with the rest) fades
+     back in and the field settles onto the keyboard. Anything redrawn during iOS's slide made it jump back and forth, and
+     holding the bar at the top over iOS's curve wobbled 35 pt and more (iOS starts a frame or two before it tells us).
+     Closing: iOS starts its slide about 40 ms before telling us, so Coach AI changes when the field loses focus, all in one
+     frame just before the slide, and the keyboard takes it down with it. */
+  let rise = 0;
+  const settle = () => { clearTimeout(rise); rise = 0; };
+  const now = () => { const v = visualViewport, full = document.documentElement.clientHeight, up = full - v.height > 120;
+    apply(up, v.height, v.offsetTop, Math.round(full - v.height - v.offsetTop)); return up; };
+  const kb = () => {
+    const v = visualViewport, r = document.documentElement, up = r.clientHeight - v.height > 120;
+    if (up && chat.open && !r.classList.contains('kbopen')) {   // rising: wait for the slide to end
+      if (!rise) rise = setTimeout(() => { rise = 0; const bar = $('#chat .chat-top');
+        if (now() && chat.open && bar && !reduced()) bar.animate([{ opacity:0 }, { opacity:1 }], { duration:180, easing:'ease-out' }); }, KB_RISE + 10);
+      return;
+    }
+    settle(); now();
+  };
   visualViewport.addEventListener('resize', kb); visualViewport.addEventListener('scroll', kb);
+  $('#chatq').addEventListener('blur', () => {   // also when Coach AI closes
+    const r = document.documentElement;
+    if (rise) { settle(); return; }   // it had not moved yet
+    if (!r.classList.contains('kbopen')) return;
+    apply(false, r.clientHeight, 0, 0); setTimeout(kb, 400);   // then checked against what iOS reports
+  });
 }
 let _today = todayStr();
 document.addEventListener('visibilitychange', () => {
@@ -3623,12 +3663,11 @@ function closeChat(){
     const room = sc && sc.scrollHeight > sc.clientHeight + 1 && (!kb || (dy > 0 ? sc.scrollTop > 0 : dy < 0 ? sc.scrollTop + sc.clientHeight < sc.scrollHeight - 1 : true));
     if (!room) e.preventDefault();
   }, { passive:false });
-  /* when the keyboard comes up the conversation gets shorter; if it was at its end it stays there */
-  let h0 = 0;
-  new ResizeObserver(() => { const h = log.clientHeight;
-    if (h && h0 && h !== h0 && log.scrollHeight - h0 - log.scrollTop < 30) log.scrollTop = log.scrollHeight;
-    h0 = h; }).observe(log, { box:'border-box' });   // its outer size: the padding chatPad sets must not set it off again
   new ResizeObserver(() => chatPad()).observe($('#chat .chat-in'), { box:'border-box' });   // the field's place: lower with the keyboard up (only its padding changes, hence the border box), taller with longer text
+  // a tap on the field while Coach AI is still opening: it finishes at once, so the page under it is out of the way
+  // before iOS decides what to scroll for the keyboard
+  ta.addEventListener('focus', () => { if (!chat.open || document.documentElement.classList.contains('chatsolid')) return;
+    [$('#chat'), $('#chatfx'), ...$$('#chatfx i')].forEach(e => e.getAnimations().forEach(a => a.finish())); chatSolid(); });
 }
 
 /* Pull down at the top of the page. As in Revolut (measured from Surath's recording), the page does not move as one
