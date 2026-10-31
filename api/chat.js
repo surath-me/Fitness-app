@@ -6,7 +6,6 @@
 //                                    user (the stored message), status, delta, done (the stored reply), error
 //   POST   /api/chat?distill=1       body { text, force }     -> { profile } written from imported chat history
 //   PUT    /api/chat?profile=1       body { text }            -> { profile }
-//   PATCH  /api/chat                 body { n, rating }       rating 1, -1 or 0
 //   DELETE /api/chat                 clears the conversation (the profile stays)
 //
 // Same passphrase as /api/sync. No npm packages: Node built-ins and fetch only. Without ANTHROPIC_API_KEY every reply
@@ -222,18 +221,6 @@ module.exports = async function handler(req, res){
       await redis(env, [['SET', K.profile(), JSON.stringify(profile)]]);
       return res.status(200).json({ profile });
     }
-    if (req.method === 'PATCH') {
-      const b = await readBody(req), n = Number(b.n), rating = [1, -1, 0].includes(Number(b.rating)) ? Number(b.rating) : 0;
-      const meta = await readMeta(env);
-      for (const m of meta.months.slice().reverse()) {
-        const list = await readMonth(env, m), msg = list.find(x => x.n === n);
-        if (!msg) continue;
-        if (rating) msg.rating = rating; else delete msg.rating;
-        await redis(env, [['SET', K.month(m), pack(list)]]);
-        return res.status(200).json({ ok: true });
-      }
-      return res.status(404).json({ error: 'no-message' });
-    }
     if (req.method === 'DELETE') {
       const meta = await readMeta(env);
       await redis(env, [...meta.months.map(m => ['DEL', K.month(m)]), ['DEL', K.meta()]], '/multi-exec');
@@ -241,7 +228,7 @@ module.exports = async function handler(req, res){
     }
     if (req.method === 'POST' && q.distill) return await distill(env, req, res, live);
     if (req.method === 'POST') return await chat(env, req, res, live);
-    res.setHeader('Allow', 'GET, POST, PUT, PATCH, DELETE');
+    res.setHeader('Allow', 'GET, POST, PUT, DELETE');
     return res.status(405).json({ error: 'method' });
   } catch (e) {
     console.error(e);
