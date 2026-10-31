@@ -792,7 +792,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.62';
+const APP_VERSION = '3.63';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3124,7 +3124,7 @@ if (window.visualViewport) {
   });
 }
 /* Opened from the home screen: the title and week fade in, the toolbar glass materialises, and the day's cards come in one
-   at a time, each fading in from half as large again while it shrinks to its own size, mostly settled before the next starts.
+   after another, each fading in from half as large again while it shrinks to its own size; they overlap, landing a beat apart.
    Nothing moves before LAUNCH_AT ms after the tap: iOS puts the page on screen a moment after it has drawn it (about
    0.3 s on the simulator), and the start of the motion was lost before that. */
 const LAUNCH_AT = 400;
@@ -3132,15 +3132,15 @@ function launch(){
   if (!(window.__LAUNCH__ || navigator.standalone || matchMedia('(display-mode: standalone)').matches) || reduced()) return;
   const at = Math.max(0, Math.round(LAUNCH_AT - performance.now())), vh = document.documentElement.clientHeight, body = $('.daybody');
   const fade = (el, delay, duration) => el.animate([{ opacity:0 }, { opacity:1 }], { duration, delay, easing:'cubic-bezier(.3,0,.3,1)', fill:'backwards' });
-  [...$('#app').children].filter(c => c !== body).forEach(c => fade(c, at, 600));
+  [...$('#app').children].filter(c => c !== body).forEach(c => fade(c, at, 350));
   const tools = $$('#navbar .glass:not(.ghost)'); tools.forEach(g => g.classList.add('ghost'));
   setTimeout(() => tools.forEach(g => g.classList.remove('ghost')), at + 150);
   let k = 0;
   [...(body ? body.children : [])].forEach(c => {
     const r = c.getBoundingClientRect(); if (r.top > vh || !r.width) return;   // out of sight: nothing to show
-    const delay = at + 250 + 380 * k++;
-    c.animate([{ transform:'scale(1.5)' }, { transform:'none' }], { duration:950, delay, easing:'cubic-bezier(.3,.6,.15,1)', fill:'backwards' });
-    fade(c, delay, 450);
+    const delay = at + 120 + 150 * k++;
+    c.animate([{ transform:'scale(1.5)' }, { transform:'none' }], { duration:600, delay, easing:'cubic-bezier(.3,.6,.15,1)', fill:'backwards' });
+    fade(c, delay, 300);
   });
 }
 let _today = todayStr();
