@@ -682,7 +682,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.49';
+const APP_VERSION = '3.50';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1163,15 +1163,16 @@ function buildPlan(date, opts={}){
   if (S.dismissed[date]) tid = null;
   const tpl = tid && TEMPLATES[tid] ? TEMPLATES[tid] : null;
 
-  // past days: show what was logged, plus the lifts of a session chosen for that day so they can be filled in
+  // past days: show what was logged and the lifts marked as not done (they were planned, so they still count), plus the
+  // lifts of a session chosen for that day so they can be filled in. A day with a session is called by its name.
   if (date < today) {
-    const ids = new Set(loggedIds(wk).concat((wk && wk.added) || []));
+    const ids = new Set(loggedIds(wk).concat((wk && wk.added) || [], (wk && wk.notDone) || []));
     const picked = tpl && S.assign[date] === tid ? tpl : null;
     const hand = tid ? byHand : new Set();
     const mine = (picked ? picked.ex.filter(id => EX[id]) : [...ids]).filter(id => !removed.has(id) && !hand.has(id)), more = [...ids].filter(id => !mine.includes(id) && !removed.has(id));
     const items = mine.sort(byOrder(wk)).map(id => ({ id, origin:'logged', sug: suggest(id, date) }));
     const added = more.sort(byOrder(wk)).map(id => ({ id, origin:'added', sug: suggest(id, date) }));
-    return { date, tid, title: picked ? picked.name : items.length ? 'Logged workout' : 'No workout logged',
+    return { date, tid, title: tpl && items.length ? tpl.name : items.length ? 'Logged workout' : 'No workout logged',
              why:[ picked ? `You chose ${picked.name} for this day. Open a lift to log what you did.` : items.length ? 'Editing a past day.' : 'Nothing was logged on this day.' ],
              items, added, deferred:[], minutes:0, budget, past:true, extras:null };
   }
