@@ -2,11 +2,13 @@
 //
 //   GET    /api/chat                 { mode, messages:[the latest 80], more, profile, spend }   mode: "live" or "pretend"
 //   GET    /api/chat?before=N        { messages:[up to 80 older than message N], more }
-//   POST   /api/chat                 body { text, snapshot }  -> text/event-stream of JSON events:
+//   POST   /api/chat                 body { text, snapshot, retry }  -> text/event-stream of JSON events:
 //                                    user (the stored message), status, delta, done (the stored reply), error
+//                                    409 { error:'busy' } while another reply is still being written
+//                                    retry: answer the question already stored at the end again instead of storing it twice
 //   POST   /api/chat?distill=1       body { text, force }     -> { profile } written from imported chat history
 //   PUT    /api/chat?profile=1       body { text }            -> { profile }
-//   DELETE /api/chat                 clears the conversation (the profile stays)
+//   DELETE /api/chat                 clears the conversation (the profile stays); 409 while a reply is being written
 //
 // Same passphrase as /api/sync. No npm packages: Node built-ins and fetch only. Without ANTHROPIC_API_KEY every reply
 // is a pretend one, streamed the same way, so the app can be built and tested for free. Real requests stop for the
@@ -68,7 +70,8 @@ const K = {
   meta: () => `${P()}:chat:meta`,                       // { months:['2026-10', ...], seq }
   month: m => `${P()}:chat:m:${m}`,                      // gzipped array of messages of that month
   profile: () => `${P()}:chat:profile`,                  // { text, updatedAt }
-  spend: day => `${P()}:chat:spend:${day}`               // { usd, n } for one day, kept 3 days
+  spend: day => `${P()}:chat:spend:${day}`,              // { usd, n } for one day, kept 3 days
+  busy: () => `${P()}:chat:busy`                         // held while a reply is written, so two never write at once
 };
 
 function authorised(req){
@@ -79,7 +82,8 @@ function authorised(req){
   return crypto.timingSafeEqual(a, b);
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+// the day of the spending cap is Surath's own day (Stuttgart), so it starts again at local midnight, not UTC's
+const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: process.env.CHAT_TZ || 'Europe/Berlin' }).format(new Date());
 const monthOf = ts => new Date(ts).toISOString().slice(0, 7);
 async function readMeta(env){ const [raw] = await redis(env, [['GET', K.meta()]]); return raw ? JSON.parse(raw) : { months: [], seq: 0 }; }
 async function readMonth(env, m){ const [raw] = await redis(env, [['GET', K.month(m)]]); return raw ? unpack(raw) : []; }
@@ -105,6 +109,14 @@ async function appendMessage(env, meta, msg){
   await redis(env, [['SET', K.month(m), pack(list)], ['SET', K.meta(), JSON.stringify(meta)]], '/multi-exec');
   return msg;
 }
+async function removeMessage(env, msg){
+  const m = monthOf(msg.ts), list = await readMonth(env, m);
+  await redis(env, [['SET', K.month(m), pack(list.filter(x => x.n !== msg.n))]]);
+}
+/* one writer at a time: appends read the month's list and write it back, so two replies written at once (a second send
+   while the server still finishes one the phone gave up on) would overwrite each other. The lock expires on its own. */
+async function lock(env){ const id = crypto.randomUUID(); const [ok] = await redis(env, [['SET', K.busy(), id, 'NX', 'EX', '300']]); return ok === 'OK' ? id : null; }
+async function unlock(env, id){ const [v] = await redis(env, [['GET', K.busy()]]); if (v === id) await redis(env, [['DEL', K.busy()]]); }
 async function addSpend(env, usd){
   const s = await readSpend(env); s.usd += usd; s.n += 1;
   await redis(env, [['SET', K.spend(today()), JSON.stringify(s), 'EX', String(3 * 86400)]]);
@@ -159,7 +171,9 @@ async function streamClaude(body, on){
   }
   const usage = {}; let text = '', stop = null, buf = '';
   const dec = new TextDecoder();
-  for await (const chunk of r.body) {
+  // a stream that fails part way was still billed: what it had used goes with the error, output estimated from the text
+  const fail = err => { err.usage = Object.assign({}, usage, { output_tokens: Math.max(usage.output_tokens || 0, Math.ceil(text.length / 3.5)) }); return err; };
+  try { for await (const chunk of r.body) {
     buf += dec.decode(chunk, { stream: true });
     let i;
     while ((i = buf.indexOf('\n\n')) >= 0) {
@@ -172,7 +186,7 @@ async function streamClaude(body, on){
       else if (ev.type === 'message_delta') { if (ev.usage) Object.assign(usage, ev.usage); if (ev.delta && ev.delta.stop_reason) stop = ev.delta.stop_reason; }
       else if (ev.type === 'error') { const err = new Error((ev.error && ev.error.message) || 'stream error'); err.status = 529; throw err; }
     }
-  }
+  } } catch (e) { throw fail(e); }
   return { text, usage, stop };
 }
 
@@ -222,8 +236,11 @@ module.exports = async function handler(req, res){
       return res.status(200).json({ profile });
     }
     if (req.method === 'DELETE') {
-      const meta = await readMeta(env);
-      await redis(env, [...meta.months.map(m => ['DEL', K.month(m)]), ['DEL', K.meta()]], '/multi-exec');
+      const id = await lock(env); if (!id) return res.status(409).json({ error: 'busy' });
+      try {
+        const meta = await readMeta(env);
+        await redis(env, [...meta.months.map(m => ['DEL', K.month(m)]), ['DEL', K.meta()]], '/multi-exec');
+      } finally { await unlock(env, id).catch(() => {}); }
       return res.status(200).json({ ok: true });
     }
     if (req.method === 'POST' && q.distill) return await distill(env, req, res, live);
@@ -240,14 +257,36 @@ module.exports = async function handler(req, res){
 async function chat(env, req, res, live){
   const b = await readBody(req), text = String(b.text || '').trim().slice(0, 8000), snapshot = b.snapshot ? String(b.snapshot) : '';
   if (!text) return res.status(400).json({ error: 'empty' });
-  const [meta, profile, spend] = await Promise.all([readMeta(env), readProfile(env), readSpend(env)]);
+  const spend = await readSpend(env);
   if (live && spend.usd >= capUsd()) return res.status(429).json({ error: 'cap', spend: spendOut(spend) });
+  const id = await lock(env);
+  if (!id) return res.status(409).json({ error: 'busy' });
+  try { await answer(env, req, res, live, b, text, snapshot, spend); }
+  finally { await unlock(env, id).catch(() => {}); }
+}
+async function answer(env, req, res, live, b, text, snapshot, spend){
+  const [meta, profile] = await Promise.all([readMeta(env), readProfile(env)]);
+  // Try again: the question is usually stored already (the reply failed after it). It is answered again rather than
+  // stored twice; a reply that was cut off makes way, and one that did arrive after all is simply returned.
+  const recent = (await readMessages(env, meta, 0, CONTEXT_MESSAGES + 2)).messages;
+  const last = recent[recent.length - 1], prev = recent[recent.length - 2];
+  const asked = m => m && m.role === 'user' && m.text === text;
+  let history = recent, userMsg = null;
+  if (b.retry && asked(last)) { userMsg = last; history = recent.slice(0, -1); }
+  else if (b.retry && last && last.role === 'assistant' && asked(prev)) {
+    if (!last.cut) {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store, no-transform' });
+      res.write(`data: ${JSON.stringify({ t: 'user', msg: prev })}\n\n`); res.write(`data: ${JSON.stringify({ t: 'done', msg: last, spend: spendOut(spend) })}\n\n`);
+      return res.end();
+    }
+    await removeMessage(env, last); userMsg = prev; history = recent.slice(0, -2);
+  }
+  history = history.slice(-CONTEXT_MESSAGES);
 
   res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store, no-transform', 'X-Accel-Buffering': 'no', Connection: 'keep-alive' });
   let gone = false; res.on('close', () => { gone = true; });   // closing the chat mid-reply: the reply is still finished and saved
   const send = (t, data) => { if (!gone) res.write(`data: ${JSON.stringify({ t, ...data })}\n\n`); };
-  const history = (await readMessages(env, meta, 0, CONTEXT_MESSAGES)).messages;
-  const userMsg = await appendMessage(env, meta, { role: 'user', text, ts: Date.now() });
+  if (!userMsg) userMsg = await appendMessage(env, meta, { role: 'user', text, ts: Date.now() });
   send('user', { msg: userMsg });
   if (snapshot) send('status', { text: 'Reading your log…' });
 
@@ -271,6 +310,7 @@ async function chat(env, req, res, live){
     }
   } catch (e) {
     console.error(e);
+    if (e.usage) await addSpend(env, costUsd(e.usage)).catch(() => {});   // what a failed stream used still counts towards the cap
     if (reply) await appendMessage(env, meta, { role: 'assistant', text: reply, ts: Date.now(), cut: true }).catch(() => {});
     send('error', { code: e.status === 429 ? 'busy' : 'failed', message: e.status === 429 || e.status === 529 ? 'Claude is busy right now. Try again in a moment.' : 'Coach AI could not answer. Try again.' });
   }
@@ -288,7 +328,9 @@ async function distill(env, req, res, live){
   if (live) {
     const body = { model: MODEL, max_tokens: 8000, stream: true, output_config: { effort: 'medium' }, fallbacks: 'default',
       messages: [{ role: 'user', content: [{ type: 'text', text: DISTILL }, { type: 'text', text: '<history>\n' + text + '\n</history>' }] }] };
-    const out = await streamClaude(body, () => {});
+    let out;
+    try { out = await streamClaude(body, () => {}); }
+    catch (e) { if (e.usage) await addSpend(env, costUsd(e.usage)).catch(() => {}); throw e; }
     await addSpend(env, costUsd(out.usage));
     if (!out.text) return res.status(502).json({ error: 'empty-reply' });
     profileText = out.text.trim();

@@ -679,8 +679,9 @@ body.lock{overflow:hidden}
 .chat-time{margin:4px 0 14px;text-align:center;font-size:12px;line-height:16px;color:var(--ink2)}
 .chat-time b{font-weight:600}
 .cm.in{animation:cmIn .45s var(--out) both}
-.cm.st.wait{visibility:hidden}
-.cm.st,.cm.stream .md{min-height:24px}   /* one line of the reply, so the status turning into it never makes the conversation shorter for a frame */   /* the status line's place, kept from the moment you send so your bubble lands above it and stays */
+.cm.st.wait{visibility:hidden}   /* the status line's place, kept from the moment you send so your bubble lands above it and stays */
+.cm.st,.cm.stream .md{min-height:24px}   /* one line of the reply, so the status turning into it never makes the conversation shorter for a frame */
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}   /* read by screen readers only */
 @keyframes cmIn{from{opacity:0;translate:0 10px}}
 .md{font-size:17px;line-height:1.42;overflow-wrap:anywhere}
 .md p{margin:0 0 12px}.md p:last-child{margin-bottom:0}
@@ -765,7 +766,8 @@ body.lock{overflow:hidden}
 <div id="chatfx" class="chatfx" hidden aria-hidden="true"><i class="fxb"></i><i class="fxt"></i></div>
 <div id="chat" class="chat" role="dialog" aria-modal="true" aria-label="Coach AI" tabindex="-1" hidden>
   <div class="chat-top"><button class="tbtn glass" data-act="chatclose" aria-label="Close"></button><h2>Coach AI</h2><span aria-hidden="true"></span></div>
-  <div id="chatlog" class="chat-log" aria-live="polite"></div>
+  <div id="chatlog" class="chat-log"></div>
+  <div id="chatsay" class="sr" aria-live="polite"></div>
   <div class="chat-in"><div class="composer glass"><textarea id="chatq" rows="1" placeholder="Type a message…" enterkeyhint="send" autocomplete="off" aria-label="Message to Coach AI"></textarea><button class="send" data-act="chatsend" aria-label="Send"></button></div></div>
 </div>
 <script>
@@ -2718,14 +2720,22 @@ const H = {
   chatclose(){ closeChat(); },
   chatsend(){ const ta = $('#chatq'); if (ta) chatSend(ta.value); },
   chatsug(t){ chatSend(t.dataset.q); },
-  chatretry(){ const q = chat.err && chat.err.retry; if (!q) return; const last = chat.msgs[chat.msgs.length - 1];
-    if (last && last.role === 'user' && last.failed) chat.msgs.pop(); chat.err = null; renderChatLog(true); chatSend(q); },
+  chatretry(){ const q = chat.err && chat.err.retry; if (!q) return;
+    // only a question the server never got is sent again; one it stored is answered again (a cut-off reply makes way),
+    // and if its reply arrived after all there is nothing to do
+    const m = chat.msgs, tail = m[m.length - 1], before = m[m.length - 2], asked = x => x && x.role === 'user' && !x.failed && x.text === q;
+    let again = false;
+    if (tail && tail.role === 'user' && tail.failed) m.pop();
+    else if (asked(tail)) again = true;
+    else if (tail && tail.role === 'assistant' && asked(before)) { if (!tail.cut) { chat.err = null; renderChatLog(true); return; } m.pop(); again = true; }
+    chat.err = null; renderChatLog(true); chatSend(q, again); },
   chatmore(){ chatOlder(); },
   chatsettings(t){ closeChat(); ui.tab = 'setup'; ui.setupPage = t.dataset.p || 'chat'; window.scrollTo(0, 0); render({ transition:true, tab:true }); },
   chatprofilesave(){ const ta = $('#chatprofile'); if (!ta) return;
-    chatApi('PUT', '?profile=1', { text: ta.value }).then(j => { chat.profile = j.profile; ta.blur(); toast('Profile saved'); }, () => toast('Could not save the profile')); },
+    chatApi('PUT', '?profile=1', { text: ta.value }).then(j => { chat.profile = j.profile; chat.profileDraft = null; ta.blur(); toast('Profile saved'); }, () => toast('Could not save the profile')); },
   chatclear(){ askGlass('Clear the conversation?', 'Every message with Coach AI is deleted, on all your devices. What Coach AI knows about you stays.', 'Clear').then(ok => {
-    if (!ok) return; chatApi('DELETE').then(() => { chat.msgs = []; chat.more = false; chatCache(); toast('Conversation cleared'); }, () => toast('Could not clear it')); }); },
+    if (!ok) return; chatApi('DELETE').then(() => { chat.msgs = []; chat.more = false; chat.err = null; chatCache(); toast('Conversation cleared'); },
+      e => toast(e.status === 409 ? 'Coach AI is still writing a reply. Try again in a moment.' : 'Could not clear it')); }); },
   chatimpgo(){ chatImport(); }
 };
 
@@ -2989,6 +2999,7 @@ document.addEventListener('input', e => {
   else if (t.id === 'q' && ui.sheet) { ui.sheet.q = t.value; $('#foodlist').innerHTML = foodListHTML(); }
   else if (t.id === 'exq' && ui.sheet) { ui.sheet.q = t.value; $('#exlist').innerHTML = exListHTML(); }
   else if (t.id === 'chatq') chatInput();
+  else if (t.id === 'chatprofile') chat.profileDraft = t.value;   // kept until saved, so a redraw of the page does not lose it
   else if (t.id === 'qtyin' && ui.sheet) { const q = num(t.value); ui.sheet.qty = q === null ? 0 : q; updateQtyPreview(); }
   else if (t.id === 'entryqty' && ui.sheet) { const e2 = dayEntries(ui.date).find(x => x.id === ui.sheet.id), q = num(t.value) || 0; if (e2) $('#entryprev').innerHTML = previewHTML({ kcal:e2.k.kcal*q, p:e2.k.p*q, f:e2.k.f*q, c:e2.k.c*q }); }
 });
@@ -3201,7 +3212,8 @@ document.addEventListener('visibilitychange', () => { if (!cloud.token) return; 
    Without an API key on the server every reply is a pretend one, so all of this can be tried for free.
    ===================================================================== */
 const CHAT_CACHE = 'coach-chat';
-const chat = { open:false, msgs:[], more:false, mode:null, sending:false, status:'', draft:null, err:null, profile:null, spend:null, loading:false };
+// status: the line shown while Claude works (kept so a redraw mid-reply can show it again); profileDraft: unsaved profile edits
+const chat = { open:false, msgs:[], more:false, mode:null, sending:false, status:'', draft:null, err:null, profile:null, profileDraft:null, spend:null, loading:false };
 try { const c = JSON.parse(localStorage.getItem(CHAT_CACHE)); if (c && Array.isArray(c.msgs)) { chat.msgs = c.msgs; chat.mode = c.mode || null; } } catch(e) {}
 const chatOn = () => !!(S.settings.beta && S.settings.beta.chat);
 const chatFor = tab => chatOn() && ['train', 'eat', 'progress'].includes(tab);
@@ -3221,7 +3233,8 @@ async function chatLoad(){
     if (!chat.sending) { chat.msgs = j.messages; chat.more = j.more; }
     chat.mode = j.mode; chat.profile = j.profile; chat.spend = j.spend; chat.loadErr = null; chatCache();
     if (chat.open && !chat.sending) renderChatLog(true);
-    if (ui.tab === 'setup' && ui.setupPage === 'chat') refreshSetup();
+    const pe = $('#chatprofile');   // never redraw the page under someone typing their profile
+    if (ui.tab === 'setup' && ui.setupPage === 'chat' && !(pe && document.activeElement === pe)) refreshSetup();
   } catch(e) { chat.loadErr = e.status === 401 ? 'auth' : 'net'; if (chat.open && !chat.msgs.length) renderChatLog(true); }
   finally { chat.loading = false; }
 }
@@ -3299,7 +3312,7 @@ const chatTimeLine = (m, prev) => prev && fmtD(new Date(prev.ts)) === fmtD(new D
 const chatSugsHTML = sugs => sugs.length ? `<div class="sugs">${sugs.slice(0, 3).map(q => `<button class="sugb" data-act="chatsug" data-q="${esc(q)}">${CI.sug}<span>${esc(q)}</span></button>`).join('')}</div>` : '';
 /* one message. Yours: a Messages bubble, the tail only on the last of a run. Coach's: plain text, nothing under it (Surath did not want copy or thumbs) */
 function chatMsgHTML(m, o = {}){
-  if (m.role === 'user') return `<div class="cm u${o.tail ? ' tail' : ''}${m.pending ? ' pending' : ''}" data-n="${m.n}"><div class="bub">${esc(m.text)}</div></div>`;
+  if (m.role === 'user') return `<div class="cm u${o.tail ? ' tail' : ''}" data-n="${m.n}"><div class="bub">${esc(m.text)}</div></div>`;
   const md = chatMD(m.streaming ? m.text.slice(0, m.shown || 0) : m.text);
   return `<div class="cm a${m.streaming ? ' stream' : ''}" data-n="${m.n}"><div class="md">${md.html}</div>${!m.streaming ? chatSugsHTML(md.sugs) : ''}</div>`;
 }
@@ -3312,6 +3325,8 @@ function chatLogHTML(){
   const list = chat.msgs;
   if (!list.length) return h + chatMsgHTML({ n:'hi', role:'assistant', text:CHAT_HELLO, intro:true }) + '</div>';
   list.forEach((m, i) => { h += chatTimeLine(m, list[i - 1]) + chatMsgHTML(m, { tail: m.role === 'user' && !(list[i + 1] && list[i + 1].role === 'user') }); });
+  // a redraw while a reply is on its way (reopening the chat, Show earlier messages) keeps it: the reply so far, or the status line
+  if (chat.sending) h += chat.draft ? chatMsgHTML(chat.draft) : `<div class="cm a st${chat.status ? '' : ' wait'}"><span class="shim">${esc(chat.status || 'Thinking…')}</span></div>`;
   if (chat.err) h += chatErrHTML(chat.err);
   return h + '</div>';
 }
@@ -3361,11 +3376,6 @@ function chatGhostOut(el){
   }
   el.remove();
 }
-function chatFadeOut(el){
-  if (!el) return;
-  if (reduced()) { el.remove(); return; }
-  el.animate([{ opacity:1 }, { opacity:0 }], { duration:160, easing:'ease-out', fill:'forwards' }).finished.then(() => el.remove(), () => el.remove());
-}
 /* Sending, as in iOS 26 Messages (traced frame by frame from Surath's recording): the bubble starts as the whole message
    field, behind its glass, and draws in towards the field's right end; then, still a little small, it rises out of the
    field and grows into its place, its right edge never moving. Key moments from the recording: 100 ms in, the left edge
@@ -3411,20 +3421,30 @@ function chatReveal(now){
     let n = d.shown + Math.max(1, Math.round(Math.max(55, behind * 3) * dt / 1000));
     if (n < d.text.length) { const sp = d.text.slice(n).search(/\s/); if (sp >= 0 && sp < 8) n += sp; }   // whole words
     d.shown = Math.min(d.text.length, n);
-    const md = $('.cm.stream .md', log); if (md) md.innerHTML = chatMD(d.text.slice(0, d.shown)).html;
+    chatPaint(d);
   }
   const gap = log.scrollHeight - log.clientHeight - log.scrollTop;
   if (gap > .5 && gap < 220) log.scrollTop += Math.max(1, gap * .22);
-  if (d.shown < d.text.length || (gap > .5 && gap < 220) || !d.done) revealRaf = requestAnimationFrame(chatReveal);
-  else chatFinish();
+  if (d.shown < d.text.length || (gap > .5 && gap < 220)) revealRaf = requestAnimationFrame(chatReveal);
+  else if (d.done) chatFinish();   // otherwise it rests until the next words arrive (chatRevealGo)
 }
-function chatRevealGo(){ if (!revealRaf && !reduced()) { revealT = 0; revealRaf = requestAnimationFrame(chatReveal); } else if (reduced()) { chat.draft.shown = chat.draft.text.length; if (chat.draft.done) chatFinish(); else { const md = $('#chatlog .cm.stream .md'); if (md) md.innerHTML = chatMD(chat.draft.text).html; } } }
+/* Draws the reply so far without redoing all of it each frame: everything before the last blank line is finished (a
+   blank line closes any paragraph or list), so it is drawn once and kept; only the part being written is redrawn. */
+function chatPaint(d){
+  const md = $('#chatlog .cm.stream .md'); if (!md) return;
+  const shown = d.text.slice(0, d.shown), i = shown.lastIndexOf('\n\n'), cut = i < 0 ? 0 : i + 2;
+  if (md._at === undefined || md._at > cut) { md.innerHTML = ''; md._at = 0; md._fixed = 0; }   // a fresh element (a redraw) starts over
+  const trim = () => { while (md.childNodes.length > md._fixed) md.lastChild.remove(); };
+  if (cut > md._at) { trim(); md.insertAdjacentHTML('beforeend', chatMD(shown.slice(md._at, cut)).html); md._fixed = md.childNodes.length; md._at = cut; }
+  trim(); md.insertAdjacentHTML('beforeend', chatMD(shown.slice(md._at)).html);
+}
+function chatRevealGo(){ if (!revealRaf && !reduced()) { revealT = 0; revealRaf = requestAnimationFrame(chatReveal); } else if (reduced()) { chat.draft.shown = chat.draft.text.length; if (chat.draft.done) chatFinish(); else chatPaint(chat.draft); } }
 /* the reply is all shown: it becomes a normal message, and its actions and suggestions fade in */
 function chatFinish(){
   const d = chat.draft; if (!d || !d.done) return;
-  chat.draft = null; chat.sending = false;
+  chat.draft = null; chat.sending = false; chat.status = '';
   const msg = d.final, el = $('#chatlog .cm.stream');
-  if (msg) chat.msgs.push(msg);
+  if (msg) { chat.msgs.push(msg); chatSay(msg.text); }
   if (el && msg) {
     el.classList.remove('stream'); el.dataset.n = msg.n;
     const md = chatMD(msg.text); $('.md', el).innerHTML = md.html;
@@ -3434,39 +3454,51 @@ function chatFinish(){
   } else renderChatLog();
   chatCache();
 }
+/* the whole reply, read once by a screen reader when it is complete (the log itself is not a live region: it changes every frame) */
+function chatSay(text){ const el = $('#chatsay'); if (!el) return; const t = document.createElement('div'); t.innerHTML = chatMD(text).html;
+  el.textContent = ''; requestAnimationFrame(() => { el.textContent = 'Coach AI: ' + t.textContent; }); }
 function chatInput(){
   const ta = $('#chatq'); if (!ta) return;
   ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 150) + 'px';
   $('.composer').classList.toggle('has', !!ta.value.trim()); chatPad();
 }
 
-/* send one message and stream the reply: user (the stored message), status, delta, done or error */
-async function chatSend(text){
+/* send one message and stream the reply: user (the stored message), status, delta, done or error. `again` answers the
+   question already at the end of the conversation (Try again after it was stored), so it is not asked twice */
+async function chatSend(text, again){
   text = String(text || '').trim();
   if (!text || chat.sending || !cloud.token) return;
-  chat.sending = true; chat.err = null; chat.draft = null;
+  chat.sending = true; chat.err = null; chat.draft = null; chat.status = '';
   // an error makes way, and the hello once the conversation starts; suggestions stay under their reply (Surath)
   const drop = $$('#chatlog .cm.err').concat(chat.msgs.length ? [] : $$('#chatlog .cm.a'));
   const kept = $$('#chatlog .chat-inner > *').filter(e => !drop.includes(e)), lastEl = kept[kept.length - 1];
-  if (lastEl && lastEl.classList.contains('u')) lastEl.classList.remove('tail');   // the run continues: the tail moves to the new bubble
-  const temp = { n:'p' + Date.now(), role:'user', text, ts: Date.now(), pending:true }, prev = chat.msgs[chat.msgs.length - 1];
-  chat.msgs.push(temp);
-  const ta = $('#chatq'); if (ta && ta.value.trim() === text) { ta.value = ''; chatInput(); }   // first, so the field has its final height
-  // the status line ("Thinking…") is placed with your bubble, hidden, so the bubble lands where it stays and the line just appears under it
-  const [node] = chatGrow(chatTimeLine(temp, prev) + chatMsgHTML(temp, { tail:true }) + '<div class="cm a st wait"><span class="shim">Thinking…</span></div>', true, drop).filter(n => n.classList.contains('u'));
-  const landed = chatFlyIn(node);
+  const wait = '<div class="cm a st wait"><span class="shim">Thinking…</span></div>';
+  let temp = null, node = null, landed = Promise.resolve();
+  if (again) chatGrow(wait, true, drop);   // your bubble is there already: only the status line's place is added
+  else {
+    if (lastEl && lastEl.classList.contains('u')) lastEl.classList.remove('tail');   // the run continues: the tail moves to the new bubble
+    const prev = chat.msgs[chat.msgs.length - 1];
+    temp = { n:'p' + Date.now(), role:'user', text, ts: Date.now(), pending:true };
+    chat.msgs.push(temp);
+    const ta = $('#chatq'); if (ta && ta.value.trim() === text) { ta.value = ''; chatInput(); }   // first, so the field has its final height
+    // the status line ("Thinking…") is placed with your bubble, hidden, so the bubble lands where it stays and the line just appears under it
+    [node] = chatGrow(chatTimeLine(temp, prev) + chatMsgHTML(temp, { tail:true }) + wait, true, drop).filter(n => n.classList.contains('u'));
+    landed = chatFlyIn(node);
+  }
   let res;
   try { res = await fetch('/api/chat', { method:'POST', cache:'no-store', headers:{ Authorization:'Bearer ' + cloud.token, 'Content-Type':'application/json' },
-    body: JSON.stringify({ text, snapshot: chatSnapshot() }) }); }
+    body: JSON.stringify({ text, snapshot: chatSnapshot(), retry: !!again }) }); }
   catch(e) { await landed; return chatFail(temp, { message:'No connection. Try again when you are back online.', retry:text }); }
   await landed;   // the status line and the reply wait for your bubble to land
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));
     return chatFail(temp, j.error === 'cap' ? { message:`That's today's €${j.spend ? j.spend.capEur : 1} for Coach AI. It's back tomorrow.` }
-      : res.status === 401 ? { message:'Your cloud passphrase was not accepted.' } : { message:'Coach AI could not answer. Try again.', retry:text });
+      : res.status === 401 ? { message:'Your cloud passphrase was not accepted.' }
+      : res.status === 409 ? { message:'Coach AI is still writing your last reply. Try again in a moment.', retry:text }
+      : { message:'Coach AI could not answer. Try again.', retry:text });
   }
   const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '', finished = false;
-  const status = t => { let st = $('#chatlog .cm.st');
+  const status = t => { chat.status = t; let st = $('#chatlog .cm.st');
     if (st) { $('.shim', st).textContent = t; if (st.classList.contains('wait')) st.classList.replace('wait', 'in'); return; }
     st = chatGrow(`<div class="cm a st in"><span class="shim">${esc(t)}</span></div>`)[0]; };
   try {
@@ -3477,7 +3509,7 @@ async function chatSend(text){
         const line = buf.slice(0, i); buf = buf.slice(i + 2);
         if (!line.startsWith('data:')) continue;
         const ev = JSON.parse(line.slice(5));
-        if (ev.t === 'user') { const k = chat.msgs.indexOf(temp); if (k >= 0) chat.msgs[k] = ev.msg; if (node) { node.classList.remove('pending'); node.dataset.n = ev.msg.n; } }
+        if (ev.t === 'user') { const k = chat.msgs.indexOf(temp); if (k >= 0) chat.msgs[k] = ev.msg; if (node) node.dataset.n = ev.msg.n; }
         else if (ev.t === 'status') { if (!chat.draft) status(ev.text); }
         else if (ev.t === 'delta') {
           if (!chat.draft) {   // the status line turns into the reply in place
@@ -3489,7 +3521,8 @@ async function chatSend(text){
         }
         else if (ev.t === 'done') { finished = true; if (ev.spend) chat.spend = ev.spend;
           if (chat.draft) { chat.draft.done = true; chat.draft.final = ev.msg; chat.draft.text = ev.msg.text; chatRevealGo(); }
-          else { chat.sending = false; chat.msgs.push(ev.msg); chatFadeOut($('#chatlog .cm.st')); chatGrow(chatMsgHTML(ev.msg)); chatCache(); } }
+          else { chat.sending = false; chat.status = ''; chat.msgs.push(ev.msg); chatSay(ev.msg.text);
+            const st = $('#chatlog .cm.st'); chatGrow(chatMsgHTML(ev.msg), false, st ? [st] : []); chatCache(); } }
         else if (ev.t === 'error') { finished = true; chatFail(null, { message: ev.message, retry: ev.code === 'refusal' ? null : text }); }
       }
     }
@@ -3497,13 +3530,13 @@ async function chatSend(text){
   if (!finished) { chatFail(null, { message:'The reply was cut off. Try again in a moment.', retry:text }); chatLoad(); }   // the server finishes and saves the reply anyway
 }
 function chatFail(temp, err){
-  if (temp) { temp.pending = false; temp.failed = true; const el = $(`#chatlog .cm.u[data-n="${temp.n}"]`); if (el) el.classList.remove('pending'); }
+  if (temp) { temp.pending = false; temp.failed = true; }
   cancelAnimationFrame(revealRaf); revealRaf = 0;
-  chatFadeOut($('#chatlog .cm.st'));
+  const drop = [$('#chatlog .cm.st')];   // they leave the layout as the error comes in (fading as copies), so nothing jumps later
   const d = chat.draft; chat.draft = null;
-  if (d) { const el = $('#chatlog .cm.stream'); if (el) { el.classList.remove('stream'); if (!d.text) el.remove(); } }
-  chat.err = err; chat.sending = false;
-  chatGrow(chatErrHTML(err)); chatCache();
+  if (d) { const el = $('#chatlog .cm.stream'); if (el) { el.classList.remove('stream'); if (!d.text) drop.push(el); } }
+  chat.err = err; chat.sending = false; chat.status = '';
+  chatGrow(chatErrHTML(err), false, drop.filter(Boolean)); chatCache();
 }
 
 /* opening and closing, after Revolut's AI (measured from Surath's recording at 60 fps): when the finger lets go, the page
@@ -3580,7 +3613,6 @@ function pullSpringBack(){
     l.e.animate([{ transform:`translateY(${y}px)` }, { transform:'none' }], { duration:600, delay:i * 28, easing:EASE.spring, fill:'backwards' })
       .finished.then(() => { l.e.style.willChange = ''; }, () => {}); });
 }
-const pullReset = () => pullSpringBack();
 /* a light tap of the iPhone's haptics: Safari has no vibration API, but toggling a native switch plays the system tick
    (iOS 18 and later; it only plays in response to a touch) */
 const hapticEl = (() => { const l = document.createElement('label'), i = document.createElement('input');
@@ -3609,7 +3641,7 @@ document.addEventListener('pointermove', e => {
   pullSet(pullDist(dy - 10));
 }, { passive:true });
 const pullEnd = e => { if (pull.id !== e.pointerId) return; const open = pull.on && pull.d >= PULL_OPEN && e.type === 'pointerup'; pull.id = null;
-  if (open) { haptic(); openChat(); } else if (pull.d || pull.layers) pullReset(); };   // also a pull dragged back to where it started
+  if (open) { haptic(); openChat(); } else if (pull.d || pull.layers) pullSpringBack(); };   // also a pull dragged back to where it started
 document.addEventListener('pointerup', pullEnd);
 document.addEventListener('pointercancel', pullEnd);
 document.addEventListener('touchstart', e => {
@@ -3630,7 +3662,7 @@ document.addEventListener('touchmove', e => {
 const touchEnd = e => {
   if (pull.tid === null || ![...e.changedTouches].some(x => x.identifier === pull.tid)) return;
   const open = pull.on && pull.d >= PULL_OPEN && e.type === 'touchend'; pull.tid = null; pull.on = false;
-  if (open) { haptic(); openChat(); } else if (pull.d || pull.layers) pullReset();
+  if (open) { haptic(); openChat(); } else if (pull.d || pull.layers) pullSpringBack();
 };
 document.addEventListener('touchend', touchEnd);
 document.addEventListener('touchcancel', touchEnd);
@@ -3638,9 +3670,9 @@ document.addEventListener('touchcancel', touchEnd);
 let wheelPull = 0, wheelAt = 0, wheelT = 0, wheelOk = false;
 window.addEventListener('wheel', e => {
   const now = Date.now(); if (now - wheelAt > 300) wheelOk = restingTop() && chatFor(ui.tab) && !chat.open && !ui.sheet && !ui.menu; wheelAt = now;
-  if (!wheelOk || e.deltaY >= 0 || window.scrollY > 0) { if (wheelPull && e.deltaY > 0) { wheelPull = 0; pullReset(); } return; }
+  if (!wheelOk || e.deltaY >= 0 || window.scrollY > 0) { if (wheelPull && e.deltaY > 0) { wheelPull = 0; pullSpringBack(); } return; }
   wheelPull += -e.deltaY; pullSet(pullDist(wheelPull));
-  clearTimeout(wheelT); wheelT = setTimeout(() => { const open = pull.d >= PULL_OPEN; wheelPull = 0; if (open) openChat(); else pullReset(); }, 160);
+  clearTimeout(wheelT); wheelT = setTimeout(() => { const open = pull.d >= PULL_OPEN; wheelPull = 0; if (open) openChat(); else pullSpringBack(); }, 160);
 }, { passive:true });
 
 /* ---------- Settings, Coach chat: the switch, the profile and importing earlier chats ---------- */
@@ -3652,7 +3684,7 @@ function chatSettings(){
   if (!cloud.token) return h + `<h2>Needs Cloud backup</h2><div class="group">${srow('cloud', 'Off')}</div>
     <p class="note">Coach AI keeps your conversation and profile in your cloud backup, so it works on all your devices.</p>`;
   return h + `<h2>What Coach AI knows about you</h2>
-    <div class="group pad stack"><textarea id="chatprofile" class="field area" rows="9" placeholder="${pr ? 'Your goals, training, food rules, routine and how you like answers.' : 'Loading…'}" aria-label="Your profile">${esc(pr ? pr.text : '')}</textarea>
+    <div class="group pad stack"><textarea id="chatprofile" class="field area" rows="9" placeholder="${pr ? 'Your goals, training, food rules, routine and how you like answers.' : 'Loading…'}" aria-label="Your profile">${esc(chat.profileDraft ?? (pr ? pr.text : ''))}</textarea>
       <button class="btn" data-act="chatprofilesave">Save profile</button></div>
     <p class="note">Coach AI reads this before every reply. Import earlier chats to have it written for you, then edit it here.${pr && pr.updatedAt ? ` Last changed ${agoText(Date.parse(pr.updatedAt))}.` : ''}</p>
     <h2>Chat history</h2>
