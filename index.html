@@ -20,7 +20,7 @@
 @property --lit{syntax:'<number>';inherits:false;initial-value:0}
 :root{
   --bg:#F2F2F7; --card:#FFFFFF; --ink:#000; --ink2:#6C6C70; --ink3:#AEAEB2; --drop-line:#D1D1D6;
-  --chat-bg:#F3F3F3; --chat-bub:#E8E8E9; --chat-pill:#E6E6E8; --composer:#FFFFFF; --composer-line:rgba(0,0,0,.08); --composer-hi:rgba(255,255,255,.7); --send-bg:#1C1C1E; --send-ink:#FFFFFF;
+  --chat-bg:#F3F3F3; --chat-veil:rgba(243,243,243,.55); --imsg:#0088FF; --imsg-ink:#FFFFFF; --send-bg:#1C1C1E; --send-ink:#FFFFFF;
   --sep:rgba(60,60,67,.12); --sep-w:1px; --fill:rgba(120,120,128,.16); --fill2:rgba(120,120,128,.10);
   --accent:#0088FF; --accent-press:#006FD6; --accent-t:rgba(0,136,255,.12); --accent-glow:rgba(0,136,255,.32); --accent-ink:#007AEB;
   --red:#FF383C; --red-t:rgba(255,56,60,.12); --red-ink:#D70015; --gray:#8E8E93;
@@ -56,7 +56,7 @@
 /* Dark mode follows the system, with Apple's iOS 26 dark colours */
 @media (prefers-color-scheme:dark){:root{
   --bg:#000000; --card:#1C1C1E; --ink:#FFFFFF; --ink2:#98989F; --ink3:#5B5B60; --drop-line:#3A3A3C;
-  --chat-bg:#000000; --chat-bub:#2C2C2E; --chat-pill:#1C1C1E; --composer:#1C1C1E; --composer-line:rgba(255,255,255,.1); --composer-hi:rgba(255,255,255,.06); --send-bg:#FFFFFF; --send-ink:#000000;
+  --chat-bg:#000000; --chat-veil:rgba(0,0,0,.5); --imsg:#0091FF; --imsg-ink:#FFFFFF; --send-bg:#FFFFFF; --send-ink:#000000;
   --sep:rgba(84,84,88,.4); --fill:rgba(120,120,128,.36); --fill2:rgba(120,120,128,.24);
   --accent:#0091FF; --accent-press:#3AA7FF; --accent-t:rgba(0,145,255,.22); --accent-glow:rgba(0,145,255,.38); --accent-ink:#45ADFF;
   --red:#FF4245; --red-t:rgba(255,66,69,.2); --red-ink:#FF6B6E; --gray:#98989D;
@@ -655,20 +655,28 @@ body.lock{overflow:hidden}
 .chatfx>i{position:absolute;inset:0}
 .chatfx .fxb{-webkit-backdrop-filter:blur(28px) saturate(150%);backdrop-filter:blur(28px) saturate(150%);opacity:0}
 .chatfx .fxt{background:var(--chat-bg);opacity:0}
-.chat{position:fixed;left:0;right:0;top:var(--vvt,0px);height:var(--vvh,100dvh);z-index:45;display:flex;flex-direction:column;background:var(--chat-bg);color:var(--ink);overflow:hidden;transform-origin:50% 42%}
+.chat{position:fixed;left:0;right:0;top:var(--vvt,0px);height:var(--vvh,100dvh);z-index:45;background:var(--chat-bg);color:var(--ink);overflow:hidden;transform-origin:50% 42%}
 .chatting .toast{z-index:46}
 .chat-top{position:absolute;top:0;left:0;right:0;z-index:2;display:grid;grid-template-columns:44px 1fr 44px;align-items:center;padding:calc(env(safe-area-inset-top) + 4px) 12px 14px;pointer-events:none}
 .chat-top>*{pointer-events:auto}
 .chat-top::before{content:"";position:absolute;inset:0 0 -16px;z-index:-1;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);background:linear-gradient(var(--chat-bg) 40%,transparent);-webkit-mask-image:linear-gradient(#000 55%,transparent);mask-image:linear-gradient(#000 55%,transparent)}
 .chat-top h2{margin:0;text-align:center;font-size:17px;font-weight:600;letter-spacing:-.01em}
 .chat-mode{text-align:center;font-size:12px;color:var(--ink2);margin:0 0 18px}
-.chat-log{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:calc(env(safe-area-inset-top) + 66px) 16px 12px;-webkit-overflow-scrolling:touch}
-.cm{margin:0 0 24px}
-.cm.u{display:flex;justify-content:flex-end}
-.bub{position:relative;max-width:80%;padding:9px 14px;border-radius:20px;background:var(--chat-bub);font-size:17px;line-height:1.32;white-space:pre-wrap;overflow-wrap:anywhere}
-.bub::after{content:"";position:absolute;right:-6px;bottom:0;width:16px;height:14px;background:var(--chat-bub);clip-path:path('M0 0C1 6 5 11 16 14C9 14 4 13 0 10Z')}
-.bub .tm{font-size:12px;color:var(--ink2);margin-left:8px;white-space:nowrap}
-.cm.pending .bub{opacity:.6}
+/* the conversation fills the screen and scrolls behind the bars; the message field floats over it in glass, and what
+   passes under it blurs softly instead of disappearing behind a solid strip */
+.chat-log{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain;padding:calc(env(safe-area-inset-top) + 66px) 16px 90px;-webkit-overflow-scrolling:touch}
+.chat-inner{will-change:transform}
+.cm{margin:0 0 22px}
+.cm.u{display:flex;justify-content:flex-end;margin:0 0 2px}   /* a run of your messages sits close, as in Messages */
+.cm.u.tail{margin-bottom:18px}
+/* your messages are Messages' sent bubbles: system blue, white 17 pt text, and on the last of a run the tail, drawn as
+   in iMessage from a blue corner piece (::before) cut by a piece of the page's own colour (::after) */
+.bub{position:relative;max-width:75%;padding:7px 13px 8px;border-radius:19px;background:var(--imsg);color:var(--imsg-ink);font-size:17px;line-height:22px;letter-spacing:-.01em;white-space:pre-wrap;overflow-wrap:anywhere}
+.cm.u.tail .bub::before{content:"";position:absolute;z-index:0;bottom:0;right:-8px;width:20px;height:20px;background:var(--imsg);border-bottom-left-radius:16px 14px}
+.cm.u.tail .bub::after{content:"";position:absolute;z-index:1;bottom:0;right:-10px;width:10px;height:20px;background:var(--chat-bg);border-bottom-left-radius:10px}
+.cm.pending .bub{opacity:.85}
+.chat-time{margin:4px 0 14px;text-align:center;font-size:12px;line-height:16px;color:var(--ink2)}
+.chat-time b{font-weight:600}
 .cm.in{animation:cmIn .45s var(--out) both}
 @keyframes cmIn{from{opacity:0;translate:0 10px}}
 .md{font-size:17px;line-height:1.42;overflow-wrap:anywhere}
@@ -693,14 +701,15 @@ body.lock{overflow:hidden}
 @keyframes shim{from{background-position:100% 0}to{background-position:-60% 0}}
 .cm.err{font-size:14px;color:var(--red-ink)}
 .cm.err button{color:var(--accent);font-weight:600;margin-left:6px;min-height:32px}
-.datepill{display:block;width:max-content;margin:4px auto 24px;padding:5px 12px;border-radius:99px;background:var(--chat-pill);font-size:13px;color:var(--ink2)}
 .chat-more{display:block;margin:0 auto 20px;min-height:36px;color:var(--accent);font-size:14px;font-weight:600}
 .chat-empty{margin:18vh 12px 0;text-align:center;color:var(--ink2);font-size:15px;line-height:1.4}
 .chat-empty .btn{margin-top:16px}
-.chat-in{padding:6px 12px max(12px,env(safe-area-inset-bottom))}
+.chat-in{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:6px 12px max(12px,env(safe-area-inset-bottom))}
+.chat-in::before{content:"";position:absolute;inset:-30px 0 0;z-index:-1;pointer-events:none;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);background:linear-gradient(transparent,var(--chat-veil));-webkit-mask-image:linear-gradient(transparent,#000 50%);mask-image:linear-gradient(transparent,#000 50%)}
 .kbopen .chat-in{padding-bottom:8px}
-.composer{display:flex;align-items:flex-end;gap:8px;min-height:54px;padding:6px 7px 6px 20px;border-radius:27px;background:var(--composer);border:1px solid var(--composer-line);box-shadow:0 6px 22px rgba(0,0,0,.07),inset 0 1px 0 var(--composer-hi);transition:box-shadow .2s}
-.composer:focus-within{box-shadow:0 6px 22px rgba(0,0,0,.07),inset 0 1px 0 var(--composer-hi),0 0 0 2px var(--accent-t)}
+.composer{display:flex;align-items:flex-end;gap:8px;min-height:54px;padding:6px 7px 6px 20px;border-radius:27px}
+.composer:focus-within{outline:2px solid var(--accent-t);outline-offset:1px}
+@media (hover:none){.composer:focus-within{outline:none}}   /* on the phone the cursor shows the focus, as in Messages */
 .composer textarea{flex:1;min-width:0;max-height:8em;margin:0;padding:9px 0 8px;border:0;outline:0;resize:none;background:none;color:var(--ink);font:inherit;font-size:17px;line-height:1.3}
 .composer textarea::placeholder{color:var(--ink3)}
 .send{flex:none;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--send-bg);color:var(--send-ink);transition:scale .35s var(--spring),opacity .2s}
@@ -752,7 +761,7 @@ body.lock{overflow:hidden}
 <div id="chat" class="chat" role="dialog" aria-modal="true" aria-label="Coach" tabindex="-1" hidden>
   <div class="chat-top"><button class="tbtn glass" data-act="chatclose" aria-label="Close"></button><h2>Coach</h2><span aria-hidden="true"></span></div>
   <div id="chatlog" class="chat-log" aria-live="polite"></div>
-  <div class="chat-in"><div class="composer"><textarea id="chatq" rows="1" placeholder="Type a message…" enterkeyhint="send" autocomplete="off" aria-label="Message to Coach"></textarea><button class="send" data-act="chatsend" aria-label="Send"></button></div></div>
+  <div class="chat-in"><div class="composer glass"><textarea id="chatq" rows="1" placeholder="Type a message…" enterkeyhint="send" autocomplete="off" aria-label="Message to Coach"></textarea><button class="send" data-act="chatsend" aria-label="Send"></button></div></div>
 </div>
 <script>
 'use strict';
@@ -2705,14 +2714,15 @@ const H = {
   chatsend(){ const ta = $('#chatq'); if (ta) chatSend(ta.value); },
   chatsug(t){ chatSend(t.dataset.q); },
   chatretry(){ const q = chat.err && chat.err.retry; if (!q) return; const last = chat.msgs[chat.msgs.length - 1];
-    if (last && last.role === 'user' && last.failed) chat.msgs.pop(); chat.err = null; chatSend(q); },
+    if (last && last.role === 'user' && last.failed) chat.msgs.pop(); chat.err = null; renderChatLog(true); chatSend(q); },
   chatcopy(t){ const m = chat.msgs.find(x => String(x.n) === t.dataset.n); if (!m) return;
     const text = chatMD(m.text).plain;
     const old = () => { const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;opacity:0';   // without https (a test copy on the home Wi-Fi) there is no clipboard API
       document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove(); return ok ? Promise.resolve() : Promise.reject(); };
     (navigator.clipboard ? navigator.clipboard.writeText(text).catch(old) : old()).then(() => toast('Copied'), () => toast('Could not copy')); },
   chatrate(t){ const m = chat.msgs.find(x => String(x.n) === t.dataset.n); if (!m) return;
-    const v = +t.dataset.v, rating = m.rating === v ? 0 : v; if (rating) m.rating = rating; else delete m.rating; chatCache(); renderChatLog();
+    const v = +t.dataset.v, rating = m.rating === v ? 0 : v; if (rating) m.rating = rating; else delete m.rating; chatCache();
+    $$(`#chatlog [data-act=chatrate][data-n="${m.n}"]`).forEach(b => { const on = +b.dataset.v === rating; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     chatApi('PATCH', '', { n: m.n, rating }).catch(() => {}); },
   chatmore(){ chatOlder(); },
   chatsettings(t){ closeChat(); ui.tab = 'setup'; ui.setupPage = t.dataset.p || 'chat'; window.scrollTo(0, 0); render({ transition:true, tab:true }); },
@@ -3289,57 +3299,123 @@ const CI = {
 const chatTime = ts => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 function chatDay(ts){ const d = fmtD(new Date(ts)), t = todayStr(); return d === t ? 'Today' : d === addDays(t, -1) ? 'Yesterday' : diffDays(d, t) < 7 ? WD[wdOf(d)] : dateLabel(d); }
 const CHAT_HELLO = "Hi, I'm Coach. Ask me about your food, your training or anything in your log.\n↳ How much protein do I have left today?\n↳ What is my session today?";
-function chatMsgHTML(m, last, fresh){
-  if (m.role === 'user') return `<div class="cm u${m.pending ? ' pending' : ''}${fresh ? ' in' : ''}"><div class="bub">${esc(m.text)}<span class="tm">${chatTime(m.ts)}</span></div></div>`;
-  const md = chatMD(m.text), acts = !m.streaming && !m.intro;
-  return `<div class="cm a${m.streaming ? ' stream' : ''}${fresh ? ' in' : ''}"><div class="md">${md.html}</div>${acts ? `<div class="acts">
-      <button data-act="chatcopy" data-n="${m.n}" aria-label="Copy">${CI.copy}</button>
-      <button class="${m.rating === 1 ? 'on' : ''}" data-act="chatrate" data-n="${m.n}" data-v="1" aria-label="Good reply" aria-pressed="${m.rating === 1}">${CI.up}</button>
-      <button class="${m.rating === -1 ? 'on' : ''}" data-act="chatrate" data-n="${m.n}" data-v="-1" aria-label="Bad reply" aria-pressed="${m.rating === -1}">${CI.down}</button></div>` : ''}
-    ${last && !m.streaming && md.sugs.length && !chat.sending ? `<div class="sugs">${md.sugs.slice(0, 3).map(q => `<button class="sugb" data-act="chatsug" data-q="${esc(q)}">${CI.sug}<span>${esc(q)}</span></button>`).join('')}</div>` : ''}</div>`;
+/* as in Messages: a time line over the first message of a day, or after an hour's quiet; no time inside the bubbles */
+const CHAT_GAP = 3600000;
+const chatTimeLine = (m, prev) => prev && fmtD(new Date(prev.ts)) === fmtD(new Date(m.ts)) && m.ts - prev.ts < CHAT_GAP ? ''
+  : `<p class="chat-time"><b>${chatDay(m.ts)}</b> ${chatTime(m.ts)}</p>`;
+const chatActsHTML = m => `<div class="acts">
+  <button data-act="chatcopy" data-n="${m.n}" aria-label="Copy">${CI.copy}</button>
+  <button class="${m.rating === 1 ? 'on' : ''}" data-act="chatrate" data-n="${m.n}" data-v="1" aria-label="Good reply" aria-pressed="${m.rating === 1}">${CI.up}</button>
+  <button class="${m.rating === -1 ? 'on' : ''}" data-act="chatrate" data-n="${m.n}" data-v="-1" aria-label="Bad reply" aria-pressed="${m.rating === -1}">${CI.down}</button></div>`;
+const chatSugsHTML = sugs => sugs.length ? `<div class="sugs">${sugs.slice(0, 3).map(q => `<button class="sugb" data-act="chatsug" data-q="${esc(q)}">${CI.sug}<span>${esc(q)}</span></button>`).join('')}</div>` : '';
+/* one message. Yours: a Messages bubble, the tail only on the last of a run. Coach's: plain text with its actions under it */
+function chatMsgHTML(m, o = {}){
+  if (m.role === 'user') return `<div class="cm u${o.tail ? ' tail' : ''}${m.pending ? ' pending' : ''}" data-n="${m.n}"><div class="bub">${esc(m.text)}</div></div>`;
+  const md = chatMD(m.streaming ? m.text.slice(0, m.shown || 0) : m.text);
+  return `<div class="cm a${m.streaming ? ' stream' : ''}" data-n="${m.n}"><div class="md">${md.html}</div>${!m.streaming && !m.intro ? chatActsHTML(m) : ''}${o.last && !m.streaming ? chatSugsHTML(md.sugs) : ''}</div>`;
 }
+const chatErrHTML = err => `<div class="cm err" role="alert">${esc(err.message)}${err.retry ? `<button data-act="chatretry">Try again</button>` : ''}</div>`;
 function chatLogHTML(){
   if (!cloud.token) return `<div class="chat-empty">Coach keeps your conversation in your cloud backup, so it needs Cloud backup turned on.<br><button class="btn soft" data-act="chatsettings" data-p="cloud">Turn on Cloud backup</button></div>`;
   if (chat.loadErr === 'auth') return `<div class="chat-empty">Your cloud passphrase was not accepted.<br><button class="btn soft" data-act="chatsettings" data-p="cloud">Check Cloud backup</button></div>`;
-  let h = chat.mode === 'pretend' ? `<p class="chat-mode">Pretend replies until the API key is added</p>` : '';
+  let h = '<div class="chat-inner">' + (chat.mode === 'pretend' ? `<p class="chat-mode">Pretend replies until the API key is added</p>` : '');
   if (chat.more) h += `<button class="chat-more" data-act="chatmore">Show earlier messages</button>`;
-  const list = chat.msgs.concat(chat.draft ? [chat.draft] : []);
-  if (!list.length) return h + chatMsgHTML({ n:'hi', role:'assistant', text:CHAT_HELLO, intro:true }, true);
-  let day = '';
-  list.forEach((m, i) => { const d = chatDay(m.ts); if (d !== day) { day = d; h += `<span class="datepill">${d}</span>`; }
-    h += chatMsgHTML(m, i === list.length - 1, chat.fresh && chat.fresh.has(m)); });
-  if (chat.status) h += `<div class="cm a st"><span class="shim">${esc(chat.status)}</span></div>`;
-  if (chat.err) h += `<div class="cm err" role="alert">${esc(chat.err.message)}${chat.err.retry ? `<button data-act="chatretry">Try again</button>` : ''}</div>`;
-  return h;
+  const list = chat.msgs;
+  if (!list.length) return h + chatMsgHTML({ n:'hi', role:'assistant', text:CHAT_HELLO, intro:true }, { last:true }) + '</div>';
+  list.forEach((m, i) => { h += chatTimeLine(m, list[i - 1]) + chatMsgHTML(m, { last: i === list.length - 1 && !chat.sending, tail: m.role === 'user' && !(list[i + 1] && list[i + 1].role === 'user') }); });
+  if (chat.err) h += chatErrHTML(chat.err);
+  return h + '</div>';
 }
-const chatNearBottom = el => el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+const chatNearBottom = el => el.scrollHeight - el.scrollTop - el.clientHeight < 160;
 function renderChatLog(toBottom){
   const el = $('#chatlog'); if (!el) return;
   const pin = toBottom || chatNearBottom(el);
-  el.innerHTML = chatLogHTML(); chat.fresh = null;
+  el.innerHTML = chatLogHTML(); chatPad();
   if (pin) el.scrollTop = el.scrollHeight;
 }
-let draftRaf = 0;
-function chatDraftPaint(){
-  if (draftRaf) return;
-  draftRaf = requestAnimationFrame(() => { draftRaf = 0;
-    const el = $('#chatlog'), md = el && $('.cm.stream .md', el); if (!md || !chat.draft) return;
-    const pin = chatNearBottom(el); md.innerHTML = chatMD(chat.draft.text).html; if (pin) el.scrollTop = el.scrollHeight; });
+/* the conversation scrolls behind the message field, so it ends where the field begins */
+function chatPad(){ const log = $('#chatlog'), box = $('#chat .chat-in'); if (log && box) log.style.paddingBottom = (box.offsetHeight + 14) + 'px'; }
+
+/* Adding to the end of the conversation never redraws it. New parts are appended, and when the view was at the end,
+   everything glides up into place with a spring (several glides add up, so nothing jumps). */
+function chatGrow(html){
+  const log = $('#chatlog'), inner = $('.chat-inner', log);
+  if (!inner) { renderChatLog(true); return []; }
+  const pin = chatNearBottom(log), top0 = inner.getBoundingClientRect().top;
+  const t = document.createElement('div'); t.innerHTML = html; const nodes = [...t.children]; nodes.forEach(n => inner.appendChild(n));
+  if (pin) {
+    log.scrollTop = log.scrollHeight;
+    const d = top0 - inner.getBoundingClientRect().top;
+    if (d > 0 && !reduced()) inner.animate([{ transform:`translateY(${d}px)` }, { transform:'translateY(0px)' }], { duration:560, easing:EASE.spring, composite:'add' });
+  }
+  return nodes;
+}
+function chatFadeOut(el){
+  if (!el) return;
+  if (reduced()) { el.remove(); return; }
+  el.animate([{ opacity:1 }, { opacity:0 }], { duration:160, easing:'ease-out', fill:'forwards' }).finished.then(() => el.remove(), () => el.remove());
+}
+/* your message flies up from the message field into its bubble, as in Messages */
+function chatFlyIn(node){
+  const bub = node && $('.bub', node), ta = $('#chatq'); if (!bub || !ta || reduced()) return;
+  const from = ta.getBoundingClientRect(), to = bub.getBoundingClientRect();
+  bub.animate([{ transform:`translate(${Math.round(from.left - 14 - to.left)}px, ${Math.round(from.top - 7 - to.top)}px)`, opacity:.35 }, { transform:'none', opacity:1 }],
+    { duration:620, easing:EASE.spring });
+}
+/* Claude's words arrive in bursts; they are shown at a steady pace instead (faster when far behind), and the view follows
+   them softly while it is at the end */
+let revealRaf = 0, revealT = 0;
+function chatReveal(now){
+  revealRaf = 0; const d = chat.draft, log = $('#chatlog'); if (!d || !log) return;
+  const dt = Math.min(64, now - (revealT || now)); revealT = now;
+  const behind = d.text.length - d.shown;
+  if (behind > 0) {
+    let n = d.shown + Math.max(1, Math.round(Math.max(55, behind * 3) * dt / 1000));
+    if (n < d.text.length) { const sp = d.text.slice(n).search(/\s/); if (sp >= 0 && sp < 8) n += sp; }   // whole words
+    d.shown = Math.min(d.text.length, n);
+    const md = $('.cm.stream .md', log); if (md) md.innerHTML = chatMD(d.text.slice(0, d.shown)).html;
+  }
+  const gap = log.scrollHeight - log.clientHeight - log.scrollTop;
+  if (gap > .5 && gap < 220) log.scrollTop += Math.max(1, gap * .22);
+  if (d.shown < d.text.length || (gap > .5 && gap < 220) || !d.done) revealRaf = requestAnimationFrame(chatReveal);
+  else chatFinish();
+}
+function chatRevealGo(){ if (!revealRaf && !reduced()) { revealT = 0; revealRaf = requestAnimationFrame(chatReveal); } else if (reduced()) { chat.draft.shown = chat.draft.text.length; if (chat.draft.done) chatFinish(); else { const md = $('#chatlog .cm.stream .md'); if (md) md.innerHTML = chatMD(chat.draft.text).html; } } }
+/* the reply is all shown: it becomes a normal message, and its actions and suggestions fade in */
+function chatFinish(){
+  const d = chat.draft; if (!d || !d.done) return;
+  chat.draft = null; chat.sending = false;
+  const msg = d.final, el = $('#chatlog .cm.stream');
+  if (msg) chat.msgs.push(msg);
+  if (el && msg) {
+    el.classList.remove('stream'); el.dataset.n = msg.n;
+    const md = chatMD(msg.text); $('.md', el).innerHTML = md.html;
+    const t = document.createElement('div'); t.innerHTML = chatActsHTML(msg) + chatSugsHTML(md.sugs);
+    [...t.children].forEach(n => { n.classList.add('in'); el.appendChild(n); });
+    const log = $('#chatlog'); if (chatNearBottom(log)) log.scrollTo({ top: log.scrollHeight, behavior: reduced() ? 'auto' : 'smooth' });
+  } else renderChatLog();
+  chatCache();
 }
 function chatInput(){
   const ta = $('#chatq'); if (!ta) return;
   ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 150) + 'px';
-  $('.composer').classList.toggle('has', !!ta.value.trim());
+  $('.composer').classList.toggle('has', !!ta.value.trim()); chatPad();
 }
 
 /* send one message and stream the reply: user (the stored message), status, delta, done or error */
 async function chatSend(text){
   text = String(text || '').trim();
   if (!text || chat.sending || !cloud.token) return;
+  chat.sending = true; chat.err = null; chat.draft = null;
+  $$('#chatlog .sugs, #chatlog .cm.err').forEach(chatFadeOut);   // the old suggestions and any error make way
+  const log = $('#chatlog'), lastEl = $('.chat-inner', log) && $('.chat-inner', log).lastElementChild;
+  if (lastEl && lastEl.classList.contains('u')) lastEl.classList.remove('tail');   // the run continues: the tail moves to the new bubble
+  const temp = { n:'p' + Date.now(), role:'user', text, ts: Date.now(), pending:true }, prev = chat.msgs[chat.msgs.length - 1];
+  if (!chat.msgs.length) $$('#chatlog .cm.a').forEach(chatFadeOut);   // the hello goes once the conversation starts
+  chat.msgs.push(temp);
+  const [node] = chatGrow(chatTimeLine(temp, prev) + chatMsgHTML(temp, { tail:true })).filter(n => n.classList.contains('u'));
+  chatFlyIn(node);
   const ta = $('#chatq'); if (ta && ta.value.trim() === text) { ta.value = ''; chatInput(); }
-  chat.sending = true; chat.err = null; chat.status = ''; chat.draft = null;
-  const temp = { n:'p' + Date.now(), role:'user', text, ts: Date.now(), pending:true };
-  chat.msgs.push(temp); chat.fresh = new Set([temp]); renderChatLog(true);
   let res;
   try { res = await fetch('/api/chat', { method:'POST', cache:'no-store', headers:{ Authorization:'Bearer ' + cloud.token, 'Content-Type':'application/json' },
     body: JSON.stringify({ text, snapshot: chatSnapshot() }) }); }
@@ -3350,6 +3426,9 @@ async function chatSend(text){
       : res.status === 401 ? { message:'Your cloud passphrase was not accepted.' } : { message:'Coach could not answer. Try again.', retry:text });
   }
   const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '', finished = false;
+  const status = t => { let st = $('#chatlog .cm.st');
+    if (st) { $('.shim', st).textContent = t; return; }
+    st = chatGrow(`<div class="cm a st in"><span class="shim">${esc(t)}</span></div>`)[0]; };
   try {
     for (;;) {
       const { value, done } = await reader.read(); if (done) break;
@@ -3358,25 +3437,33 @@ async function chatSend(text){
         const line = buf.slice(0, i); buf = buf.slice(i + 2);
         if (!line.startsWith('data:')) continue;
         const ev = JSON.parse(line.slice(5));
-        if (ev.t === 'user') { const k = chat.msgs.indexOf(temp); if (k >= 0) chat.msgs[k] = ev.msg; }
-        else if (ev.t === 'status') { chat.status = ev.text; renderChatLog(); }
+        if (ev.t === 'user') { const k = chat.msgs.indexOf(temp); if (k >= 0) chat.msgs[k] = ev.msg; if (node) { node.classList.remove('pending'); node.dataset.n = ev.msg.n; } }
+        else if (ev.t === 'status') { if (!chat.draft) status(ev.text); }
         else if (ev.t === 'delta') {
-          if (!chat.draft) { chat.status = ''; chat.draft = { n:'d', role:'assistant', text:'', ts: Date.now(), streaming:true }; chat.fresh = new Set([chat.draft]); renderChatLog(); }
-          chat.draft.text += ev.text; chatDraftPaint();
+          if (!chat.draft) {   // the status line turns into the reply in place
+            chat.draft = { n:'d', role:'assistant', text:'', shown:0, ts: Date.now(), streaming:true };
+            const st = $('#chatlog .cm.st'), t = document.createElement('div'); t.innerHTML = chatMsgHTML(chat.draft); const el = t.firstElementChild;
+            if (st) st.replaceWith(el); else chatGrow(el.outerHTML);
+          }
+          chat.draft.text += ev.text; chatRevealGo();
         }
-        else if (ev.t === 'done') { finished = true; chat.draft = null; chat.msgs.push(ev.msg); if (ev.spend) chat.spend = ev.spend; }
-        else if (ev.t === 'error') { finished = true; chat.draft = null; chat.err = { message: ev.message, retry: ev.code === 'refusal' ? null : text }; }
+        else if (ev.t === 'done') { finished = true; if (ev.spend) chat.spend = ev.spend;
+          if (chat.draft) { chat.draft.done = true; chat.draft.final = ev.msg; chat.draft.text = ev.msg.text; chatRevealGo(); }
+          else { chat.sending = false; chat.msgs.push(ev.msg); chatFadeOut($('#chatlog .cm.st')); chatGrow(chatMsgHTML(ev.msg, { last:true })); chatCache(); } }
+        else if (ev.t === 'error') { finished = true; chatFail(null, { message: ev.message, retry: ev.code === 'refusal' ? null : text }); }
       }
     }
   } catch(e) {}
-  if (!finished) chat.err = { message:'The reply was cut off. Pull to refresh it, or try again.', retry:text };
-  chat.sending = false; chat.status = ''; chat.draft = null;
-  chatCache(); renderChatLog();
-  if (!finished) chatLoad();   // the server finishes and saves a reply even when the connection drops
+  if (!finished) { chatFail(null, { message:'The reply was cut off. Try again in a moment.', retry:text }); chatLoad(); }   // the server finishes and saves the reply anyway
 }
 function chatFail(temp, err){
-  if (temp) { temp.pending = false; temp.failed = true; }
-  chat.err = err; chat.sending = false; chat.status = ''; chat.draft = null; renderChatLog(true);
+  if (temp) { temp.pending = false; temp.failed = true; const el = $(`#chatlog .cm.u[data-n="${temp.n}"]`); if (el) el.classList.remove('pending'); }
+  cancelAnimationFrame(revealRaf); revealRaf = 0;
+  chatFadeOut($('#chatlog .cm.st'));
+  const d = chat.draft; chat.draft = null;
+  if (d) { const el = $('#chatlog .cm.stream'); if (el) { el.classList.remove('stream'); if (!d.text) el.remove(); } }
+  chat.err = err; chat.sending = false;
+  chatGrow(chatErrHTML(err)); chatCache();
 }
 
 /* opening and closing, after Revolut's AI (measured from Surath's recording at 60 fps): when the finger lets go, the page
@@ -3388,7 +3475,7 @@ function openChat(){
   chat.open = true; closeMenu();
   const el = $('#chat'), fx = $('#chatfx'), hint = $('#pullhint');
   pullSpringBack();   // the pulled parts spring back up under the blur, the top first
-  renderChatLog(true); el.hidden = false; fx.hidden = false; document.body.classList.add('lock', 'chatting');
+  el.hidden = false; renderChatLog(true); fx.hidden = false; document.body.classList.add('lock', 'chatting');
   if (!reduced()) {
     fx.animate([{ '--fxr':'0px' }, { '--fxr': Math.round(Math.hypot(innerWidth, innerHeight) + 40) + 'px' }], { duration:560, easing:'cubic-bezier(.3,0,.25,1)', fill:'forwards' });
     $('.fxb', fx).animate([{ opacity:0 }, { opacity:1 }], { duration:220, easing:'cubic-bezier(.25,0,.2,1)', fill:'forwards' });
