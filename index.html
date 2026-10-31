@@ -3806,8 +3806,9 @@ function pullSpringBack(){
     l.e.animate([{ transform:`translateY(${y}px)` }, { transform:'none' }], { duration:600, delay:i * 28, easing:EASE.spring, fill:'backwards' })
       .finished.then(() => { l.e.style.willChange = ''; }, () => {}); });
 }
-/* a light tap of the iPhone's haptics: Safari has no vibration API, but toggling a native switch plays the system tick
-   (iOS 18 and later; it only plays in response to a touch) */
+/* a light tap of the phone's haptics: Android through the vibration API. Safari has none; toggling a native switch from
+   script played the system tick on iOS 18 to 26.4, but iOS 26.5 stopped that: only a real tap on a switch plays it now,
+   and a pull is a drag, so the pull to Coach AI cannot have a tick on current iPhones */
 const hapticEl = (() => { const l = document.createElement('label'), i = document.createElement('input');
   l.setAttribute('aria-hidden', 'true'); l.style.cssText = 'position:fixed;left:-200px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none';
   i.type = 'checkbox'; i.setAttribute('switch', ''); i.tabIndex = -1; l.appendChild(i); document.body.appendChild(l); return l; })();
