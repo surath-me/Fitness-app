@@ -682,7 +682,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.50';
+const APP_VERSION = '3.51';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -978,9 +978,9 @@ const setsDone  = (wk, id) => ((wk && wk.ex && wk.ex[id]) || []).filter(isDoneSe
 const loggedIds = wk => wk && wk.ex ? Object.keys(wk.ex).filter(id => EX[id] && setsDone(wk,id).length) : [];
 const workoutDates = () => Object.keys(S.workouts).sort();
 
-function lastTrained(muscle, before){          // most recent date (< before) with any logged set for this muscle
+function lastTrained(muscle, before, kind){    // most recent date (< before) with a logged set for this muscle (only lifts of this kind, if given)
   const ds = workoutDates().filter(d => d < before).reverse();
-  for (const d of ds) for (const id of loggedIds(S.workouts[d])) if (EX[id].muscle === muscle) return d;
+  for (const d of ds) for (const id of loggedIds(S.workouts[d])) if (EX[id].muscle === muscle && (!kind || cfg(id).kind === kind)) return d;
   return null;
 }
 function loggedSince(id, from, to){            // logged on or after `from`, before `to`
@@ -1190,7 +1190,8 @@ function buildPlan(date, opts={}){
   const kept = [];
   const rested = [], lowerWait = [];
   const lowerBlock = lowerRecently(date);
-  const holdFor = id => { const c = cfg(id), lt = lastTrained(c.muscle, date);
+  // a compound waits only after a compound for the same muscle: a few sets of flyes or raises do not hold the next day's presses
+  const holdFor = id => { const c = cfg(id), lt = lastTrained(c.muscle, date, c.kind === 'compound' ? 'compound' : null);
     if (opts.ignoreRecovery) return null;
     if (lt && diffDays(lt, date) < needGap(c)) return `${MUSCLE_LABEL[c.muscle].toLowerCase()} trained ${diffDays(lt,date)===1?'yesterday':diffDays(lt,date)+' days ago'}`;
     if (LOWER.includes(c.muscle) && lowerBlock) return 'legs already trained this week';
