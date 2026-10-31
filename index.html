@@ -719,7 +719,7 @@ body.lock{overflow:hidden}
 /* nothing above the field dims or blurs (Surath did not want that band): text stays sharp until it slides under the glass;
    only the strip beside and below the capsule blurs, fading in from its top edge so its rounded ends show no seam */
 .chat-in::before{content:"";position:absolute;inset:6px 0 0;z-index:-1;pointer-events:none;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);background:linear-gradient(transparent,var(--chat-veil) 60%);-webkit-mask-image:linear-gradient(transparent,#000 28px);mask-image:linear-gradient(transparent,#000 28px)}
-.kbopen .chat-in{padding-bottom:8px;transition:padding-bottom .2s cubic-bezier(.4,0,.2,1)}   /* settles onto the keyboard once it is up; back at once when it goes */
+.kbopen .chat-in{padding-bottom:8px}   /* on the keyboard; the field gets there during the keyboard's slide (riseMoves) */
 /* the field throws no shadow: what scrolls under it only blurs into the glass */
 .composer{display:flex;align-items:flex-end;gap:8px;min-height:46px;padding:5px 5px 5px 18px;border-radius:23px;box-shadow:var(--glass-edge)}   /* 46 px: Surath found 54 too big */
 .composer:focus-within{outline:2px solid var(--accent-t);outline-offset:1px}
@@ -790,7 +790,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.57';
+const APP_VERSION = '3.58';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3074,9 +3074,9 @@ if (window.visualViewport) {
   const set = (p, v) => { const r = document.documentElement; if (r.style.getPropertyValue(p) !== v) r.style.setProperty(p, v); };
   const apply = (up, h, top, k) => {
     const r = document.documentElement, log = chat.open && $('#chatlog'), t0 = parseFloat(r.style.getPropertyValue('--vvt')) || 0, t1 = up ? Math.round(top) : 0;
-    const end = log && log.scrollHeight - log.scrollTop - log.clientHeight < 30;
+    const end = log && log.scrollHeight - log.scrollTop - log.clientHeight <= 1;
     set('--kb', (up && k > 40 ? k : 0) + 'px'); set('--vvh', Math.round(h) + 'px'); set('--vvt', t1 + 'px'); r.classList.toggle('kbopen', up);
-    if (log) { if (end) log.scrollTop = log.scrollHeight; else if (t1 !== t0) log.scrollTop += t1 - t0; }   // the conversation keeps what is on screen in place
+    if (log) { if (end) log.scrollTop = log.scrollHeight; else if (t1 !== t0) log.scrollTop += t1 - t0; }   // the conversation keeps what is on screen in place (a drag in progress too)
   };
   /* Coach AI and the keyboard, measured on the simulator frame by frame. Opening: iOS tells us as its slide starts,
      already with where it ends, then slides the screen up for about 0.25 s. Moving Coach AI there at once drew it low and
@@ -3086,15 +3086,26 @@ if (window.visualViewport) {
      holding the bar at the top over iOS's curve wobbled 35 pt and more (iOS starts a frame or two before it tells us).
      Closing: iOS starts its slide about 40 ms before telling us, so Coach AI changes when the field loses focus, all in one
      frame just before the slide, and the keyboard takes it down with it. */
-  let rise = 0;
-  const settle = () => { clearTimeout(rise); rise = 0; };
+  /* With the keyboard up the field sits 8 pt above it instead of clear of the home indicator. That 26 pt is covered during
+     the slide by moving the field (and a conversation at its end) down on the compositor, so nothing is redrawn and the
+     keyboard takes everything straight to its place; settling it after the slide looked like a bounce (Surath). The real
+     layout replaces the moves when Coach AI takes the visible area. */
+  let rise = 0, moves = [];
+  const riseMoves = () => { if (reduced()) return;
+    const box = $('#chat .chat-in'), log = $('#chatlog'), inner = log && $('.chat-inner', log); if (!box) return;
+    const d = parseFloat(getComputedStyle(box).paddingBottom) - 8; if (!(d > 0)) return;
+    const opt = { duration:KB_RISE, easing:'cubic-bezier(.42,0,.58,1)', fill:'forwards' };
+    moves = [box.animate([{ transform:'none' }, { transform:`translateY(${d}px)` }], opt)];
+    if (inner && log.scrollHeight - log.scrollTop - log.clientHeight <= 1) moves.push(inner.animate([{ transform:'translateY(0px)' }, { transform:`translateY(${d}px)` }], { ...opt, composite:'add' }));
+  };
+  const settle = () => { clearTimeout(rise); rise = 0; moves.forEach(a => a.cancel()); moves = []; };
   const now = () => { const v = visualViewport, full = document.documentElement.clientHeight, up = full - v.height > 120;
     apply(up, v.height, v.offsetTop, Math.round(full - v.height - v.offsetTop)); return up; };
   const kb = () => {
     const v = visualViewport, r = document.documentElement, up = r.clientHeight - v.height > 120;
     if (up && chat.open && !r.classList.contains('kbopen')) {   // rising: wait for the slide to end
-      if (!rise) rise = setTimeout(() => { rise = 0; const bar = $('#chat .chat-top');
-        if (now() && chat.open && bar && !reduced()) bar.animate([{ opacity:0 }, { opacity:1 }], { duration:180, easing:'ease-out' }); }, KB_RISE + 10);
+      if (!rise) { riseMoves(); rise = setTimeout(() => { rise = 0; const bar = $('#chat .chat-top'), up = now(); settle();
+        if (up && chat.open && bar && !reduced()) bar.animate([{ opacity:0 }, { opacity:1 }], { duration:180, easing:'ease-out' }); }, KB_RISE + 10); }
       return;
     }
     settle(); now();
@@ -3650,15 +3661,31 @@ function closeChat(){
     H.chatsend(); if (typing) ta.focus({ preventScroll:true });
   });
   send.addEventListener('mousedown', e => e.preventDefault());
+  // the ✕ also acts on touchend: with the keyboard up, iOS took the focus from the field first, Coach AI moved for the
+  // keyboard going away and the ✕ slid from under the finger, so the first tap only closed the keyboard (Surath)
+  const x = $('#chat [data-act=chatclose]');
+  x.addEventListener('touchend', e => {
+    if (!e.cancelable) return; e.preventDefault();
+    const t = e.changedTouches[0], r = x.getBoundingClientRect();
+    if (t.clientX < r.left - 8 || t.clientX > r.right + 8 || t.clientY < r.top - 8 || t.clientY > r.bottom + 8) return;   // slid off it
+    closeChat();
+  });
   document.addEventListener('touchstart', e => { if (chat.open && e.touches.length === 1) { x0 = e.touches[0].clientX; y0 = lastY = e.touches[0].clientY; } }, { passive:true });
   log.addEventListener('touchend', e => { const t = e.changedTouches[0];
     if (document.activeElement === ta && Math.abs(t.clientX - x0) < 10 && Math.abs(t.clientY - y0) < 10) ta.blur(); });
   /* Safari lets a drag move the whole screen, page and all, most of all with the keyboard up: inside Coach AI a drag only
      scrolls the conversation (or the field, when its text is longer than it); with the keyboard up, only while that has
      room to go that way (at its ends the drag would carry on into the screen), otherwise its ends still bounce */
+  // with the keyboard up, dragging the conversation down 10 pt puts the keyboard away, and the drag carries on scrolling
+  // (Surath; a drag up leaves it)
+  let dropped = false;
+  document.addEventListener('touchstart', () => { dropped = false; }, { passive:true });
   document.addEventListener('touchmove', e => {
-    if (!chat.open || !e.cancelable || e.touches.length !== 1) return;
-    const y = e.touches[0].clientY, dy = y - lastY, t = e.target; lastY = y;
+    if (!chat.open || e.touches.length !== 1) return;
+    const y = e.touches[0].clientY, dy = y - lastY, t = e.target;
+    if (!dropped && document.activeElement === ta && y - y0 > 10 && Math.abs(e.touches[0].clientX - x0) < y - y0 && t.closest && t.closest('#chatlog')) { dropped = true; ta.blur(); }
+    if (!e.cancelable) { lastY = y; return; }
+    lastY = y;
     const sc = t.closest && (t.closest('#chatlog') || (t === ta ? ta : null)), kb = document.documentElement.classList.contains('kbopen');
     const room = sc && sc.scrollHeight > sc.clientHeight + 1 && (!kb || (dy > 0 ? sc.scrollTop > 0 : dy < 0 ? sc.scrollTop + sc.clientHeight < sc.scrollHeight - 1 : true));
     if (!room) e.preventDefault();
