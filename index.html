@@ -84,6 +84,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{-webkit-text-size-adjust:100%;background:var(--bg);touch-action:pan-x pan-y}   /* the app never zooms: no pinch, no double tap */
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.35 var(--font);-webkit-font-smoothing:antialiased;overscroll-behavior-y:none}
+html.pulls{overscroll-behavior-y:none}   /* where pulling down opens Coach AI the page itself never bounces (the root's own bounce is set here, not on body) */
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:inherit;-webkit-user-select:none;user-select:none}
 input,select{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:12px}
@@ -655,7 +656,7 @@ body.lock{overflow:hidden}
 .chatfx>i{position:absolute;inset:0}
 .chatfx .fxb{-webkit-backdrop-filter:blur(28px) saturate(150%);backdrop-filter:blur(28px) saturate(150%);opacity:0}
 .chatfx .fxt{background:var(--chat-bg);opacity:0}
-.chat{position:fixed;left:0;right:0;top:var(--vvt,0px);height:var(--vvh,100dvh);z-index:45;background:var(--chat-bg);color:var(--ink);overflow:hidden;transform-origin:50% 42%}
+.chat{position:fixed;left:0;right:0;top:var(--vvt,0px);height:var(--vvh,100dvh);z-index:45;background:var(--chat-bg);color:var(--ink);overflow:hidden;overflow:clip;transform-origin:50% 42%}   /* clip: not a scroller, so Safari can never scroll it to show the focused field (that slid everything out of sight, leaving only grey) */
 /* its grey reaches past its edges: with the keyboard up Safari shows what lies around the visible area (behind its floating
    bar over the keyboard, and while the screen settles), and that has to be Coach AI, not the page (Surath saw the page
    there). Not while it closes, when it shrinks into a card over the page */
@@ -674,6 +675,7 @@ body.lock{overflow:hidden}
 .chat-log{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain;padding:calc(env(safe-area-inset-top) + 66px) 16px 90px;-webkit-overflow-scrolling:touch}
 .chat-inner{will-change:transform}
 .cm{margin:0 0 22px}
+.chat-inner>:last-child{margin-bottom:0}   /* below the last message only the gap to the field (chatPad) */
 .cm.u{display:flex;justify-content:flex-end;margin:0 0 2px}   /* a run of your messages sits close, as in Messages */
 .cm.u.tail{margin-bottom:18px}
 /* your messages have the shape of Messages' bubbles in iOS 26 (traced from Surath's screenshot), in grey: a pill with
@@ -784,7 +786,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.55';
+const APP_VERSION = '3.56';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2481,6 +2483,7 @@ function afterRender(opts){
   $$('#tabs .tab').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ui.tab ? 'page' : 'false'));
   placeIndicator(opts.fromX);
   setToolbar(); initSegs();
+  document.documentElement.classList.toggle('pulls', chatFor(ui.tab));   // pulling down opens Coach AI here, so the page does not bounce
   const pushed = ui.tab === 'setup' && !!ui.setupPage;   // a page opened from Setup: inline title, back button
   document.body.classList.toggle('pushed', pushed);
   $('#nbtitle').textContent = pushed ? SETUP_PAGES[ui.setupPage] : TAB_TITLES[ui.tab];
@@ -3344,8 +3347,13 @@ function renderChatLog(toBottom){
   el.innerHTML = chatLogHTML(); chatPad();
   if (pin) el.scrollTop = el.scrollHeight;
 }
-/* the conversation scrolls behind the message field, so it ends where the field begins */
-function chatPad(){ const log = $('#chatlog'), box = $('#chat .chat-in'); if (log && box) log.style.paddingBottom = (box.offsetHeight + 14) + 'px'; }
+/* the conversation scrolls behind the message field, so it ends a short gap above where the field begins. The field
+   sits lower with the keyboard up (no home indicator to clear) and grows with longer text, so this follows its size
+   (a ResizeObserver; Surath saw a big gap with the keyboard up), and a conversation at its end stays there */
+function chatPad(){ const log = $('#chatlog'), box = $('#chat .chat-in'); if (!log || !box) return;
+  const pad = (box.offsetHeight + 14) + 'px'; if (log.style.paddingBottom === pad) return;
+  const end = log.scrollHeight - log.scrollTop - log.clientHeight < 30;
+  log.style.paddingBottom = pad; if (end) log.scrollTop = log.scrollHeight; }
 
 /* the send's timing, traced from Surath's iOS 26 recording, shared by your bubble's flight (chatFlyIn) and the push it
    gives the conversation (chatGrow): inside the field until 100 ms, 57% of the way up at 200 ms, landed at 500 ms */
@@ -3619,7 +3627,8 @@ function closeChat(){
   let h0 = 0;
   new ResizeObserver(() => { const h = log.clientHeight;
     if (h && h0 && h !== h0 && log.scrollHeight - h0 - log.scrollTop < 30) log.scrollTop = log.scrollHeight;
-    h0 = h; }).observe(log);
+    h0 = h; }).observe(log, { box:'border-box' });   // its outer size: the padding chatPad sets must not set it off again
+  new ResizeObserver(() => chatPad()).observe($('#chat .chat-in'), { box:'border-box' });   // the field's place: lower with the keyboard up (only its padding changes, hence the border box), taller with longer text
 }
 
 /* Pull down at the top of the page. As in Revolut (measured from Surath's recording), the page does not move as one
@@ -3629,7 +3638,11 @@ function closeChat(){
    haptic tick and the hint pops; letting go past it opens Coach. */
 const PULL_OPEN = 64;
 const pull = { id:null, tid:null, x0:0, y0:0, on:false, d:0, layers:null, raf:0, armed:false };
-const pullBlocked = t => !!(t.closest && t.closest('.week, .wk-head, .swipe, .drops, input, textarea, select, .dock, .sheet, .menu, .chat, .alertwrap'));
+// a pull can start anywhere on the page, the week strip and swipeable rows included (they only take sideways drags);
+// not on fields, the tab bar or what floats above the page
+const pullBlocked = t => !!(t.closest && t.closest('input, textarea, select, .dock, .sheet, .menu, .chat, .alertwrap'));
+// a gesture of the page's own already under way: a row swiping or held to reorder, the week strip paging, the water drops
+const pullYield = () => !!((rd && rd.active) || (sw && sw.active) || (wk && wk.drag) || (wsc && wsc.on));
 function pullLayers(){
   // every block on the page in order: Train and Eat keep a day's cards inside .daybody, Progress puts them straight on the page
   const nav = $('#navbar'), parts = [...$('#app').children].flatMap(e => e.classList.contains('daybody') ? [...e.children] : [e])
@@ -3671,17 +3684,28 @@ const hapticEl = (() => { const l = document.createElement('label'), i = documen
   i.type = 'checkbox'; i.setAttribute('switch', ''); i.tabIndex = -1; l.appendChild(i); document.body.appendChild(l); return l; })();
 function haptic(){ if (navigator.vibrate) { navigator.vibrate(10); return; } try { hapticEl.click(); } catch (e) {} }
 const pullDist = dy => 150 * (1 - Math.exp(-Math.max(0, dy) / 240));
-/* only a page already resting at the top can be pulled: a scroll or fling that has just reached the top (and iOS's bounce
-   there) must not open Coach AI with the next drag (Surath: a long scroll up from the bottom opened it) */
+/* only a page already resting at the top can be pulled: a scroll or fling that has just reached the top must not open
+   Coach AI with the next drag (Surath: a long scroll up from the bottom opened it). Only the page scrolling through its
+   content counts, not iOS's bounce at the top: a drag that could not pull (too soon, or on the week strip) bounces the
+   page, and when that counted, every quick try after it bounced again and Coach AI would not open until another tab
+   (seen on the simulator). Putting the page back on closing Coach AI does not count either. */
 let scrolledAt = 0;
-window.addEventListener('scroll', () => { scrolledAt = performance.now(); }, { passive:true });
-// at the top within a pixel: coming back to Safari can leave the page a fraction of a pixel down, which blocked the pull
-const atTop = () => window.scrollY < 1;
+window.addEventListener('scroll', () => { if (window.scrollY >= 1) scrolledAt = performance.now(); }, { passive:true });
+// at the top within a pixel (coming back to Safari can leave the page a fraction of a pixel down), and not mid-bounce
+const atTop = () => window.scrollY > -1 && window.scrollY < 1;
 const restingTop = () => atTop() && performance.now() - scrolledAt > 400;
 // coming back to the app: a pull cut off by leaving it (no touchend arrives) is let go, so the next one starts clean
 const pullFresh = () => { if (!document.hidden && !chat.open) pullSpringBack(); };
 document.addEventListener('visibilitychange', pullFresh); window.addEventListener('pageshow', pullFresh);
-const pullCan = target => chatFor(ui.tab) && !chat.open && !ui.sheet && !ui.menu && restingTop() && !pullBlocked(target);
+/* Any drag down that starts with the page at the top becomes the pull, so the bars always move with it (Surath: when
+   they did not, Safari was just bouncing the page and Coach AI never opened; the pull tabs have no bounce now). Right
+   after the page has scrolled to the top the drag waits: it turns into the pull once the page has been still for a
+   moment (restingTop), starting from where the finger is then, so a quick flick to keep scrolling never opens it but a
+   deliberate pull still does. */
+const pullCan = target => chatFor(ui.tab) && !chat.open && !ui.sheet && !ui.menu && atTop() && !pullBlocked(target);
+// whether the drag so far is a pull: down, mostly straight, the page at rest at the top, nothing else under way
+const pullStarts = (dx, dy, slop) => dy > slop && dy > Math.abs(dx) * 1.4 && restingTop() && !pullYield();
+const pullGivesUp = (dx, dy) => Math.abs(dx) > 10 || dy < -6 || pullYield();
 // a mouse: pointer events. A finger: touch events, because Safari takes a vertical drag for scrolling and cancels pointer events
 document.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'mouse' || e.button > 0 || !pullCan(e.target)) return;
@@ -3691,10 +3715,10 @@ document.addEventListener('pointermove', e => {
   if (pull.id !== e.pointerId) return;
   const dx = e.clientX - pull.x0, dy = e.clientY - pull.y0;
   if (!pull.on) {
-    if (dy > 10 && dy > Math.abs(dx) * 1.4 && atTop()) pull.on = true;
-    else { if (Math.abs(dx) > 10 || dy < -6) pull.id = null; return; }
+    if (pullStarts(dx, dy, 10)) { pull.on = true; pull.y0 = e.clientY - 10; }   // the pull starts from here
+    else { if (pullGivesUp(dx, dy)) pull.id = null; return; }
   }
-  pullSet(pullDist(dy - 10));
+  pullSet(pullDist(e.clientY - pull.y0 - 10));
 }, { passive:true });
 const pullEnd = e => { if (pull.id !== e.pointerId) return; const open = pull.on && pull.d >= PULL_OPEN && e.type === 'pointerup'; pull.id = null;
   if (open) { haptic(); openChat(); } else if (pull.d || pull.layers) pullSpringBack(); };   // also a pull dragged back to where it started
@@ -3709,11 +3733,11 @@ document.addEventListener('touchmove', e => {
   const t = [...e.changedTouches].find(x => x.identifier === pull.tid); if (!t) return;
   const dx = t.clientX - pull.x0, dy = t.clientY - pull.y0;
   if (!pull.on) {
-    if (dy > 8 && dy > Math.abs(dx) * 1.4 && atTop()) pull.on = true;
-    else { if (Math.abs(dx) > 10 || dy < -6) pull.tid = null; return; }
+    if (pullStarts(dx, dy, 8)) { pull.on = true; pull.y0 = t.clientY - 8; }   // the pull starts from here
+    else { if (pullGivesUp(dx, dy)) pull.tid = null; return; }
   }
   if (e.cancelable) e.preventDefault();   // the page holds still while it is pulled
-  pullSet(pullDist(dy - 8));
+  pullSet(pullDist(t.clientY - pull.y0 - 8));
 }, { passive:false });
 const touchEnd = e => {
   if (pull.tid === null || ![...e.changedTouches].some(x => x.identifier === pull.tid)) return;
