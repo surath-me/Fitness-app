@@ -30,7 +30,7 @@ How to answer:
 - Use short paragraphs. Use bullets only for lists of foods, lifts or steps, and bold only for the one thing that matters most.
 - Never use em dashes.
 - You cannot change anything in the app yet. When something should be logged or changed, tell the person what to log or change.
-- When it helps, end with up to two short follow-up questions the person might ask next, each on its own line starting with "↳ ". They become tap-to-send suggestions, so phrase them in the person's voice.`;
+- Most replies end without follow-ups. Only when there is an obvious next question the person is likely to ask (for example after a plan, a choice or a number they will want to act on), end with one or two short ones, each on its own line starting with "↳ ". They become tap-to-send suggestions that stay under that reply, so phrase them in the person's voice.`;
 
 const NO_PROFILE = `There is no profile yet. Early in the conversation, ask whether they have earlier chats or notes you could learn from: they can import them in Settings, Coach chat, Import chat history. Until then, learn their goals and routine by asking.`;
 
@@ -191,7 +191,7 @@ function pretendReply(text, snapshot){
     const plan = grab(/Training today: ([^\n]+)/);
     return { text: `This is a pretend reply, Coach is not connected to Claude yet.\n\nToday's plan in the app: ${plan || 'no session'}. With the API key, I will look at your last sessions and tell you what to push and what to hold.\n\n↳ What weight for chest press today?\n↳ How did my last Push session go?` };
   }
-  return { text: `This is a pretend reply. Coach is not connected to Claude yet, so I can't really answer, but everything you see here works the same way: your message is saved, this reply streams in word by word, and both are kept in your conversation.\n\nTry asking about **food** or **training** to see your app data come through, or send **/long** or **/error** to test those cases.\n\n↳ How much protein do I have left today?\n↳ What is my session today?` };
+  return { text: `This is a pretend reply. Coach is not connected to Claude yet, so I can't really answer, but everything you see here works the same way: your message is saved, this reply streams in word by word, and both are kept in your conversation.\n\nTry asking about **food** or **training** to see your app data come through, or send **/long** or **/error** to test those cases.` };   // like most real replies, no follow-ups
 }
 
 /* ---------- handler ---------- */

@@ -3301,7 +3301,7 @@ const chatSugsHTML = sugs => sugs.length ? `<div class="sugs">${sugs.slice(0, 3)
 function chatMsgHTML(m, o = {}){
   if (m.role === 'user') return `<div class="cm u${o.tail ? ' tail' : ''}${m.pending ? ' pending' : ''}" data-n="${m.n}"><div class="bub">${esc(m.text)}</div></div>`;
   const md = chatMD(m.streaming ? m.text.slice(0, m.shown || 0) : m.text);
-  return `<div class="cm a${m.streaming ? ' stream' : ''}" data-n="${m.n}"><div class="md">${md.html}</div>${o.last && !m.streaming ? chatSugsHTML(md.sugs) : ''}</div>`;
+  return `<div class="cm a${m.streaming ? ' stream' : ''}" data-n="${m.n}"><div class="md">${md.html}</div>${!m.streaming ? chatSugsHTML(md.sugs) : ''}</div>`;
 }
 const chatErrHTML = err => `<div class="cm err" role="alert">${esc(err.message)}${err.retry ? `<button data-act="chatretry">Try again</button>` : ''}</div>`;
 function chatLogHTML(){
@@ -3310,8 +3310,8 @@ function chatLogHTML(){
   let h = '<div class="chat-inner">' + (chat.mode === 'pretend' ? `<p class="chat-mode">Pretend replies until the API key is added</p>` : '');
   if (chat.more) h += `<button class="chat-more" data-act="chatmore">Show earlier messages</button>`;
   const list = chat.msgs;
-  if (!list.length) return h + chatMsgHTML({ n:'hi', role:'assistant', text:CHAT_HELLO, intro:true }, { last:true }) + '</div>';
-  list.forEach((m, i) => { h += chatTimeLine(m, list[i - 1]) + chatMsgHTML(m, { last: i === list.length - 1 && !chat.sending, tail: m.role === 'user' && !(list[i + 1] && list[i + 1].role === 'user') }); });
+  if (!list.length) return h + chatMsgHTML({ n:'hi', role:'assistant', text:CHAT_HELLO, intro:true }) + '</div>';
+  list.forEach((m, i) => { h += chatTimeLine(m, list[i - 1]) + chatMsgHTML(m, { tail: m.role === 'user' && !(list[i + 1] && list[i + 1].role === 'user') }); });
   if (chat.err) h += chatErrHTML(chat.err);
   return h + '</div>';
 }
@@ -3445,8 +3445,8 @@ async function chatSend(text){
   text = String(text || '').trim();
   if (!text || chat.sending || !cloud.token) return;
   chat.sending = true; chat.err = null; chat.draft = null;
-  // the old suggestions and any error make way, and the hello once the conversation starts
-  const drop = $$('#chatlog .sugs, #chatlog .cm.err').concat(chat.msgs.length ? [] : $$('#chatlog .cm.a'));
+  // an error makes way, and the hello once the conversation starts; suggestions stay under their reply (Surath)
+  const drop = $$('#chatlog .cm.err').concat(chat.msgs.length ? [] : $$('#chatlog .cm.a'));
   const kept = $$('#chatlog .chat-inner > *').filter(e => !drop.includes(e)), lastEl = kept[kept.length - 1];
   if (lastEl && lastEl.classList.contains('u')) lastEl.classList.remove('tail');   // the run continues: the tail moves to the new bubble
   const temp = { n:'p' + Date.now(), role:'user', text, ts: Date.now(), pending:true }, prev = chat.msgs[chat.msgs.length - 1];
@@ -3489,7 +3489,7 @@ async function chatSend(text){
         }
         else if (ev.t === 'done') { finished = true; if (ev.spend) chat.spend = ev.spend;
           if (chat.draft) { chat.draft.done = true; chat.draft.final = ev.msg; chat.draft.text = ev.msg.text; chatRevealGo(); }
-          else { chat.sending = false; chat.msgs.push(ev.msg); chatFadeOut($('#chatlog .cm.st')); chatGrow(chatMsgHTML(ev.msg, { last:true })); chatCache(); } }
+          else { chat.sending = false; chat.msgs.push(ev.msg); chatFadeOut($('#chatlog .cm.st')); chatGrow(chatMsgHTML(ev.msg)); chatCache(); } }
         else if (ev.t === 'error') { finished = true; chatFail(null, { message: ev.message, retry: ev.code === 'refusal' ? null : text }); }
       }
     }
