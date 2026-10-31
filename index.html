@@ -2706,7 +2706,10 @@ const H = {
   chatretry(){ const q = chat.err && chat.err.retry; if (!q) return; const last = chat.msgs[chat.msgs.length - 1];
     if (last && last.role === 'user' && last.failed) chat.msgs.pop(); chat.err = null; chatSend(q); },
   chatcopy(t){ const m = chat.msgs.find(x => String(x.n) === t.dataset.n); if (!m) return;
-    const text = chatMD(m.text).plain; (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast('Copied'), () => toast('Could not copy')); },
+    const text = chatMD(m.text).plain;
+    const old = () => { const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;opacity:0';   // without https (a test copy on the home Wi-Fi) there is no clipboard API
+      document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove(); return ok ? Promise.resolve() : Promise.reject(); };
+    (navigator.clipboard ? navigator.clipboard.writeText(text).catch(old) : old()).then(() => toast('Copied'), () => toast('Could not copy')); },
   chatrate(t){ const m = chat.msgs.find(x => String(x.n) === t.dataset.n); if (!m) return;
     const v = +t.dataset.v, rating = m.rating === v ? 0 : v; if (rating) m.rating = rating; else delete m.rating; chatCache(); renderChatLog();
     chatApi('PATCH', '', { n: m.n, rating }).catch(() => {}); },
