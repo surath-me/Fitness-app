@@ -3347,6 +3347,9 @@ function renderChatLog(toBottom){
 /* the conversation scrolls behind the message field, so it ends where the field begins */
 function chatPad(){ const log = $('#chatlog'), box = $('#chat .chat-in'); if (log && box) log.style.paddingBottom = (box.offsetHeight + 14) + 'px'; }
 
+/* the send's timing, traced from Surath's iOS 26 recording, shared by your bubble's flight (chatFlyIn) and the push it
+   gives the conversation (chatGrow): inside the field until 100 ms, 57% of the way up at 200 ms, landed at 500 ms */
+const FLY = { ms:500, rise:.57, in:'cubic-bezier(.55,0,.9,.55)', out:'cubic-bezier(.3,.35,.5,1)', settle:'cubic-bezier(.25,.7,.3,1)' };
 /* Adding to the end of the conversation never redraws it. New parts are appended, and when the view was at the end,
    everything glides up into place with a spring (several glides add up, so nothing jumps). */
 function chatGrow(html, toEnd){
@@ -3357,8 +3360,12 @@ function chatGrow(html, toEnd){
   if (pin) {
     log.scrollTop = log.scrollHeight;
     const d = top0 - inner.getBoundingClientRect().top;
-    if (d > 0 && d < log.clientHeight && !reduced()) inner.animate([{ transform:`translateY(${d}px)` }, { transform:'translateY(0px)' }],
-      toEnd ? { duration:320, easing:'cubic-bezier(.25,.75,.3,1)', composite:'add' } : { duration:560, easing:EASE.spring, composite:'add' });   // a send moves it up briskly, as Messages does
+    if (d > 0 && d < log.clientHeight && !reduced()) {
+      if (toEnd) inner.animate([   // a send: the conversation waits while your bubble is in the field, then your bubble pushes it up as it rises
+        { transform:`translateY(${d}px)` }, { offset:.2, transform:`translateY(${d}px)`, easing:FLY.out },
+        { offset:.4, transform:`translateY(${d * (1 - FLY.rise)}px)`, easing:FLY.settle }, { transform:'translateY(0px)' }], { duration:FLY.ms, composite:'add' });
+      else inner.animate([{ transform:`translateY(${d}px)` }, { transform:'translateY(0px)' }], { duration:560, easing:EASE.spring, composite:'add' });
+    }
   }
   return nodes;
 }
@@ -3376,27 +3383,28 @@ function chatFadeOut(el){
 function chatFlyIn(node){
   const bub = node && $('.bub', node), field = $('#chat .composer'), btn = $('#chat .send'), box = $('#chat'), log = $('#chatlog'), inner = log && $('.chat-inner', log);
   if (!bub || !field || !box || !inner || reduced()) return Promise.resolve();
-  const c = box.getBoundingClientRect(), b = bub.getBoundingClientRect(), f = field.getBoundingClientRect(), lr = log.getBoundingClientRect();
-  const lift = inner.getBoundingClientRect().top - (lr.top + inner.offsetTop - log.scrollTop);   // the conversation's glide still to come
-  const W = b.width, H = b.height, R = b.right - c.left, T = b.top - lift - c.top, r = parseFloat(getComputedStyle(bub).borderTopRightRadius) || 19;
-  const fl = f.left - c.left, fr = f.right - c.left, ft = f.top - c.top, fh = f.height, s = .76;
-  const midY = ft + fh / 2 - .57 * (ft + fh / 2 - T - H / 2), r1 = fr + .46 * (R - fr), l1 = fl + .46 * (R - s * W - fl), py0 = (fh - H) / 2 + 7;
+  // in the chat screen's own pixels, which differ from the page's while it is still zooming in as it opens
+  const c = box.getBoundingClientRect(), sc = c.width / box.offsetWidth || 1, b = bub.getBoundingClientRect(), f = field.getBoundingClientRect();
+  const lift = new DOMMatrixReadOnly(getComputedStyle(inner).transform).m42;   // the conversation's push still to come
+  const W = b.width / sc, H = b.height / sc, R = (b.right - c.left) / sc, T = (b.top - c.top) / sc - lift, r = parseFloat(getComputedStyle(bub).borderTopRightRadius) || 19;
+  const fl = (f.left - c.left) / sc, fr = (f.right - c.left) / sc, ft = (f.top - c.top) / sc, fh = f.height / sc, s = .76;
+  const midY = ft + fh / 2 - FLY.rise * (ft + fh / 2 - T - H / 2), r1 = fr + .46 * (R - fr), l1 = fl + .46 * (R - s * W - fl), py0 = (fh - H) / 2 + 7;
   const fly = document.createElement('div'); fly.className = 'bub fly';
   fly.innerHTML = `<div><span style="width:${W - 26}px">${bub.innerHTML}</span></div><b></b>`;
   box.appendChild(fly); bub.style.visibility = 'hidden';
   btn.classList.add('gone'); requestAnimationFrame(() => requestAnimationFrame(() => btn.classList.remove('gone')));   // the arrow goes at once, as in Messages
-  const IN = 'cubic-bezier(.55,0,.9,.55)', OUT = 'cubic-bezier(.3,.35,.5,1)', SETTLE = 'cubic-bezier(.25,.7,.3,1)';
+  const IN = FLY.in, OUT = FLY.out, SETTLE = FLY.settle;
   const shape = fly.animate([
     { left:`${fl}px`, top:`${ft}px`, width:`${fr - fl}px`, height:`${fh}px`, borderRadius:`${fh / 2}px`, filter:'blur(3px)', easing:IN },
     { offset:.2, left:`${l1}px`, top:`${ft}px`, width:`${r1 - l1}px`, height:`${fh}px`, borderRadius:`${fh / 2}px`, filter:'blur(3px)', easing:OUT },
     { offset:.4, left:`${R - s * W}px`, top:`${midY - s * H / 2}px`, width:`${s * W}px`, height:`${s * H}px`, borderRadius:`${s * r}px`, filter:'blur(0px)', easing:SETTLE },
-    { left:`${R - W}px`, top:`${T}px`, width:`${W}px`, height:`${H}px`, borderRadius:`${r}px`, filter:'blur(0px)' }], { duration:500, fill:'both' });
+    { left:`${R - W}px`, top:`${T}px`, width:`${W}px`, height:`${H}px`, borderRadius:`${r}px`, filter:'blur(0px)' }], { duration:FLY.ms, fill:'both' });
   fly.querySelector('span').animate([   // the words keep their size and ride the left edge while it draws in, then scale with the bubble
     { transform:`translate(13px,${py0}px)`, easing:IN }, { offset:.2, transform:`translate(13px,${py0}px)`, easing:OUT },
-    { offset:.4, transform:`translate(${13 * s}px,${7 * s}px) scale(${s})`, easing:SETTLE }, { transform:'translate(13px,7px)' }], { duration:500, fill:'both' });
+    { offset:.4, transform:`translate(${13 * s}px,${7 * s}px) scale(${s})`, easing:SETTLE }, { transform:'translate(13px,7px)' }], { duration:FLY.ms, fill:'both' });
   fly.lastChild.animate([   // the tail: none inside the field, grown in by the time the bubble is out of it
     { transform:'scale(0)', opacity:0, easing:IN }, { offset:.2, transform:'scale(.3)', opacity:0, easing:OUT },
-    { offset:.4, transform:`scale(${s})`, opacity:1, easing:SETTLE }, { transform:'none', opacity:1 }], { duration:500, fill:'both' });
+    { offset:.4, transform:`scale(${s})`, opacity:1, easing:SETTLE }, { transform:'none', opacity:1 }], { duration:FLY.ms, fill:'both' });
   const land = () => { if (fly.isConnected) { fly.remove(); bub.style.visibility = ''; } };
   return shape.finished.then(land, land);
 }
