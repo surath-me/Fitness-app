@@ -660,8 +660,6 @@ body.lock{overflow:hidden}
    bar over the keyboard, and while the screen settles), and that has to be Coach AI, not the page (Surath saw the page
    there). Not while it closes, when it shrinks into a card over the page */
 .chat:not(.leaving){box-shadow:0 0 0 100vmax var(--chat-bg)}
-/* the page underneath holds still while Coach AI is open: a focused field made Safari scroll it, and left it scrolled */
-body.chatting{position:fixed;left:0;right:0}
 .chatting .toast{z-index:46}
 .chat-top{position:absolute;top:0;left:0;right:0;z-index:2;display:grid;grid-template-columns:44px 1fr 44px;align-items:center;padding:calc(env(safe-area-inset-top) + 4px) 12px 14px;pointer-events:none}
 .chat-top>*{pointer-events:auto}
@@ -783,7 +781,7 @@ body.chatting{position:fixed;left:0;right:0}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.53';
+const APP_VERSION = '3.54';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3557,7 +3555,7 @@ function openChat(){
   const el = $('#chat'), fx = $('#chatfx'), hint = $('#pullhint');
   pullSpringBack();   // the pulled parts spring back up under the blur, the top first
   el.getAnimations().concat($$('i', fx).flatMap(i => i.getAnimations())).forEach(a => a.cancel());   // a close still under way
-  el.classList.remove('leaving'); chat.pageY = window.scrollY; document.body.style.top = -chat.pageY + 'px';
+  el.classList.remove('leaving'); chat.pageY = window.scrollY;
   el.hidden = false; renderChatLog(true); fx.hidden = false; document.body.classList.add('lock', 'chatting');
   if (!reduced()) {
     fx.animate([{ '--fxr':'0px' }, { '--fxr': Math.round(Math.hypot(innerWidth, innerHeight) + 40) + 'px' }], { duration:1260, easing:'cubic-bezier(.3,0,.25,1)', fill:'forwards' });
@@ -3573,9 +3571,13 @@ function closeChat(){
   if (!chat.open) return;
   chat.open = false;
   const el = $('#chat'), fx = $('#chatfx'), ta = $('#chatq'); if (ta) ta.blur();
+  // Safari scrolls the page under Coach AI to show the focused field above the keyboard; the page goes back to where it
+  // was (the top, where a pull starts), or the next pull did not open Coach AI. Holding the page still instead made
+  // Safari move Coach AI itself out of sight.
+  const back = () => { if (window.scrollY !== chat.pageY) window.scrollTo(0, chat.pageY); };
   const fin = () => { if (chat.open) return; el.hidden = true; fx.hidden = true; el.getAnimations().concat(fx.getAnimations(), $$('i', fx).flatMap(i => i.getAnimations())).forEach(a => a.cancel()); fx.style.removeProperty('--fxr');
-    el.classList.remove('leaving'); document.body.classList.remove('lock', 'chatting'); document.body.style.top = ''; window.scrollTo(0, chat.pageY || 0); };
-  el.classList.add('leaving');
+    el.classList.remove('leaving'); document.body.classList.remove('lock', 'chatting'); back(); };
+  el.classList.add('leaving'); back();
   if (reduced()) return fin();
   $$('i', fx).forEach(i => i.animate([{ opacity: getComputedStyle(i).opacity }, { opacity:0 }], { duration:340, easing:'cubic-bezier(.4,0,.2,1)', fill:'forwards' }));
   el.animate([{ transform:'none', borderRadius:'0px', opacity:1 }, { transform:'scale(.84) translateY(3%)', borderRadius:'48px', opacity:0 }],
@@ -3666,7 +3668,12 @@ const pullDist = dy => 150 * (1 - Math.exp(-Math.max(0, dy) / 240));
    there) must not open Coach AI with the next drag (Surath: a long scroll up from the bottom opened it) */
 let scrolledAt = 0;
 window.addEventListener('scroll', () => { scrolledAt = performance.now(); }, { passive:true });
-const restingTop = () => window.scrollY <= 0 && performance.now() - scrolledAt > 400;
+// at the top within a pixel: coming back to Safari can leave the page a fraction of a pixel down, which blocked the pull
+const atTop = () => window.scrollY < 1;
+const restingTop = () => atTop() && performance.now() - scrolledAt > 400;
+// coming back to the app: a pull cut off by leaving it (no touchend arrives) is let go, so the next one starts clean
+const pullFresh = () => { if (!document.hidden && !chat.open) pullSpringBack(); };
+document.addEventListener('visibilitychange', pullFresh); window.addEventListener('pageshow', pullFresh);
 const pullCan = target => chatFor(ui.tab) && !chat.open && !ui.sheet && !ui.menu && restingTop() && !pullBlocked(target);
 // a mouse: pointer events. A finger: touch events, because Safari takes a vertical drag for scrolling and cancels pointer events
 document.addEventListener('pointerdown', e => {
@@ -3677,7 +3684,7 @@ document.addEventListener('pointermove', e => {
   if (pull.id !== e.pointerId) return;
   const dx = e.clientX - pull.x0, dy = e.clientY - pull.y0;
   if (!pull.on) {
-    if (dy > 10 && dy > Math.abs(dx) * 1.4 && window.scrollY <= 0) pull.on = true;
+    if (dy > 10 && dy > Math.abs(dx) * 1.4 && atTop()) pull.on = true;
     else { if (Math.abs(dx) > 10 || dy < -6) pull.id = null; return; }
   }
   pullSet(pullDist(dy - 10));
@@ -3695,7 +3702,7 @@ document.addEventListener('touchmove', e => {
   const t = [...e.changedTouches].find(x => x.identifier === pull.tid); if (!t) return;
   const dx = t.clientX - pull.x0, dy = t.clientY - pull.y0;
   if (!pull.on) {
-    if (dy > 8 && dy > Math.abs(dx) * 1.4 && window.scrollY <= 0) pull.on = true;
+    if (dy > 8 && dy > Math.abs(dx) * 1.4 && atTop()) pull.on = true;
     else { if (Math.abs(dx) > 10 || dy < -6) pull.tid = null; return; }
   }
   if (e.cancelable) e.preventDefault();   // the page holds still while it is pulled
@@ -3712,7 +3719,7 @@ document.addEventListener('touchcancel', touchEnd);
 let wheelPull = 0, wheelAt = 0, wheelT = 0, wheelOk = false;
 window.addEventListener('wheel', e => {
   const now = Date.now(); if (now - wheelAt > 300) wheelOk = restingTop() && chatFor(ui.tab) && !chat.open && !ui.sheet && !ui.menu; wheelAt = now;
-  if (!wheelOk || e.deltaY >= 0 || window.scrollY > 0) { if (wheelPull && e.deltaY > 0) { wheelPull = 0; pullSpringBack(); } return; }
+  if (!wheelOk || e.deltaY >= 0 || !atTop()) { if (wheelPull && e.deltaY > 0) { wheelPull = 0; pullSpringBack(); } return; }
   wheelPull += -e.deltaY; pullSet(pullDist(wheelPull));
   clearTimeout(wheelT); wheelT = setTimeout(() => { const open = pull.d >= PULL_OPEN; wheelPull = 0; if (open) openChat(); else pullSpringBack(); }, 160);
 }, { passive:true });
