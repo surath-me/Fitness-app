@@ -679,6 +679,8 @@ body.lock{overflow:hidden}
 .chat-time{margin:4px 0 14px;text-align:center;font-size:12px;line-height:16px;color:var(--ink2)}
 .chat-time b{font-weight:600}
 .cm.in{animation:cmIn .45s var(--out) both}
+.cm.st.wait{visibility:hidden}
+.cm.st,.cm.stream .md{min-height:24px}   /* one line of the reply, so the status turning into it never makes the conversation shorter for a frame */   /* the status line's place, kept from the moment you send so your bubble lands above it and stays */
 @keyframes cmIn{from{opacity:0;translate:0 10px}}
 .md{font-size:17px;line-height:1.42;overflow-wrap:anywhere}
 .md p{margin:0 0 12px}.md p:last-child{margin-bottom:0}
@@ -3448,7 +3450,8 @@ async function chatSend(text){
   if (!chat.msgs.length) $$('#chatlog .cm.a').forEach(chatFadeOut);   // the hello goes once the conversation starts
   chat.msgs.push(temp);
   const ta = $('#chatq'); if (ta && ta.value.trim() === text) { ta.value = ''; chatInput(); }   // first, so the field has its final height
-  const [node] = chatGrow(chatTimeLine(temp, prev) + chatMsgHTML(temp, { tail:true }), true).filter(n => n.classList.contains('u'));
+  // the status line ("Thinking…") is placed with your bubble, hidden, so the bubble lands where it stays and the line just appears under it
+  const [node] = chatGrow(chatTimeLine(temp, prev) + chatMsgHTML(temp, { tail:true }) + '<div class="cm a st wait"><span class="shim">Thinking…</span></div>', true).filter(n => n.classList.contains('u'));
   const landed = chatFlyIn(node);
   let res;
   try { res = await fetch('/api/chat', { method:'POST', cache:'no-store', headers:{ Authorization:'Bearer ' + cloud.token, 'Content-Type':'application/json' },
@@ -3462,7 +3465,7 @@ async function chatSend(text){
   }
   const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '', finished = false;
   const status = t => { let st = $('#chatlog .cm.st');
-    if (st) { $('.shim', st).textContent = t; return; }
+    if (st) { $('.shim', st).textContent = t; if (st.classList.contains('wait')) st.classList.replace('wait', 'in'); return; }
     st = chatGrow(`<div class="cm a st in"><span class="shim">${esc(t)}</span></div>`)[0]; };
   try {
     for (;;) {
