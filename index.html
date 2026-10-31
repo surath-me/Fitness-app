@@ -3330,10 +3330,11 @@ function chatPad(){ const log = $('#chatlog'), box = $('#chat .chat-in'); if (lo
 const FLY = { ms:500, rise:.57, in:'cubic-bezier(.55,0,.9,.55)', out:'cubic-bezier(.3,.35,.5,1)', settle:'cubic-bezier(.25,.7,.3,1)' };
 /* Adding to the end of the conversation never redraws it. New parts are appended, and when the view was at the end,
    everything glides up into place with a spring (several glides add up, so nothing jumps). */
-function chatGrow(html, toEnd){
+function chatGrow(html, toEnd, drop){
   const log = $('#chatlog'), inner = $('.chat-inner', log);
   if (!inner) { renderChatLog(true); return []; }
   const pin = toEnd || chatNearBottom(log), top0 = inner.getBoundingClientRect().top;
+  (drop || []).forEach(chatGhostOut);   // what makes way leaves the layout now, so the glide covers its going too
   const t = document.createElement('div'); t.innerHTML = html; const nodes = [...t.children]; nodes.forEach(n => inner.appendChild(n));
   if (pin) {
     log.scrollTop = log.scrollHeight;
@@ -3346,6 +3347,19 @@ function chatGrow(html, toEnd){
     }
   }
   return nodes;
+}
+/* a copy fades where the element was while the element itself leaves the layout at once: removing it after its fade
+   made the whole conversation jump in the middle of a send */
+function chatGhostOut(el){
+  const box = $('#chat'); if (!el || !box) return;
+  const c = box.getBoundingClientRect(), sc = c.width / box.offsetWidth || 1, r = el.getBoundingClientRect();
+  if (!reduced() && r.height && r.bottom > c.top && r.top < c.bottom) {
+    const g = el.cloneNode(true); g.classList.remove('in'); g.removeAttribute('data-n'); g.setAttribute('aria-hidden', 'true');
+    g.style.cssText = `position:absolute;z-index:1;margin:0;left:${(r.left - c.left) / sc}px;top:${(r.top - c.top) / sc}px;width:${r.width / sc}px;pointer-events:none`;
+    box.appendChild(g);
+    g.animate([{ opacity:1 }, { opacity:0 }], { duration:160, easing:'ease-out', fill:'forwards' }).finished.then(() => g.remove(), () => g.remove());
+  }
+  el.remove();
 }
 function chatFadeOut(el){
   if (!el) return;
@@ -3431,15 +3445,15 @@ async function chatSend(text){
   text = String(text || '').trim();
   if (!text || chat.sending || !cloud.token) return;
   chat.sending = true; chat.err = null; chat.draft = null;
-  $$('#chatlog .sugs, #chatlog .cm.err').forEach(chatFadeOut);   // the old suggestions and any error make way
-  const log = $('#chatlog'), lastEl = $('.chat-inner', log) && $('.chat-inner', log).lastElementChild;
+  // the old suggestions and any error make way, and the hello once the conversation starts
+  const drop = $$('#chatlog .sugs, #chatlog .cm.err').concat(chat.msgs.length ? [] : $$('#chatlog .cm.a'));
+  const kept = $$('#chatlog .chat-inner > *').filter(e => !drop.includes(e)), lastEl = kept[kept.length - 1];
   if (lastEl && lastEl.classList.contains('u')) lastEl.classList.remove('tail');   // the run continues: the tail moves to the new bubble
   const temp = { n:'p' + Date.now(), role:'user', text, ts: Date.now(), pending:true }, prev = chat.msgs[chat.msgs.length - 1];
-  if (!chat.msgs.length) $$('#chatlog .cm.a').forEach(chatFadeOut);   // the hello goes once the conversation starts
   chat.msgs.push(temp);
   const ta = $('#chatq'); if (ta && ta.value.trim() === text) { ta.value = ''; chatInput(); }   // first, so the field has its final height
   // the status line ("Thinking…") is placed with your bubble, hidden, so the bubble lands where it stays and the line just appears under it
-  const [node] = chatGrow(chatTimeLine(temp, prev) + chatMsgHTML(temp, { tail:true }) + '<div class="cm a st wait"><span class="shim">Thinking…</span></div>', true).filter(n => n.classList.contains('u'));
+  const [node] = chatGrow(chatTimeLine(temp, prev) + chatMsgHTML(temp, { tail:true }) + '<div class="cm a st wait"><span class="shim">Thinking…</span></div>', true, drop).filter(n => n.classList.contains('u'));
   const landed = chatFlyIn(node);
   let res;
   try { res = await fetch('/api/chat', { method:'POST', cache:'no-store', headers:{ Authorization:'Bearer ' + cloud.token, 'Content-Type':'application/json' },
