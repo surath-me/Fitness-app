@@ -20,6 +20,7 @@
 @property --lit{syntax:'<number>';inherits:false;initial-value:0}
 :root{
   --bg:#F2F2F7; --card:#FFFFFF; --ink:#000; --ink2:#6C6C70; --ink3:#AEAEB2; --drop-line:#D1D1D6;
+  --chat-bg:#F3F3F3; --chat-bub:#E8E8E9; --chat-pill:#E6E6E8; --composer:#FFFFFF; --composer-line:rgba(0,0,0,.08); --composer-hi:rgba(255,255,255,.7); --send-bg:#1C1C1E; --send-ink:#FFFFFF; --orb-a:#FFF4DF; --orb-b:#B9D3EF; --orb-c:#7FA6D6;
   --sep:rgba(60,60,67,.12); --sep-w:1px; --fill:rgba(120,120,128,.16); --fill2:rgba(120,120,128,.10);
   --accent:#0088FF; --accent-press:#006FD6; --accent-t:rgba(0,136,255,.12); --accent-glow:rgba(0,136,255,.32); --accent-ink:#007AEB;
   --red:#FF383C; --red-t:rgba(255,56,60,.12); --red-ink:#D70015; --gray:#8E8E93;
@@ -55,6 +56,7 @@
 /* Dark mode follows the system, with Apple's iOS 26 dark colours */
 @media (prefers-color-scheme:dark){:root{
   --bg:#000000; --card:#1C1C1E; --ink:#FFFFFF; --ink2:#98989F; --ink3:#5B5B60; --drop-line:#3A3A3C;
+  --chat-bg:#000000; --chat-bub:#2C2C2E; --chat-pill:#1C1C1E; --composer:#1C1C1E; --composer-line:rgba(255,255,255,.1); --composer-hi:rgba(255,255,255,.06); --send-bg:#FFFFFF; --send-ink:#000000; --orb-a:#E9D9C0; --orb-b:#4E6E9C; --orb-c:#22324C;
   --sep:rgba(84,84,88,.4); --fill:rgba(120,120,128,.36); --fill2:rgba(120,120,128,.24);
   --accent:#0091FF; --accent-press:#3AA7FF; --accent-t:rgba(0,145,255,.22); --accent-glow:rgba(0,145,255,.38); --accent-ink:#45ADFF;
   --red:#FF4245; --red-t:rgba(255,66,69,.2); --red-ink:#FF6B6E; --gray:#98989D;
@@ -639,6 +641,75 @@ body.lock{overflow:hidden}
 @media (prefers-contrast:more) and (prefers-color-scheme:light){
   :root{--accent:#1E6EF4;--kcal:#1E6EF4}
 }
+/* ---------- Coach chat (beta): pull down at the top of Train, Eat or Progress. After Revolut's AI: the page blurs and
+   turns milky, the conversation sharpens in over it, and closing shrinks it into a card that fades as the page returns ---------- */
+.pullhint{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top) + 8px);z-index:21;text-align:center;font-size:13px;font-weight:500;color:var(--ink2);opacity:0;pointer-events:none}
+.pulling #app,.pulling #navbar{transition:none}
+.pulling{-webkit-user-select:none;user-select:none}
+.chat:focus{outline:none}
+.pullback #app,.pullback #navbar{transition:transform .55s var(--spring)}
+.chatfx{position:fixed;inset:0;z-index:44;pointer-events:none}
+.chatfx>i{position:absolute;inset:0}
+.chatfx .fxb{-webkit-backdrop-filter:blur(28px) saturate(150%);backdrop-filter:blur(28px) saturate(150%);opacity:0}
+.chatfx .fxt{background:var(--chat-bg);opacity:0}
+.chat{position:fixed;left:0;right:0;top:var(--vvt,0px);height:var(--vvh,100dvh);z-index:45;display:flex;flex-direction:column;background:var(--chat-bg);color:var(--ink);overflow:hidden;transform-origin:50% 42%}
+.chatting .toast{z-index:46}
+.chat-top{position:absolute;top:0;left:0;right:0;z-index:2;display:grid;grid-template-columns:44px 1fr 44px;align-items:center;padding:calc(env(safe-area-inset-top) + 4px) 12px 14px;pointer-events:none}
+.chat-top>*{pointer-events:auto}
+.chat-top::before{content:"";position:absolute;inset:0 0 -16px;z-index:-1;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);background:linear-gradient(var(--chat-bg) 40%,transparent);-webkit-mask-image:linear-gradient(#000 55%,transparent);mask-image:linear-gradient(#000 55%,transparent)}
+.chat-top h2{margin:0;text-align:center;font-size:17px;font-weight:600;letter-spacing:-.01em}
+.orb{justify-self:end;width:40px;height:40px;border-radius:50%;background:radial-gradient(circle at 34% 30%,var(--orb-a) 0%,var(--orb-b) 54%,var(--orb-c) 100%);box-shadow:inset 0 -3px 8px rgba(0,0,0,.08),0 2px 10px rgba(0,0,0,.08);animation:orb 6s ease-in-out infinite alternate}
+@keyframes orb{to{filter:hue-rotate(-16deg) saturate(1.2);scale:1.04}}
+.chat-mode{text-align:center;font-size:12px;color:var(--ink2);margin:0 0 18px}
+.chat-log{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:calc(env(safe-area-inset-top) + 66px) 16px 12px;-webkit-overflow-scrolling:touch}
+.cm{margin:0 0 24px}
+.cm.u{display:flex;justify-content:flex-end}
+.bub{position:relative;max-width:80%;padding:9px 14px;border-radius:20px;background:var(--chat-bub);font-size:17px;line-height:1.32;white-space:pre-wrap;overflow-wrap:anywhere}
+.bub::after{content:"";position:absolute;right:-6px;bottom:0;width:16px;height:14px;background:var(--chat-bub);clip-path:path('M0 0C1 6 5 11 16 14C9 14 4 13 0 10Z')}
+.bub .tm{font-size:12px;color:var(--ink2);margin-left:8px;white-space:nowrap}
+.cm.pending .bub{opacity:.6}
+.cm.in{animation:cmIn .45s var(--out) both}
+@keyframes cmIn{from{opacity:0;translate:0 10px}}
+.md{font-size:17px;line-height:1.42;overflow-wrap:anywhere}
+.md p{margin:0 0 12px}.md p:last-child{margin-bottom:0}
+.md ul,.md ol{margin:0 0 12px;padding-left:24px}.md li{margin:4px 0}
+.md strong{font-weight:600}
+.md code{font-family:ui-monospace,Menlo,monospace;font-size:15px;background:var(--fill2);border-radius:6px;padding:1px 5px}
+.md a{color:var(--accent)}
+.cm.stream .md>:last-child::after{content:"";display:inline-block;width:8px;height:8px;margin-left:5px;border-radius:50%;background:var(--ink3);animation:caret 1s ease-in-out infinite}
+@keyframes caret{50%{opacity:.25}}
+.acts{display:flex;gap:4px;margin:6px 0 0 -9px}
+.acts button{width:38px;height:38px;display:grid;place-items:center;border-radius:50%;color:var(--ink2);transition:transform .3s var(--spring),color .2s}
+.acts button:active{transform:scale(.82)}
+.acts svg{width:20px;height:20px}
+.acts button.on{color:var(--ink)}
+.acts button.on svg{fill:currentColor}
+.sugs{margin-top:8px}
+.sugb{display:flex;align-items:flex-start;gap:10px;width:100%;min-height:36px;padding:6px 0;text-align:left;font-size:16px;line-height:1.35;color:var(--ink)}
+.sugb svg{flex:none;width:18px;height:18px;margin-top:1px}
+.sugb span{text-decoration:underline dotted var(--ink3);text-underline-offset:5px}
+.shim{font-size:17px;background:linear-gradient(90deg,var(--ink3) 0 30%,var(--ink) 45%,var(--ink3) 60% 100%);background-size:260% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shim 1.5s linear infinite}
+@keyframes shim{from{background-position:100% 0}to{background-position:-60% 0}}
+.cm.err{font-size:14px;color:var(--red-ink)}
+.cm.err button{color:var(--accent);font-weight:600;margin-left:6px;min-height:32px}
+.datepill{display:block;width:max-content;margin:4px auto 24px;padding:5px 12px;border-radius:99px;background:var(--chat-pill);font-size:13px;color:var(--ink2)}
+.chat-more{display:block;margin:0 auto 20px;min-height:36px;color:var(--accent);font-size:14px;font-weight:600}
+.chat-empty{margin:18vh 12px 0;text-align:center;color:var(--ink2);font-size:15px;line-height:1.4}
+.chat-empty .btn{margin-top:16px}
+.chat-in{padding:6px 12px max(12px,env(safe-area-inset-bottom))}
+.kbopen .chat-in{padding-bottom:8px}
+.composer{display:flex;align-items:flex-end;gap:8px;min-height:54px;padding:6px 7px 6px 20px;border-radius:27px;background:var(--composer);border:1px solid var(--composer-line);box-shadow:0 6px 22px rgba(0,0,0,.07),inset 0 1px 0 var(--composer-hi);transition:box-shadow .2s}
+.composer:focus-within{box-shadow:0 6px 22px rgba(0,0,0,.07),inset 0 1px 0 var(--composer-hi),0 0 0 2px var(--accent-t)}
+.composer textarea{flex:1;min-width:0;max-height:8em;margin:0;padding:9px 0 8px;border:0;outline:0;resize:none;background:none;color:var(--ink);font:inherit;font-size:17px;line-height:1.3}
+.composer textarea::placeholder{color:var(--ink3)}
+.send{flex:none;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--send-bg);color:var(--send-ink);transition:scale .35s var(--spring),opacity .2s}
+.send svg{width:20px;height:20px}
+.composer:not(.has) .send{scale:.3;opacity:0;pointer-events:none}
+.field.area{height:auto;min-height:190px;text-align:left;font-family:var(--font);font-weight:400;font-size:15px;line-height:1.4;padding:12px;resize:vertical}
+.improw input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
+.improw .grow{display:flex;flex-direction:column;gap:2px;min-width:0}
+.improw strong{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-busy{padding:40px 8px;text-align:center}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
 }
@@ -675,6 +746,13 @@ body.lock{overflow:hidden}
 <div id="sheet" class="sheet glass" role="dialog" aria-modal="true" hidden></div>
 <div id="alert" class="alertwrap" hidden></div>
 <div id="toast" class="toast glass ghost" role="status" hidden></div>
+<div id="pullhint" class="pullhint" aria-hidden="true">Pull to ask Coach</div>
+<div id="chatfx" class="chatfx" hidden aria-hidden="true"><i class="fxb"></i><i class="fxt"></i></div>
+<div id="chat" class="chat" role="dialog" aria-modal="true" aria-label="Coach" tabindex="-1" hidden>
+  <div class="chat-top"><button class="tbtn glass" data-act="chatclose" aria-label="Close"></button><h2>Coach</h2><span class="orb" aria-hidden="true"></span></div>
+  <div id="chatlog" class="chat-log" aria-live="polite"></div>
+  <div class="chat-in"><div class="composer"><textarea id="chatq" rows="1" placeholder="Type a message…" enterkeyhint="send" autocomplete="off" aria-label="Message to Coach"></textarea><button class="send" data-act="chatsend" aria-label="Send"></button></div></div>
+</div>
 <script>
 'use strict';
 /* =====================================================================
@@ -682,7 +760,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.51';
+const APP_VERSION = '3.52';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -913,7 +991,7 @@ const joinNames = a => a.length <= 1 ? (a[0]||'') : a.slice(0,-1).join(', ') + '
 let storageOk = true;
 function defaultSettings(){
   return { targets: deepClone(DEFAULT_TARGETS), caps: deepClone(DEFAULT_CAPS), schedule: deepClone(DEFAULT_SCHEDULE),
-           returning: false, exCfg: {}, planStart: todayStr() };
+           returning: false, exCfg: {}, planStart: todayStr(), beta: { chat:false } };
 }
 function freshState(){
   const s = { v:1, days:{}, workouts:{}, dismissed:{}, rest:{}, assign:{}, pin:{}, foods:[], waist: SEED_WAIST.map(x=>({...x})), settings: defaultSettings(), water:{} };
@@ -950,6 +1028,7 @@ function migrate(s){
   s.settings.targets  = Object.assign(deepClone(DEFAULT_TARGETS), s.settings.targets || {});
   s.settings.caps     = Object.assign(deepClone(DEFAULT_CAPS), s.settings.caps || {});
   s.settings.schedule = Object.assign(deepClone(DEFAULT_SCHEDULE), s.settings.schedule || {});
+  s.settings.beta     = Object.assign({ chat:false }, s.settings.beta || {});
   ['days','workouts','dismissed','rest','assign','pin','water'].forEach(k => { if (!s[k]) s[k] = {}; });
   delete s.settings.timeBudget;   // the time is per day now (wk.budget), 60 minutes unless changed
   if (!s.foods) s.foods = [];
@@ -1878,7 +1957,7 @@ function field(label, path, val, unit){
   return `<label class="frow"><span class="grow">${label}${unit ? ` <span class="muted">${unit}</span>` : ''}</span><input class="field" type="text" inputmode="decimal" data-set="${path}" value="${esc(val)}" aria-label="${esc(label)}${unit ? ' ' + unit : ''}"></label>`;
 }
 /* Setup is laid out like the Health profile: a header, then grouped rows that open their own page */
-const SETUP_PAGES = { targets:'Daily targets', caps:'Food limits', split:'Weekly split', lifts:'Lift settings', foods:'My foods', cloud:'Cloud backup' };
+const SETUP_PAGES = { targets:'Daily targets', caps:'Food limits', split:'Weekly split', lifts:'Lift settings', foods:'My foods', cloud:'Cloud backup', chat:'Coach chat' };
 const srow = (page, value) => `<button class="srow" data-act="setuppage" data-p="${page}"><span class="grow">${SETUP_PAGES[page]}</span>${value ? `<span class="v">${value}</span>` : ''}${ICON.chevR}</button>`;
 function setupPage(p){
   const st = S.settings, T = st.targets, C = st.caps;
@@ -1903,6 +1982,7 @@ function setupPage(p){
         <input id="cloudpass" class="field" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Passphrase" aria-label="Cloud backup passphrase" style="text-align:left;font-family:var(--font);font-weight:400">
         <button class="btn" data-act="cloudconnect">Connect</button></div>
       <p class="note">You enter the passphrase once on each device. If this device already has data, it is combined with the cloud copy, nothing is replaced.</p>`;
+  if (p === 'chat') return chatSettings();
   if (p === 'foods') return ((S.foods||[]).length ? `<div class="group">` + S.foods.map(f => `<div class="lift"><div><strong>${esc(f.name)}</strong><div class="small muted">${f.unit==='g' ? 'per 100 g' : 'per '+esc(f.unit)}: ${f.kcal} kcal, ${f.p} P, ${f.f} F, ${f.c} C</div></div><span></span><button class="link" data-act="delfood" data-id="${f.id}">Remove</button></div>`).join('') + `</div>`
       : `<p class="note" style="margin-top:0">Foods you save while logging appear here. The built-in list has ${FOODS.length} items.</p>`) +
     `<h2>Add a food</h2><div class="group pad stack">
@@ -1922,6 +2002,7 @@ function viewSetup(){
   h += `<div class="group">${srow('targets', `${fmtInt(st.targets.training.kcal)} kcal`)}${srow('caps')}</div>`;
   h += `<h2>Training</h2><div class="group">${srow('split', `${sessions} session${sessions === 1 ? '' : 's'}`)}${srow('lifts')}</div>`;
   h += `<h2>Food</h2><div class="group">${srow('foods', (S.foods||[]).length ? String(S.foods.length) : '')}</div>`;
+  h += `<h2>Beta</h2><div class="group">${srow('chat', chatOn() ? 'On' : 'Off')}</div>`;
   h += `<h2>Your data</h2><div class="group">${srow('cloud', cloud.token ? 'On' : 'Off')}</div><div class="group">
     <button class="srow act" data-act="export">Export backup</button>
     <label class="srow act">Import backup<input id="importfile" type="file" accept="application/json" hidden></label>
@@ -2028,7 +2109,7 @@ function drawSheet(){
   const opening = el.hidden || !el.classList.contains('open');
   el.hidden = false; sc.hidden = false; document.body.classList.add('lock');
   const t = ui.sheet.type;
-  el.innerHTML = t === 'food' ? foodSheet() : t === 'entry' ? entrySheet() : t === 'exercise' ? exerciseSheet() : t === 'copyday' ? copySheet() : '';
+  el.innerHTML = t === 'food' ? foodSheet() : t === 'entry' ? entrySheet() : t === 'exercise' ? exerciseSheet() : t === 'copyday' ? copySheet() : t === 'chatimport' ? chatImportSheet() : '';
   const contentH = Array.from(el.children).reduce((a, c) => a + c.offsetHeight, 0) + 40;   // the content, not the sheet: a full sheet is stretched
   el.classList.toggle('full', (t === 'food' && !ui.sheet.sel) || t === 'exercise' || contentH > innerHeight * .78);   // Foods and Quick entry share one full tray, so switching between them does not move it
   initSegs(el);
@@ -2618,7 +2699,24 @@ const H = {
     RT.done = false; $('#timer').classList.remove('done', 'seen'); $('#timerl').textContent = 'Rest'; $('#timerx').textContent = 'Skip';
     clearInterval(RT.iv); RT.iv = setInterval(tickRest, 250); tickRest(); },
   timerskip(){ hideRest(); },
-  closesheet(){ closeSheet(); }
+  closesheet(){ closeSheet(); },
+  chatclose(){ closeChat(); },
+  chatsend(){ const ta = $('#chatq'); if (ta) chatSend(ta.value); },
+  chatsug(t){ chatSend(t.dataset.q); },
+  chatretry(){ const q = chat.err && chat.err.retry; if (!q) return; const last = chat.msgs[chat.msgs.length - 1];
+    if (last && last.role === 'user' && last.failed) chat.msgs.pop(); chat.err = null; chatSend(q); },
+  chatcopy(t){ const m = chat.msgs.find(x => String(x.n) === t.dataset.n); if (!m) return;
+    const text = chatMD(m.text).plain; (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast('Copied'), () => toast('Could not copy')); },
+  chatrate(t){ const m = chat.msgs.find(x => String(x.n) === t.dataset.n); if (!m) return;
+    const v = +t.dataset.v, rating = m.rating === v ? 0 : v; if (rating) m.rating = rating; else delete m.rating; chatCache(); renderChatLog();
+    chatApi('PATCH', '', { n: m.n, rating }).catch(() => {}); },
+  chatmore(){ chatOlder(); },
+  chatsettings(t){ closeChat(); ui.tab = 'setup'; ui.setupPage = t.dataset.p || 'chat'; window.scrollTo(0, 0); render({ transition:true, tab:true }); },
+  chatprofilesave(){ const ta = $('#chatprofile'); if (!ta) return;
+    chatApi('PUT', '?profile=1', { text: ta.value }).then(j => { chat.profile = j.profile; ta.blur(); toast('Profile saved'); }, () => toast('Could not save the profile')); },
+  chatclear(){ askGlass('Clear the conversation?', 'Every message with Coach is deleted, on all your devices. What Coach knows about you stays.', 'Clear').then(ok => {
+    if (!ok) return; chatApi('DELETE').then(() => { chat.msgs = []; chat.more = false; chatCache(); toast('Conversation cleared'); }, () => toast('Could not clear it')); }); },
+  chatimpgo(){ chatImport(); }
 };
 
 /* =====================================================================
@@ -2880,12 +2978,31 @@ document.addEventListener('input', e => {
   if (t.dataset && t.dataset.bind === 'set') onSetInput(t);
   else if (t.id === 'q' && ui.sheet) { ui.sheet.q = t.value; $('#foodlist').innerHTML = foodListHTML(); }
   else if (t.id === 'exq' && ui.sheet) { ui.sheet.q = t.value; $('#exlist').innerHTML = exListHTML(); }
+  else if (t.id === 'chatq') chatInput();
   else if (t.id === 'qtyin' && ui.sheet) { const q = num(t.value); ui.sheet.qty = q === null ? 0 : q; updateQtyPreview(); }
   else if (t.id === 'entryqty' && ui.sheet) { const e2 = dayEntries(ui.date).find(x => x.id === ui.sheet.id), q = num(t.value) || 0; if (e2) $('#entryprev').innerHTML = previewHTML({ kcal:e2.k.kcal*q, p:e2.k.p*q, f:e2.k.f*q, c:e2.k.c*q }); }
 });
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.dataset.set) setPath(t.dataset.set, t.value);
+  else if (t.dataset.chg === 'betachat') {
+    S.settings.beta = Object.assign({}, S.settings.beta, { chat: t.checked }); saveState();
+    if (t.checked) { toast('Pull down on Train, Eat or Progress to talk to Coach'); chatLoad(); }
+    setTimeout(() => render(), reduced() ? 0 : 260);
+  }
+  else if (t.dataset.act === 'chatimpsel' && ui.sheet) {
+    const i = +t.dataset.i; if (t.checked) ui.sheet.sel.add(i); else ui.sheet.sel.delete(i);
+    const el = $('#sheet'), top = el.scrollTop; drawSheet(); el.scrollTop = top;
+  }
+  else if (t.id === 'chatimport' && t.files && t.files[0]) {
+    const f = t.files[0], rd = new FileReader();
+    rd.onload = () => { const convs = chatParseHistory(String(rd.result), f.name.replace(/\.[a-z]+$/i, ''));
+      if (!convs.length) { toast('No chats found in that file'); return; }
+      convs.forEach(c => { c.chars = c.msgs.reduce((a, m) => a + m.text.length + 8, c.title.length); });
+      convs.sort((a, b) => b.chars - a.chars);
+      openSheet({ type:'chatimport', convs, sel: new Set([0]) }); };
+    rd.readAsText(f); t.value = '';
+  }
   else if (t.id === 'importfile' && t.files && t.files[0]) {
     const rd = new FileReader();
     rd.onload = () => { try { const obj = JSON.parse(rd.result);
@@ -2898,7 +3015,9 @@ document.addEventListener('change', e => {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && ui.menu) { closeMenu(); return; }
   if (e.key === 'Escape' && ui.sheet) { closeSheet(); return; }
+  if (e.key === 'Escape' && chat.open) { closeChat(); return; }
   const t = e.target;
+  if (t.id === 'chatq' && e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); chatSend(t.value); return; }
   if (e.key === 'Enter' && t.dataset && t.dataset.bind === 'set') {
     e.preventDefault();
     if (t.dataset.f === 'w') { const r = t.closest('.setrow').querySelector('input[data-f="r"]'); if (r) r.focus(); }
@@ -2914,7 +3033,7 @@ if (window.visualViewport) {
   // iOS also shifts the visible area up (offsetTop), which lifts the bottom bar with it, so the dock moves down by that too.
   // --kb is the part of the keyboard below the visible area's bottom, which is what a sheet has to clear.
   const kb = () => { const v = visualViewport, r = document.documentElement, up = innerHeight - v.height > 120, k = Math.round(innerHeight - v.height - v.offsetTop);
-    r.style.setProperty('--kb', (up && k > 40 ? k : 0) + 'px'); r.style.setProperty('--vvt', (up ? Math.round(v.offsetTop) : 0) + 'px'); r.classList.toggle('kbopen', up); };
+    r.style.setProperty('--kb', (up && k > 40 ? k : 0) + 'px'); r.style.setProperty('--vvh', Math.round(v.height) + 'px'); r.style.setProperty('--vvt', (up ? Math.round(v.offsetTop) : 0) + 'px'); r.classList.toggle('kbopen', up); };
   visualViewport.addEventListener('resize', kb); visualViewport.addEventListener('scroll', kb);
 }
 let _today = todayStr();
@@ -3063,7 +3182,331 @@ Object.assign(H, {
 window.addEventListener('online', () => syncNow());
 document.addEventListener('visibilitychange', () => { if (!cloud.token) return; if (document.hidden) { if (syncTimer) syncNow(); } else syncNow(); });
 
-if (typeof window !== 'undefined') window.__coach = { S: () => S, setS: v => { S = v; }, ui, render, getPlan, sessionOn, isRestDay, RT, suggest, suggestGap, H, dayType, sumMacros, addEntry, foodById, mergeHistory, saveState: () => saveState(), cloud, syncNow, merge3, planDay };
+/* =====================================================================
+   COACH CHAT (beta, Settings > Beta). One continuous conversation with Claude through /api/chat, which keeps it in the
+   cloud next to the backup and adds what Coach knows about you (your profile). Pull down at the top of Train, Eat or
+   Progress to open it (`pullStart`): the page blurs and turns milky, the conversation sharpens in over it (after
+   Revolut's AI), and closing shrinks it into a card that fades as the page comes back. Each message carries a short
+   summary of your log (`chatSnapshot`); replies stream in, with a shimmering status line while Claude works.
+   Without an API key on the server every reply is a pretend one, so all of this can be tried for free.
+   ===================================================================== */
+const CHAT_CACHE = 'coach-chat';
+const chat = { open:false, msgs:[], more:false, mode:null, sending:false, status:'', draft:null, err:null, profile:null, spend:null, loading:false };
+try { const c = JSON.parse(localStorage.getItem(CHAT_CACHE)); if (c && Array.isArray(c.msgs)) { chat.msgs = c.msgs; chat.mode = c.mode || null; } } catch(e) {}
+const chatOn = () => !!(S.settings.beta && S.settings.beta.chat);
+const chatFor = tab => chatOn() && ['train', 'eat', 'progress'].includes(tab);
+function chatCache(){ try { localStorage.setItem(CHAT_CACHE, JSON.stringify({ msgs: chat.msgs.filter(m => !m.pending && !m.failed).slice(-150), mode: chat.mode })); } catch(e) {} }
+async function chatApi(method, query = '', body){
+  const r = await fetch('/api/chat' + query, { method, cache:'no-store', body: body ? JSON.stringify(body) : undefined,
+    headers: Object.assign({ Authorization: 'Bearer ' + cloud.token }, body ? { 'Content-Type':'application/json' } : {}) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(j.error || 'http ' + r.status); e.status = r.status; e.body = j; throw e; }
+  return j;
+}
+async function chatLoad(){
+  if (!cloud.token || chat.loading) return;
+  chat.loading = true;
+  try {
+    const j = await chatApi('GET');
+    if (!chat.sending) { chat.msgs = j.messages; chat.more = j.more; }
+    chat.mode = j.mode; chat.profile = j.profile; chat.spend = j.spend; chat.loadErr = null; chatCache();
+    if (chat.open && !chat.sending) renderChatLog(true);
+    if (ui.tab === 'setup' && ui.setupPage === 'chat') refreshSetup();
+  } catch(e) { chat.loadErr = e.status === 401 ? 'auth' : 'net'; if (chat.open && !chat.msgs.length) renderChatLog(true); }
+  finally { chat.loading = false; }
+}
+async function chatOlder(){
+  const first = chat.msgs.find(m => typeof m.n === 'number'); if (!first) return;
+  const el = $('#chatlog'), h0 = el.scrollHeight;
+  try { const j = await chatApi('GET', '?before=' + first.n); chat.msgs = j.messages.concat(chat.msgs); chat.more = j.more;
+    renderChatLog(); el.scrollTop += el.scrollHeight - h0; } catch(e) { toast('Could not load earlier messages'); }
+}
+
+/* what Coach sees with each message: today's food against targets, the week's training and recent sessions */
+function chatSnapshot(){
+  const t = todayStr(), now = new Date(), L = [], T = dayTarget(t), m = sumMacros(dayEntries(t));
+  L.push(`Today is ${longDate(t)}, ${pad(now.getHours())}:${pad(now.getMinutes())}. A ${dayType(t)} day: ${fmtInt(T.kcal)} kcal, protein floor ${T.p} g, fat ceiling ${T.f} g, carbs ${T.c} g.`);
+  L.push(`Eaten today: ${fmtInt(m.kcal)} kcal, ${r0(m.p)} g protein, ${r0(m.f)} g fat, ${r0(m.c)} g carbs.`);
+  L.push(`Left today: ${fmtInt(Math.max(0, T.kcal - m.kcal))} kcal, ${r0(Math.max(0, T.p - m.p))} g protein, ${r0(Math.max(0, T.f - m.f))} g fat, ${r0(Math.max(0, T.c - m.c))} g carbs.`);
+  const meals = SLOTS.map(([k, l]) => { const es = dayEntries(t).filter(e => e.slot === k);
+    return es.length ? `${l}: ${es.map(e => `${e.name} ${fmtW(e.qty)}${e.unit === 'g' ? ' g' : ' ' + e.unit}`).join(', ')}` : null; }).filter(Boolean);
+  L.push(meals.length ? `Meals today: ${meals.join('; ')}.` : 'No meals logged today yet.');
+  L.push(`Water today: ${fmtL(waterOf(t).ml)} of 3 L.`);
+  const u = capUsage(t), C = S.settings.caps;
+  L.push('Food limits used: ' + Object.keys(CAP_LABEL).map(k => `${CAP_LABEL[k].toLowerCase()} ${fmtW(r1(u[k] || 0))} of ${C[k]}${CAP_UNIT[k]}`).join(', ') + '.');
+  const past = [];
+  for (let k = 1; k <= 7; k++) { const d = addDays(t, -k), es = dayEntries(d);
+    if (!es.length) { past.push(`${dateLabel(d)}: nothing logged`); continue; }
+    const x = sumMacros(es), TT = dayTarget(d); past.push(`${dateLabel(d)} (${dayType(d)} day): ${fmtInt(x.kcal)} of ${fmtInt(TT.kcal)} kcal, ${r0(x.p)} P, ${r0(x.f)} F, ${r0(x.c)} C`); }
+  L.push(`Last 7 days: ${past.join('; ')}.`);
+  const plan = getPlan(t), wk = S.workouts[t];
+  const lift = it => { const c = cfg(it.id), done = setsDone(wk, it.id), sg = it.sug;
+    return `${c.name} ${sg.sets}×${sg.low === sg.high ? sg.high : sg.low + '-' + sg.high}${sg.w != null ? ' at ' + fmtW(sg.w) + ' ' + c.unit : ''}`
+      + (isNotDone(wk, it.id) ? ' (marked not done)' : done.length ? ` (logged ${done.map(s => `${fmtW(s.w)}×${s.r}`).join(', ')})` : ''); };
+  L.push(plan.items.length ? `Training today: ${plan.title}: ${plan.items.map(lift).join('; ')}.` : 'Training today: rest day.');
+  if (plan.added.length) L.push(`Added today: ${plan.added.map(lift).join('; ')}.`);
+  if (plan.deferred.length) L.push(`Left out today: ${plan.deferred.map(d => `${cfg(d.id).name} (${d.reason})`).join('; ')}.`);
+  L.push('This week: ' + weekDays(t).map(d => `${WD3[wdOf(d)]} ${isRestDay(d) ? 'rest' : (TEMPLATES[sessionOn(d)] || { name:'training' }).name}`
+    + (d === t ? ' (today)' : trainedOn(d) ? ' (trained)' : d < t && missedDay(d) ? ' (missed)' : '')).join(', ') + '.');
+  const recent = workoutDates().filter(d => d < t && trainedOn(d)).slice(-6).reverse().map(d => { const w = S.workouts[d];
+    return `${dateLabel(d)}: ` + loggedIds(w).map(id => `${cfg(id).name} ${setsDone(w, id).map(s => `${fmtW(s.w)}×${s.r}`).join(', ')}`).join('; '); });
+  if (recent.length) L.push(`Recent sessions: ${recent.join(' | ')}.`);
+  const waist = (S.waist || []).slice(-1)[0]; if (waist) L.push(`Last waist measurement: ${fmtW(waist.cm)} cm on ${dateLabel(waist.date)}.`);
+  return L.join('\n');
+}
+
+/* a small Markdown: paragraphs, lists, bold, code and links. Lines starting with ↳ are follow-up suggestions */
+function chatMD(src){
+  const sugs = [], plain = [];
+  const lines = String(src || '').replace(/\r/g, '').split('\n').filter(l => { const m = l.match(/^\s*↳\s*(.*)$/); if (m) { if (m[1].trim()) sugs.push(m[1].trim()); return false; } plain.push(l); return true; });
+  const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  let html = '', list = null, para = [];
+  const flushP = () => { if (para.length) { html += `<p>${para.map(inline).join('<br>')}</p>`; para = []; } };
+  const flushL = () => { if (list) { html += `<${list.t}>${list.items.map(i => `<li>${inline(i)}</li>`).join('')}</${list.t}>`; list = null; } };
+  for (const l of lines) {
+    const ul = l.match(/^\s*[-•*]\s+(.*)$/), ol = l.match(/^\s*\d+[.)]\s+(.*)$/), h = l.match(/^\s*#{1,4}\s+(.*)$/);
+    if (!l.trim()) { flushP(); flushL(); continue; }
+    if (ul || ol) { flushP(); const t = ul ? 'ul' : 'ol'; if (!list || list.t !== t) { flushL(); list = { t, items: [] }; } list.items.push((ul || ol)[1]); continue; }
+    flushL();
+    if (h) { flushP(); html += `<p><strong>${inline(h[1])}</strong></p>`; continue; }
+    para.push(l);
+  }
+  flushP(); flushL();
+  return { html, sugs, plain: plain.join('\n').replace(/\*\*(.+?)\*\*/g, '$1').trim() };
+}
+const CI = {
+  copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="8.5" y="8.5" width="11" height="12" rx="2.6"/><path d="M15.5 8.5V6.6A2.6 2.6 0 0 0 12.9 4H7.1a2.6 2.6 0 0 0-2.6 2.6v8.3a2.6 2.6 0 0 0 2.6 2.6h1.4"/></svg>',
+  up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M7.5 10.6V20H5.2a1.7 1.7 0 0 1-1.7-1.7v-6a1.7 1.7 0 0 1 1.7-1.7zm0 0 3.7-6.3a1.7 1.7 0 0 1 3.1 1.3l-.9 3.6h4.8a2.1 2.1 0 0 1 2 2.5l-1.3 6.4a2.3 2.3 0 0 1-2.2 1.9H7.5"/></svg>',
+  down:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><g transform="rotate(180 12 12)"><path d="M7.5 10.6V20H5.2a1.7 1.7 0 0 1-1.7-1.7v-6a1.7 1.7 0 0 1 1.7-1.7zm0 0 3.7-6.3a1.7 1.7 0 0 1 3.1 1.3l-.9 3.6h4.8a2.1 2.1 0 0 1 2 2.5l-1.3 6.4a2.3 2.3 0 0 1-2.2 1.9H7.5"/></g></svg>',
+  send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5.8 11.2 12 5l6.2 6.2"/></svg>',
+  sug:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v7a4 4 0 0 0 4 4h9M15 11l4 4-4 4"/></svg>'
+};
+const chatTime = ts => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+function chatDay(ts){ const d = fmtD(new Date(ts)), t = todayStr(); return d === t ? 'Today' : d === addDays(t, -1) ? 'Yesterday' : diffDays(d, t) < 7 ? WD[wdOf(d)] : dateLabel(d); }
+const CHAT_HELLO = "Hi, I'm Coach. Ask me about your food, your training or anything in your log.\n↳ How much protein do I have left today?\n↳ What is my session today?";
+function chatMsgHTML(m, last, fresh){
+  if (m.role === 'user') return `<div class="cm u${m.pending ? ' pending' : ''}${fresh ? ' in' : ''}"><div class="bub">${esc(m.text)}<span class="tm">${chatTime(m.ts)}</span></div></div>`;
+  const md = chatMD(m.text), acts = !m.streaming && !m.intro;
+  return `<div class="cm a${m.streaming ? ' stream' : ''}${fresh ? ' in' : ''}"><div class="md">${md.html}</div>${acts ? `<div class="acts">
+      <button data-act="chatcopy" data-n="${m.n}" aria-label="Copy">${CI.copy}</button>
+      <button class="${m.rating === 1 ? 'on' : ''}" data-act="chatrate" data-n="${m.n}" data-v="1" aria-label="Good reply" aria-pressed="${m.rating === 1}">${CI.up}</button>
+      <button class="${m.rating === -1 ? 'on' : ''}" data-act="chatrate" data-n="${m.n}" data-v="-1" aria-label="Bad reply" aria-pressed="${m.rating === -1}">${CI.down}</button></div>` : ''}
+    ${last && !m.streaming && md.sugs.length && !chat.sending ? `<div class="sugs">${md.sugs.slice(0, 3).map(q => `<button class="sugb" data-act="chatsug" data-q="${esc(q)}">${CI.sug}<span>${esc(q)}</span></button>`).join('')}</div>` : ''}</div>`;
+}
+function chatLogHTML(){
+  if (!cloud.token) return `<div class="chat-empty">Coach keeps your conversation in your cloud backup, so it needs Cloud backup turned on.<br><button class="btn soft" data-act="chatsettings" data-p="cloud">Turn on Cloud backup</button></div>`;
+  if (chat.loadErr === 'auth') return `<div class="chat-empty">Your cloud passphrase was not accepted.<br><button class="btn soft" data-act="chatsettings" data-p="cloud">Check Cloud backup</button></div>`;
+  let h = chat.mode === 'pretend' ? `<p class="chat-mode">Pretend replies until the API key is added</p>` : '';
+  if (chat.more) h += `<button class="chat-more" data-act="chatmore">Show earlier messages</button>`;
+  const list = chat.msgs.concat(chat.draft ? [chat.draft] : []);
+  if (!list.length) return h + chatMsgHTML({ n:'hi', role:'assistant', text:CHAT_HELLO, intro:true }, true);
+  let day = '';
+  list.forEach((m, i) => { const d = chatDay(m.ts); if (d !== day) { day = d; h += `<span class="datepill">${d}</span>`; }
+    h += chatMsgHTML(m, i === list.length - 1, chat.fresh && chat.fresh.has(m)); });
+  if (chat.status) h += `<div class="cm a st"><span class="shim">${esc(chat.status)}</span></div>`;
+  if (chat.err) h += `<div class="cm err" role="alert">${esc(chat.err.message)}${chat.err.retry ? `<button data-act="chatretry">Try again</button>` : ''}</div>`;
+  return h;
+}
+const chatNearBottom = el => el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+function renderChatLog(toBottom){
+  const el = $('#chatlog'); if (!el) return;
+  const pin = toBottom || chatNearBottom(el);
+  el.innerHTML = chatLogHTML(); chat.fresh = null;
+  if (pin) el.scrollTop = el.scrollHeight;
+}
+let draftRaf = 0;
+function chatDraftPaint(){
+  if (draftRaf) return;
+  draftRaf = requestAnimationFrame(() => { draftRaf = 0;
+    const el = $('#chatlog'), md = el && $('.cm.stream .md', el); if (!md || !chat.draft) return;
+    const pin = chatNearBottom(el); md.innerHTML = chatMD(chat.draft.text).html; if (pin) el.scrollTop = el.scrollHeight; });
+}
+function chatInput(){
+  const ta = $('#chatq'); if (!ta) return;
+  ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 150) + 'px';
+  $('.composer').classList.toggle('has', !!ta.value.trim());
+}
+
+/* send one message and stream the reply: user (the stored message), status, delta, done or error */
+async function chatSend(text){
+  text = String(text || '').trim();
+  if (!text || chat.sending || !cloud.token) return;
+  const ta = $('#chatq'); if (ta && ta.value.trim() === text) { ta.value = ''; chatInput(); }
+  chat.sending = true; chat.err = null; chat.status = ''; chat.draft = null;
+  const temp = { n:'p' + Date.now(), role:'user', text, ts: Date.now(), pending:true };
+  chat.msgs.push(temp); chat.fresh = new Set([temp]); renderChatLog(true);
+  let res;
+  try { res = await fetch('/api/chat', { method:'POST', cache:'no-store', headers:{ Authorization:'Bearer ' + cloud.token, 'Content-Type':'application/json' },
+    body: JSON.stringify({ text, snapshot: chatSnapshot() }) }); }
+  catch(e) { return chatFail(temp, { message:'No connection. Try again when you are back online.', retry:text }); }
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    return chatFail(temp, j.error === 'cap' ? { message:`That's today's €${j.spend ? j.spend.capEur : 1} for Coach. It's back tomorrow.` }
+      : res.status === 401 ? { message:'Your cloud passphrase was not accepted.' } : { message:'Coach could not answer. Try again.', retry:text });
+  }
+  const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '', finished = false;
+  try {
+    for (;;) {
+      const { value, done } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream:true });
+      let i; while ((i = buf.indexOf('\n\n')) >= 0) {
+        const line = buf.slice(0, i); buf = buf.slice(i + 2);
+        if (!line.startsWith('data:')) continue;
+        const ev = JSON.parse(line.slice(5));
+        if (ev.t === 'user') { const k = chat.msgs.indexOf(temp); if (k >= 0) chat.msgs[k] = ev.msg; }
+        else if (ev.t === 'status') { chat.status = ev.text; renderChatLog(); }
+        else if (ev.t === 'delta') {
+          if (!chat.draft) { chat.status = ''; chat.draft = { n:'d', role:'assistant', text:'', ts: Date.now(), streaming:true }; chat.fresh = new Set([chat.draft]); renderChatLog(); }
+          chat.draft.text += ev.text; chatDraftPaint();
+        }
+        else if (ev.t === 'done') { finished = true; chat.draft = null; chat.msgs.push(ev.msg); if (ev.spend) chat.spend = ev.spend; }
+        else if (ev.t === 'error') { finished = true; chat.draft = null; chat.err = { message: ev.message, retry: ev.code === 'refusal' ? null : text }; }
+      }
+    }
+  } catch(e) {}
+  if (!finished) chat.err = { message:'The reply was cut off. Pull to refresh it, or try again.', retry:text };
+  chat.sending = false; chat.status = ''; chat.draft = null;
+  chatCache(); renderChatLog();
+  if (!finished) chatLoad();   // the server finishes and saves a reply even when the connection drops
+}
+function chatFail(temp, err){
+  if (temp) { temp.pending = false; temp.failed = true; }
+  chat.err = err; chat.sending = false; chat.status = ''; chat.draft = null; renderChatLog(true);
+}
+
+/* opening and closing, after Revolut's AI */
+function openChat(){
+  if (chat.open) return;
+  chat.open = true; closeMenu(); pullReset(true);
+  const el = $('#chat'), fx = $('#chatfx');
+  renderChatLog(true); el.hidden = false; fx.hidden = false; document.body.classList.add('lock', 'chatting');
+  if (!reduced()) {
+    $('.fxb', fx).animate([{ opacity:0 }, { opacity:1 }], { duration:340, easing:EASE.smooth, fill:'forwards' });
+    $('.fxt', fx).animate([{ opacity:0 }, { opacity:.55 }], { duration:340, easing:EASE.smooth, fill:'forwards' });
+    el.animate([{ opacity:0, filter:'blur(14px)', transform:'scale(1.03)' }, { opacity:0, filter:'blur(14px)', transform:'scale(1.03)', offset:.3 },
+      { opacity:1, filter:'blur(0px)', transform:'none' }], { duration:640, easing:EASE.smooth });
+  } else { $('.fxb', fx).style.opacity = 1; }
+  el.focus({ preventScroll:true });   // focus moves into the conversation, without a ring on the close button
+  chatLoad();
+}
+function closeChat(){
+  if (!chat.open) return;
+  chat.open = false;
+  const el = $('#chat'), fx = $('#chatfx'), ta = $('#chatq'); if (ta) ta.blur();
+  const fin = () => { if (chat.open) return; el.hidden = true; fx.hidden = true; el.getAnimations().concat($$('i', fx).flatMap(i => i.getAnimations())).forEach(a => a.cancel());
+    document.body.classList.remove('lock', 'chatting'); };
+  if (reduced()) return fin();
+  $$('i', fx).forEach(i => i.animate([{ opacity: getComputedStyle(i).opacity }, { opacity:0 }], { duration:340, easing:'cubic-bezier(.4,0,.2,1)', fill:'forwards' }));
+  el.animate([{ transform:'none', borderRadius:'0px', opacity:1 }, { transform:'scale(.84) translateY(3%)', borderRadius:'48px', opacity:0 }],
+    { duration:320, easing:'cubic-bezier(.4,0,.2,1)', fill:'forwards' }).finished.then(fin, fin);
+}
+
+/* pull down at the top of the page: it follows the finger with resistance and a hint appears; let go past the line to open */
+const PULL_OPEN = 64;
+const pull = { id:null, x0:0, y0:0, on:false, d:0 };
+const pullBlocked = t => !!(t.closest && t.closest('.week, .wk-head, .swipe, .drops, input, textarea, select, .dock, .sheet, .menu, .chat, .alertwrap'));
+function pullSet(d){
+  if (!pull.d && d) { const sel = window.getSelection && getSelection(); if (sel) sel.removeAllRanges(); }   // a mouse drag must not leave text selected
+  pull.d = d; document.body.classList.add('pulling'); document.body.classList.remove('pullback');
+  [$('#app'), $('#navbar')].forEach(e => { e.style.transform = d ? `translateY(${d}px)` : ''; });
+  const h = $('#pullhint'); h.style.opacity = Math.min(1, d / PULL_OPEN).toFixed(2); h.textContent = d >= PULL_OPEN ? 'Let go to ask Coach' : 'Pull to ask Coach';
+}
+function pullReset(instant){
+  const was = pull.d; pull.on = false; pull.id = null; pull.d = 0;
+  document.body.classList.remove('pulling'); if (was && !instant && !reduced()) document.body.classList.add('pullback');
+  [$('#app'), $('#navbar')].forEach(e => { e.style.transform = ''; }); $('#pullhint').style.opacity = 0;
+  setTimeout(() => document.body.classList.remove('pullback'), 600);
+}
+const pullDist = dy => 150 * (1 - Math.exp(-Math.max(0, dy) / 240));
+document.addEventListener('pointerdown', e => {
+  if (!chatFor(ui.tab) || chat.open || ui.sheet || ui.menu || e.button > 0 || window.scrollY > 0 || pullBlocked(e.target)) return;
+  pull.id = e.pointerId; pull.x0 = e.clientX; pull.y0 = e.clientY; pull.on = false;
+}, { passive:true });
+document.addEventListener('pointermove', e => {
+  if (pull.id !== e.pointerId) return;
+  const dx = e.clientX - pull.x0, dy = e.clientY - pull.y0;
+  if (!pull.on) {
+    if (dy > 10 && dy > Math.abs(dx) * 1.4 && window.scrollY <= 0) pull.on = true;
+    else { if (Math.abs(dx) > 10 || dy < -6) pull.id = null; return; }
+  }
+  pullSet(pullDist(dy - 10));
+}, { passive:true });
+const pullEnd = e => { if (pull.id !== e.pointerId) return; const open = pull.on && pull.d >= PULL_OPEN && e.type === 'pointerup'; pull.id = null;
+  if (open) { if (navigator.vibrate) navigator.vibrate(8); openChat(); } else if (pull.d) pullReset(); };
+document.addEventListener('pointerup', pullEnd);
+document.addEventListener('pointercancel', pullEnd);
+document.addEventListener('touchmove', e => { if (pull.on) e.preventDefault(); }, { passive:false });   // the page holds still while it is pulled
+// a trackpad (testing on the Mac): scrolling up past the top pulls the same way
+let wheelPull = 0, wheelAt = 0, wheelT = 0, wheelOk = false;
+window.addEventListener('wheel', e => {
+  const now = Date.now(); if (now - wheelAt > 300) wheelOk = window.scrollY <= 0 && chatFor(ui.tab) && !chat.open && !ui.sheet && !ui.menu; wheelAt = now;
+  if (!wheelOk || e.deltaY >= 0 || window.scrollY > 0) { if (wheelPull && e.deltaY > 0) { wheelPull = 0; pullReset(); } return; }
+  wheelPull += -e.deltaY; pullSet(pullDist(wheelPull));
+  clearTimeout(wheelT); wheelT = setTimeout(() => { const open = pull.d >= PULL_OPEN; wheelPull = 0; if (open) openChat(); else pullReset(); }, 160);
+}, { passive:true });
+
+/* ---------- Settings, Coach chat: the switch, the profile and importing earlier chats ---------- */
+function chatSettings(){
+  if (cloud.token && !chat.profile && !chat.loading) setTimeout(chatLoad);
+  const pr = chat.profile, on = chatOn();
+  let h = `<div class="group"><label class="switch"><input type="checkbox" data-chg="betachat" ${on ? 'checked' : ''}>Coach chat</label></div>
+    <p class="note">A beta. Pull down at the top of Train, Eat or Progress to talk to Coach. It sees your log and remembers the conversation.${chat.mode === 'pretend' ? ' Replies are pretend ones until the API key is added on the server.' : ''}${chat.mode === 'live' && chat.spend ? ` Today Coach has used €${chat.spend.eur.toFixed(2)} of €${chat.spend.capEur}.` : ''}</p>`;
+  if (!cloud.token) return h + `<h2>Needs Cloud backup</h2><div class="group">${srow('cloud', 'Off')}</div>
+    <p class="note">Coach keeps your conversation and profile in your cloud backup, so it works on all your devices.</p>`;
+  return h + `<h2>What Coach knows about you</h2>
+    <div class="group pad stack"><textarea id="chatprofile" class="field area" rows="9" placeholder="${pr ? 'Your goals, training, food rules, routine and how you like answers.' : 'Loading…'}" aria-label="Your profile">${esc(pr ? pr.text : '')}</textarea>
+      <button class="btn" data-act="chatprofilesave">Save profile</button></div>
+    <p class="note">Coach reads this before every reply. Import earlier chats to have it written for you, then edit it here.${pr && pr.updatedAt ? ` Last changed ${agoText(Date.parse(pr.updatedAt))}.` : ''}</p>
+    <h2>Chat history</h2>
+    <div class="group"><label class="srow act">Import chat history<input id="chatimport" type="file" accept=".json,.txt,.md,application/json,text/plain,text/markdown" hidden></label>
+      <button class="srow act danger" data-act="chatclear">Clear the conversation</button></div>
+    <p class="note">Import a Claude export (conversations.json) or a text file. You pick the chats, Coach reads them once and writes the profile above. Clearing the conversation keeps the profile.</p>`;
+}
+/* a Claude export (conversations.json: chats with chat_messages) or plain text */
+function chatParseHistory(text, name){
+  try {
+    const j = JSON.parse(text), arr = Array.isArray(j) ? j : (j.conversations || [j]);
+    const textOf = m => m.text || (Array.isArray(m.content) ? m.content.filter(x => x && x.type === 'text').map(x => x.text).join('\n') : typeof m.content === 'string' ? m.content : '');
+    const convs = arr.filter(c => c && (c.chat_messages || c.messages)).map(c => ({
+      title: c.name || c.title || 'Untitled chat', date: c.updated_at || c.created_at || '',
+      msgs: (c.chat_messages || c.messages).map(m => ({ who: /human|user/i.test(m.sender || m.role || '') ? 'Me' : 'Coach', text: textOf(m) })).filter(m => m.text && m.text.trim())
+    })).filter(c => c.msgs.length);
+    return convs;
+  } catch(e) {}
+  return text.trim() ? [{ title: name || 'Imported text', date:'', msgs:[{ who:'', text }] }] : [];
+}
+const historyText = convs => convs.map(c => `## ${c.title}${c.date ? ` (${c.date.slice(0, 10)})` : ''}\n\n` + c.msgs.map(m => m.who ? `${m.who}: ${m.text}` : m.text).join('\n\n')).join('\n\n');
+function chatImportSheet(){
+  const sh = ui.sheet;
+  if (sh.busy) return sheetHead('Import chat history') + `<div class="chat-busy"><span class="shim">Reading your chats…</span><p class="note">A long history can take a minute. Keep this open.</p></div>`;
+  const chars = sh.convs.reduce((a, c, i) => a + (sh.sel.has(i) ? c.chars : 0), 0), tokens = Math.round(chars / 3.6), tooMany = tokens > 600000;
+  const eur = (tokens * 2 + 3000 * 10) / 1e6 * 0.92;
+  return sheetHead('Import chat history') + `<p class="note" style="margin-top:4px">Pick the chats Coach should learn from. It reads them once and writes your profile.</p>
+    <div class="group">${sh.convs.map((c, i) => `<label class="frow improw"><input type="checkbox" data-act="chatimpsel" data-i="${i}" ${sh.sel.has(i) ? 'checked' : ''}>
+      <span class="grow"><strong>${esc(c.title)}</strong><span class="small muted">${c.date ? dateLabel(fmtD(new Date(c.date))) + ', ' : ''}${c.msgs.length} message${c.msgs.length === 1 ? '' : 's'}</span></span></label>`).join('')}</div>
+    <p class="note">${sh.sel.size ? `About ${fmtInt(tokens)} tokens${chat.mode === 'live' ? `, roughly €${eur.toFixed(2)} once` : ''}.` : 'Pick at least one chat.'}${tooMany ? ' That is more than Coach can read at once, so pick fewer.' : ''}</p>
+    <button class="btn block" data-act="chatimpgo" ${!sh.sel.size || tooMany ? 'disabled' : ''}>Write my profile</button>`;
+}
+async function chatImport(force){
+  const sh = ui.sheet; if (!sh || sh.type !== 'chatimport' || (sh.busy && !force)) return;
+  const text = historyText(sh.convs.filter((c, i) => sh.sel.has(i)));
+  sh.busy = true; drawSheet();
+  try {
+    const j = await chatApi('POST', '?distill=1', { text, force: !!force });
+    chat.profile = j.profile; if (j.spend) chat.spend = j.spend;
+    closeSheet(); render(); toast('Profile written. Check it below');
+  } catch(e) {
+    sh.busy = false; drawSheet();
+    if (e.body && e.body.error === 'cap' && !force) {
+      if (await askGlass('Over today’s limit', `Reading this goes past today’s €${e.body.spend ? e.body.spend.capEur : 1} for Coach. Read it anyway?`, 'Read it')) chatImport(true);
+    } else toast(e.body && e.body.error === 'too-long' ? 'That is too much at once, pick fewer chats' : 'Could not write the profile');
+  }
+}
+$('#chat .chat-top .tbtn').innerHTML = ICON.close;
+$('#chat .send').innerHTML = CI.send;
+
+if (typeof window !== 'undefined') window.__coach = { chat: () => chat, openChat, closeChat, chatSnapshot, chatMD, S: () => S, setS: v => { S = v; }, ui, render, getPlan, sessionOn, isRestDay, RT, suggest, suggestGap, H, dayType, sumMacros, addEntry, foodById, mergeHistory, saveState: () => saveState(), cloud, syncNow, merge3, planDay };
 render();
 if (cloud.token) syncNow();
 </script>
