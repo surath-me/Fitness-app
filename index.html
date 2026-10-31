@@ -761,12 +761,12 @@ body.lock{overflow:hidden}
 <div id="sheet" class="sheet glass" role="dialog" aria-modal="true" hidden></div>
 <div id="alert" class="alertwrap" hidden></div>
 <div id="toast" class="toast glass ghost" role="status" hidden></div>
-<div id="pullhint" class="pullhint" aria-hidden="true">Pull to ask Coach</div>
+<div id="pullhint" class="pullhint" aria-hidden="true">Pull to ask Coach AI</div>
 <div id="chatfx" class="chatfx" hidden aria-hidden="true"><i class="fxb"></i><i class="fxt"></i></div>
-<div id="chat" class="chat" role="dialog" aria-modal="true" aria-label="Coach" tabindex="-1" hidden>
-  <div class="chat-top"><button class="tbtn glass" data-act="chatclose" aria-label="Close"></button><h2>Coach</h2><span aria-hidden="true"></span></div>
+<div id="chat" class="chat" role="dialog" aria-modal="true" aria-label="Coach AI" tabindex="-1" hidden>
+  <div class="chat-top"><button class="tbtn glass" data-act="chatclose" aria-label="Close"></button><h2>Coach AI</h2><span aria-hidden="true"></span></div>
   <div id="chatlog" class="chat-log" aria-live="polite"></div>
-  <div class="chat-in"><div class="composer glass"><textarea id="chatq" rows="1" placeholder="Type a message…" enterkeyhint="send" autocomplete="off" aria-label="Message to Coach"></textarea><button class="send" data-act="chatsend" aria-label="Send"></button></div></div>
+  <div class="chat-in"><div class="composer glass"><textarea id="chatq" rows="1" placeholder="Type a message…" enterkeyhint="send" autocomplete="off" aria-label="Message to Coach AI"></textarea><button class="send" data-act="chatsend" aria-label="Send"></button></div></div>
 </div>
 <script>
 'use strict';
@@ -1972,7 +1972,7 @@ function field(label, path, val, unit){
   return `<label class="frow"><span class="grow">${label}${unit ? ` <span class="muted">${unit}</span>` : ''}</span><input class="field" type="text" inputmode="decimal" data-set="${path}" value="${esc(val)}" aria-label="${esc(label)}${unit ? ' ' + unit : ''}"></label>`;
 }
 /* Setup is laid out like the Health profile: a header, then grouped rows that open their own page */
-const SETUP_PAGES = { targets:'Daily targets', caps:'Food limits', split:'Weekly split', lifts:'Lift settings', foods:'My foods', cloud:'Cloud backup', chat:'Coach chat' };
+const SETUP_PAGES = { targets:'Daily targets', caps:'Food limits', split:'Weekly split', lifts:'Lift settings', foods:'My foods', cloud:'Cloud backup', chat:'Coach AI' };
 const srow = (page, value) => `<button class="srow" data-act="setuppage" data-p="${page}"><span class="grow">${SETUP_PAGES[page]}</span>${value ? `<span class="v">${value}</span>` : ''}${ICON.chevR}</button>`;
 function setupPage(p){
   const st = S.settings, T = st.targets, C = st.caps;
@@ -2724,7 +2724,7 @@ const H = {
   chatsettings(t){ closeChat(); ui.tab = 'setup'; ui.setupPage = t.dataset.p || 'chat'; window.scrollTo(0, 0); render({ transition:true, tab:true }); },
   chatprofilesave(){ const ta = $('#chatprofile'); if (!ta) return;
     chatApi('PUT', '?profile=1', { text: ta.value }).then(j => { chat.profile = j.profile; ta.blur(); toast('Profile saved'); }, () => toast('Could not save the profile')); },
-  chatclear(){ askGlass('Clear the conversation?', 'Every message with Coach is deleted, on all your devices. What Coach knows about you stays.', 'Clear').then(ok => {
+  chatclear(){ askGlass('Clear the conversation?', 'Every message with Coach AI is deleted, on all your devices. What Coach AI knows about you stays.', 'Clear').then(ok => {
     if (!ok) return; chatApi('DELETE').then(() => { chat.msgs = []; chat.more = false; chatCache(); toast('Conversation cleared'); }, () => toast('Could not clear it')); }); },
   chatimpgo(){ chatImport(); }
 };
@@ -2997,7 +2997,7 @@ document.addEventListener('change', e => {
   if (t.dataset.set) setPath(t.dataset.set, t.value);
   else if (t.dataset.chg === 'betachat') {
     S.settings.beta = Object.assign({}, S.settings.beta, { chat: t.checked }); saveState();
-    if (t.checked) { toast('Pull down on Train, Eat or Progress to talk to Coach'); chatLoad(); }
+    if (t.checked) { toast('Pull down on Train, Eat or Progress to talk to Coach AI'); chatLoad(); }
     setTimeout(() => render(), reduced() ? 0 : 260);
   }
   else if (t.dataset.act === 'chatimpsel' && ui.sheet) {
@@ -3194,7 +3194,7 @@ document.addEventListener('visibilitychange', () => { if (!cloud.token) return; 
 
 /* =====================================================================
    COACH CHAT (beta, Settings > Beta). One continuous conversation with Claude through /api/chat, which keeps it in the
-   cloud next to the backup and adds what Coach knows about you (your profile). Pull down at the top of Train, Eat or
+   cloud next to the backup and adds what Coach AI knows about you (your profile). Pull down at the top of Train, Eat or
    Progress to open it (`pullStart`): the page blurs and turns milky, the conversation sharpens in over it (after
    Revolut's AI), and closing shrinks it into a card that fades as the page comes back. Each message carries a short
    summary of your log (`chatSnapshot`); replies stream in, with a shimmering status line while Claude works.
@@ -3291,7 +3291,7 @@ const CI = {
 };
 const chatTime = ts => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 function chatDay(ts){ const d = fmtD(new Date(ts)), t = todayStr(); return d === t ? 'Today' : d === addDays(t, -1) ? 'Yesterday' : diffDays(d, t) < 7 ? WD[wdOf(d)] : dateLabel(d); }
-const CHAT_HELLO = "Hi, I'm Coach. Ask me about your food, your training or anything in your log.\n↳ How much protein do I have left today?\n↳ What is my session today?";
+const CHAT_HELLO = "Hi, I'm Coach AI. Ask me about your food, your training or anything in your log.\n↳ How much protein do I have left today?\n↳ What is my session today?";
 /* as in Messages: a time line over the first message of a day, or after an hour's quiet; no time inside the bubbles */
 const CHAT_GAP = 3600000;
 const chatTimeLine = (m, prev) => prev && fmtD(new Date(prev.ts)) === fmtD(new Date(m.ts)) && m.ts - prev.ts < CHAT_GAP ? ''
@@ -3305,7 +3305,7 @@ function chatMsgHTML(m, o = {}){
 }
 const chatErrHTML = err => `<div class="cm err" role="alert">${esc(err.message)}${err.retry ? `<button data-act="chatretry">Try again</button>` : ''}</div>`;
 function chatLogHTML(){
-  if (!cloud.token) return `<div class="chat-empty">Coach keeps your conversation in your cloud backup, so it needs Cloud backup turned on.<br><button class="btn soft" data-act="chatsettings" data-p="cloud">Turn on Cloud backup</button></div>`;
+  if (!cloud.token) return `<div class="chat-empty">Coach AI keeps your conversation in your cloud backup, so it needs Cloud backup turned on.<br><button class="btn soft" data-act="chatsettings" data-p="cloud">Turn on Cloud backup</button></div>`;
   if (chat.loadErr === 'auth') return `<div class="chat-empty">Your cloud passphrase was not accepted.<br><button class="btn soft" data-act="chatsettings" data-p="cloud">Check Cloud backup</button></div>`;
   let h = '<div class="chat-inner">' + (chat.mode === 'pretend' ? `<p class="chat-mode">Pretend replies until the API key is added</p>` : '');
   if (chat.more) h += `<button class="chat-more" data-act="chatmore">Show earlier messages</button>`;
@@ -3462,8 +3462,8 @@ async function chatSend(text){
   await landed;   // the status line and the reply wait for your bubble to land
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));
-    return chatFail(temp, j.error === 'cap' ? { message:`That's today's €${j.spend ? j.spend.capEur : 1} for Coach. It's back tomorrow.` }
-      : res.status === 401 ? { message:'Your cloud passphrase was not accepted.' } : { message:'Coach could not answer. Try again.', retry:text });
+    return chatFail(temp, j.error === 'cap' ? { message:`That's today's €${j.spend ? j.spend.capEur : 1} for Coach AI. It's back tomorrow.` }
+      : res.status === 401 ? { message:'Your cloud passphrase was not accepted.' } : { message:'Coach AI could not answer. Try again.', retry:text });
   }
   const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '', finished = false;
   const status = t => { let st = $('#chatlog .cm.st');
@@ -3565,7 +3565,7 @@ function pullSet(d){
   pull.d = d; document.body.classList.add('pulling');
   if (!pull.raf) pull.raf = requestAnimationFrame(pullFrame);
   const h = $('#pullhint'), armed = d >= PULL_OPEN; h.style.opacity = Math.min(1, d / PULL_OPEN).toFixed(2);
-  if (armed !== pull.armed) { pull.armed = armed; h.classList.toggle('armed', armed); h.textContent = armed ? 'Let go to ask Coach' : 'Pull to ask Coach'; if (armed) haptic(); }
+  if (armed !== pull.armed) { pull.armed = armed; h.classList.toggle('armed', armed); h.textContent = armed ? 'Let go to ask Coach AI' : 'Pull to ask Coach AI'; if (armed) haptic(); }
 }
 /* every part springs back from where it is, the top first and each one a moment after the one above */
 function pullSpringBack(){
@@ -3642,18 +3642,18 @@ window.addEventListener('wheel', e => {
 function chatSettings(){
   if (cloud.token && !chat.profile && !chat.loading) setTimeout(chatLoad);
   const pr = chat.profile, on = chatOn();
-  let h = `<div class="group"><label class="switch"><input type="checkbox" data-chg="betachat" ${on ? 'checked' : ''}>Coach chat</label></div>
-    <p class="note">A beta. Pull down at the top of Train, Eat or Progress to talk to Coach. It sees your log and remembers the conversation.${chat.mode === 'pretend' ? ' Replies are pretend ones until the API key is added on the server.' : ''}${chat.mode === 'live' && chat.spend ? ` Today Coach has used €${chat.spend.eur.toFixed(2)} of €${chat.spend.capEur}.` : ''}</p>`;
+  let h = `<div class="group"><label class="switch"><input type="checkbox" data-chg="betachat" ${on ? 'checked' : ''}>Coach AI</label></div>
+    <p class="note">A beta. Pull down at the top of Train, Eat or Progress to talk to Coach AI. It sees your log and remembers the conversation.${chat.mode === 'pretend' ? ' Replies are pretend ones until the API key is added on the server.' : ''}${chat.mode === 'live' && chat.spend ? ` Today Coach AI has used €${chat.spend.eur.toFixed(2)} of €${chat.spend.capEur}.` : ''}</p>`;
   if (!cloud.token) return h + `<h2>Needs Cloud backup</h2><div class="group">${srow('cloud', 'Off')}</div>
-    <p class="note">Coach keeps your conversation and profile in your cloud backup, so it works on all your devices.</p>`;
-  return h + `<h2>What Coach knows about you</h2>
+    <p class="note">Coach AI keeps your conversation and profile in your cloud backup, so it works on all your devices.</p>`;
+  return h + `<h2>What Coach AI knows about you</h2>
     <div class="group pad stack"><textarea id="chatprofile" class="field area" rows="9" placeholder="${pr ? 'Your goals, training, food rules, routine and how you like answers.' : 'Loading…'}" aria-label="Your profile">${esc(pr ? pr.text : '')}</textarea>
       <button class="btn" data-act="chatprofilesave">Save profile</button></div>
-    <p class="note">Coach reads this before every reply. Import earlier chats to have it written for you, then edit it here.${pr && pr.updatedAt ? ` Last changed ${agoText(Date.parse(pr.updatedAt))}.` : ''}</p>
+    <p class="note">Coach AI reads this before every reply. Import earlier chats to have it written for you, then edit it here.${pr && pr.updatedAt ? ` Last changed ${agoText(Date.parse(pr.updatedAt))}.` : ''}</p>
     <h2>Chat history</h2>
     <div class="group"><label class="srow act">Import chat history<input id="chatimport" type="file" accept=".json,.txt,.md,application/json,text/plain,text/markdown" hidden></label>
       <button class="srow act danger" data-act="chatclear">Clear the conversation</button></div>
-    <p class="note">Import a Claude export (conversations.json) or a text file. You pick the chats, Coach reads them once and writes the profile above. Clearing the conversation keeps the profile.</p>`;
+    <p class="note">Import a Claude export (conversations.json) or a text file. You pick the chats, Coach AI reads them once and writes the profile above. Clearing the conversation keeps the profile.</p>`;
 }
 /* a Claude export (conversations.json: chats with chat_messages) or plain text */
 function chatParseHistory(text, name){
@@ -3674,10 +3674,10 @@ function chatImportSheet(){
   if (sh.busy) return sheetHead('Import chat history') + `<div class="chat-busy"><span class="shim">Reading your chats…</span><p class="note">A long history can take a minute. Keep this open.</p></div>`;
   const chars = sh.convs.reduce((a, c, i) => a + (sh.sel.has(i) ? c.chars : 0), 0), tokens = Math.round(chars / 3.6), tooMany = tokens > 600000;
   const eur = (tokens * 2 + 3000 * 10) / 1e6 * 0.92;
-  return sheetHead('Import chat history') + `<p class="note" style="margin-top:4px">Pick the chats Coach should learn from. It reads them once and writes your profile.</p>
+  return sheetHead('Import chat history') + `<p class="note" style="margin-top:4px">Pick the chats Coach AI should learn from. It reads them once and writes your profile.</p>
     <div class="group">${sh.convs.map((c, i) => `<label class="frow improw"><input type="checkbox" data-act="chatimpsel" data-i="${i}" ${sh.sel.has(i) ? 'checked' : ''}>
       <span class="grow"><strong>${esc(c.title)}</strong><span class="small muted">${c.date ? dateLabel(fmtD(new Date(c.date))) + ', ' : ''}${c.msgs.length} message${c.msgs.length === 1 ? '' : 's'}</span></span></label>`).join('')}</div>
-    <p class="note">${sh.sel.size ? `About ${fmtInt(tokens)} tokens${chat.mode === 'live' ? `, roughly €${eur.toFixed(2)} once` : ''}.` : 'Pick at least one chat.'}${tooMany ? ' That is more than Coach can read at once, so pick fewer.' : ''}</p>
+    <p class="note">${sh.sel.size ? `About ${fmtInt(tokens)} tokens${chat.mode === 'live' ? `, roughly €${eur.toFixed(2)} once` : ''}.` : 'Pick at least one chat.'}${tooMany ? ' That is more than Coach AI can read at once, so pick fewer.' : ''}</p>
     <button class="btn block" data-act="chatimpgo" ${!sh.sel.size || tooMany ? 'disabled' : ''}>Write my profile</button>`;
 }
 async function chatImport(force){
@@ -3691,7 +3691,7 @@ async function chatImport(force){
   } catch(e) {
     sh.busy = false; drawSheet();
     if (e.body && e.body.error === 'cap' && !force) {
-      if (await askGlass('Over today’s limit', `Reading this goes past today’s €${e.body.spend ? e.body.spend.capEur : 1} for Coach. Read it anyway?`, 'Read it')) chatImport(true);
+      if (await askGlass('Over today’s limit', `Reading this goes past today’s €${e.body.spend ? e.body.spend.capEur : 1} for Coach AI. Read it anyway?`, 'Read it')) chatImport(true);
     } else toast(e.body && e.body.error === 'too-long' ? 'That is too much at once, pick fewer chats' : 'Could not write the profile');
   }
 }

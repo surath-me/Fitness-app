@@ -21,7 +21,7 @@ const EUR_PER_USD = 0.92;
 const CONTEXT_MESSAGES = 40;   // the latest messages sent with each request; the profile carries what lasts
 const PAGE = 80;
 
-const INSTRUCTIONS = `You are Coach, the personal training and nutrition coach inside the Coach app. You talk with one person in a single ongoing conversation, like texting a coach who knows them well.
+const INSTRUCTIONS = `You are Coach AI, the personal training and nutrition coach inside the Coach app. You talk with one person in a single ongoing conversation, like texting a coach who knows them well.
 
 How to answer:
 - Be short, plain and direct, like a knowledgeable friend texting. A few sentences is usually right; go longer only when asked for a plan or an explanation.
@@ -32,7 +32,7 @@ How to answer:
 - You cannot change anything in the app yet. When something should be logged or changed, tell the person what to log or change.
 - Most replies end without follow-ups. Only when there is an obvious next question the person is likely to ask (for example after a plan, a choice or a number they will want to act on), end with one or two short ones, each on its own line starting with "↳ ". They become tap-to-send suggestions that stay under that reply, so phrase them in the person's voice.`;
 
-const NO_PROFILE = `There is no profile yet. Early in the conversation, ask whether they have earlier chats or notes you could learn from: they can import them in Settings, Coach chat, Import chat history. Until then, learn their goals and routine by asking.`;
+const NO_PROFILE = `There is no profile yet. Early in the conversation, ask whether they have earlier chats or notes you could learn from: they can import them in Settings, Coach AI, Import chat history. Until then, learn their goals and routine by asking.`;
 
 const DISTILL = `Below is an earlier conversation history between this person and an AI coach. Write the profile the Coach app will give you at the start of every future conversation.
 
@@ -185,13 +185,13 @@ function pretendReply(text, snapshot){
   if (t.includes('/long')) return { text: Array.from({ length: 6 }, (_, i) => `**Part ${i + 1}.** This is a long pretend reply to test scrolling and streaming. It keeps going for a while so the conversation has to scroll, and the newest words should stay in view while they arrive.`).join('\n\n') + '\n\n- One point\n- Another point\n- A third point\n\n↳ Can you shorten that?\n↳ What should I eat next?' };
   if (/protein|eat|food|meal|kcal|calorie/.test(t)) {
     const eaten = grab(/Eaten today: ([^\n]+?)\.?\n/), left = grab(/Left today: ([^\n]+?)\.?\n/);
-    return { text: `This is a pretend reply, Coach is not connected to Claude yet.\n\nFrom your log: you have eaten ${eaten || 'nothing yet'} today${left ? `, and ${left} is still open` : ''}. Once the API key is in, I will plan the rest of your day from these numbers.\n\n↳ What should I have for dinner?\n↳ Am I on track for protein this week?` };
+    return { text: `This is a pretend reply, Coach AI is not connected to Claude yet.\n\nFrom your log: you have eaten ${eaten || 'nothing yet'} today${left ? `, and ${left} is still open` : ''}. Once the API key is in, I will plan the rest of your day from these numbers.\n\n↳ What should I have for dinner?\n↳ Am I on track for protein this week?` };
   }
   if (/train|lift|session|gym|workout/.test(t)) {
     const plan = grab(/Training today: ([^\n]+)/);
-    return { text: `This is a pretend reply, Coach is not connected to Claude yet.\n\nToday's plan in the app: ${plan || 'no session'}. With the API key, I will look at your last sessions and tell you what to push and what to hold.\n\n↳ What weight for chest press today?\n↳ How did my last Push session go?` };
+    return { text: `This is a pretend reply, Coach AI is not connected to Claude yet.\n\nToday's plan in the app: ${plan || 'no session'}. With the API key, I will look at your last sessions and tell you what to push and what to hold.\n\n↳ What weight for chest press today?\n↳ How did my last Push session go?` };
   }
-  return { text: `This is a pretend reply. Coach is not connected to Claude yet, so I can't really answer, but everything you see here works the same way: your message is saved, this reply streams in word by word, and both are kept in your conversation.\n\nTry asking about **food** or **training** to see your app data come through, or send **/long** or **/error** to test those cases.` };   // like most real replies, no follow-ups
+  return { text: `This is a pretend reply. Coach AI is not connected to Claude yet, so I can't really answer, but everything you see here works the same way: your message is saved, this reply streams in word by word, and both are kept in your conversation.\n\nTry asking about **food** or **training** to see your app data come through, or send **/long** or **/error** to test those cases.` };   // like most real replies, no follow-ups
 }
 
 /* ---------- handler ---------- */
@@ -258,7 +258,7 @@ async function chat(env, req, res, live){
         if (type === 'status') send('status', { text: x }); else { reply += x; send('delta', { text: x }); }
       });
       const after = await addSpend(env, costUsd(out.usage));
-      if (out.stop === 'refusal' && !out.text) { send('error', { code: 'refusal', message: 'Coach could not answer that one.' }); return res.end(); }
+      if (out.stop === 'refusal' && !out.text) { send('error', { code: 'refusal', message: 'Coach AI could not answer that one.' }); return res.end(); }
       const msg = await appendMessage(env, meta, { role: 'assistant', text: out.text, ts: Date.now(), ...(out.stop === 'max_tokens' ? { cut: true } : {}) });
       send('done', { msg, spend: spendOut(after) });
     } else {
@@ -272,7 +272,7 @@ async function chat(env, req, res, live){
   } catch (e) {
     console.error(e);
     if (reply) await appendMessage(env, meta, { role: 'assistant', text: reply, ts: Date.now(), cut: true }).catch(() => {});
-    send('error', { code: e.status === 429 ? 'busy' : 'failed', message: e.status === 429 || e.status === 529 ? 'Claude is busy right now. Try again in a moment.' : 'Coach could not answer. Try again.' });
+    send('error', { code: e.status === 429 ? 'busy' : 'failed', message: e.status === 429 || e.status === 529 ? 'Claude is busy right now. Try again in a moment.' : 'Coach AI could not answer. Try again.' });
   }
   res.end();
 }
@@ -295,7 +295,7 @@ async function distill(env, req, res, live){
   } else {
     await wait(1500);
     const n = (text.match(/\n(You|Human|User|Me):/gi) || []).length;
-    profileText = `This is a pretend profile. Coach is not connected to Claude yet, so it could not read your ${Math.round(text.length / 1000)}k characters of history${n ? ` (${n} of your messages)` : ''}.\n\nOnce the API key is in, importing again writes the real profile here: your goals, training split, food rules and limits, routine and how you like answers.`;
+    profileText = `This is a pretend profile. Coach AI is not connected to Claude yet, so it could not read your ${Math.round(text.length / 1000)}k characters of history${n ? ` (${n} of your messages)` : ''}.\n\nOnce the API key is in, importing again writes the real profile here: your goals, training split, food rules and limits, routine and how you like answers.`;
   }
   const profile = { text: profileText, updatedAt: new Date().toISOString() };
   await redis(env, [['SET', K.profile(), JSON.stringify(profile)]]);
