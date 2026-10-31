@@ -790,7 +790,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.58';
+const APP_VERSION = '3.59';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3676,14 +3676,14 @@ function closeChat(){
   /* Safari lets a drag move the whole screen, page and all, most of all with the keyboard up: inside Coach AI a drag only
      scrolls the conversation (or the field, when its text is longer than it); with the keyboard up, only while that has
      room to go that way (at its ends the drag would carry on into the screen), otherwise its ends still bounce */
-  // with the keyboard up, dragging the conversation down 10 pt puts the keyboard away, and the drag carries on scrolling
-  // (Surath; a drag up leaves it)
+  // with the keyboard up, dragging the conversation down 50 pt puts the keyboard away, and the drag carries on scrolling
+  // (Surath: 10 pt was too short; a drag up leaves it)
   let dropped = false;
   document.addEventListener('touchstart', () => { dropped = false; }, { passive:true });
   document.addEventListener('touchmove', e => {
     if (!chat.open || e.touches.length !== 1) return;
     const y = e.touches[0].clientY, dy = y - lastY, t = e.target;
-    if (!dropped && document.activeElement === ta && y - y0 > 10 && Math.abs(e.touches[0].clientX - x0) < y - y0 && t.closest && t.closest('#chatlog')) { dropped = true; ta.blur(); }
+    if (!dropped && document.activeElement === ta && y - y0 > 50 && Math.abs(e.touches[0].clientX - x0) < y - y0 && t.closest && t.closest('#chatlog')) { dropped = true; ta.blur(); }
     if (!e.cancelable) { lastY = y; return; }
     lastY = y;
     const sc = t.closest && (t.closest('#chatlog') || (t === ta ? ta : null)), kb = document.documentElement.classList.contains('kbopen');
