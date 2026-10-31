@@ -644,7 +644,9 @@ body.lock{overflow:hidden}
 /* ---------- Coach chat (beta): pull down at the top of Train, Eat or Progress. After Revolut's AI: the page blurs and
    turns milky, the conversation sharpens in over it, and closing shrinks it into a card that fades as the page returns ---------- */
 .pullhint{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top) + 8px);z-index:21;text-align:center;font-size:13px;font-weight:500;color:var(--ink2);opacity:0;pointer-events:none}
-.pulling #app,.pulling #navbar{transition:none}
+.pulling #app,.pulling #navbar{transition:none;will-change:transform}   /* their own layers while pulled, so the phone does not repaint them every frame */
+.pullhint{transition:scale .45s var(--spring)}
+.pullhint.armed{scale:1.08;color:var(--ink)}
 .pulling{-webkit-user-select:none;user-select:none}
 .chat:focus{outline:none}
 .pullback #app,.pullback #navbar{transition:transform .55s var(--spring)}
@@ -3378,18 +3380,26 @@ function chatFail(temp, err){
   chat.err = err; chat.sending = false; chat.status = ''; chat.draft = null; renderChatLog(true);
 }
 
-/* opening and closing, after Revolut's AI */
+/* opening and closing, after Revolut's AI (measured from Surath's recording at 60 fps): when the finger lets go, the page
+   springs back up from where it was pulled while the blur comes up fast (about 0.2 s) and a milky wash builds behind it
+   (about 0.5 s); the conversation then fades in, sharp, over the wash. No blur filter on the conversation itself: on a
+   phone that is what made it stutter. */
 function openChat(){
   if (chat.open) return;
-  chat.open = true; closeMenu(); pullReset(true);
-  const el = $('#chat'), fx = $('#chatfx');
+  chat.open = true; closeMenu();
+  const from = pull.d, el = $('#chat'), fx = $('#chatfx'), hint = $('#pullhint'), page = [$('#app'), $('#navbar')];
+  pull.on = false; pull.id = null; pull.tid = null; pull.d = 0;
+  document.body.classList.remove('pulling', 'pullback'); page.forEach(e => { e.style.transform = ''; });
   renderChatLog(true); el.hidden = false; fx.hidden = false; document.body.classList.add('lock', 'chatting');
   if (!reduced()) {
-    $('.fxb', fx).animate([{ opacity:0 }, { opacity:1 }], { duration:340, easing:EASE.smooth, fill:'forwards' });
-    $('.fxt', fx).animate([{ opacity:0 }, { opacity:.55 }], { duration:340, easing:EASE.smooth, fill:'forwards' });
-    el.animate([{ opacity:0, filter:'blur(14px)', transform:'scale(1.03)' }, { opacity:0, filter:'blur(14px)', transform:'scale(1.03)', offset:.3 },
-      { opacity:1, filter:'blur(0px)', transform:'none' }], { duration:640, easing:EASE.smooth });
-  } else { $('.fxb', fx).style.opacity = 1; }
+    if (from) page.forEach(e => e.animate([{ transform:`translateY(${from}px)` }, { transform:'none' }], { duration:560, easing:EASE.spring }));
+    const h0 = +hint.style.opacity || 0; hint.style.opacity = 0; hint.classList.remove('armed');
+    if (h0) hint.animate([{ opacity:h0 }, { opacity:0 }], { duration:160, easing:'ease-out' });
+    $('.fxb', fx).animate([{ opacity:0 }, { opacity:1 }], { duration:220, easing:'cubic-bezier(.25,0,.2,1)', fill:'forwards' });
+    $('.fxt', fx).animate([{ opacity:0 }, { opacity:.85 }], { duration:500, easing:'cubic-bezier(.4,0,.2,1)', fill:'forwards' });
+    el.animate([{ opacity:0, transform:'scale(1.012)' }, { opacity:0, transform:'scale(1.012)', offset:.47 }, { opacity:1, transform:'none' }],
+      { duration:660, easing:'cubic-bezier(.3,0,.2,1)' });
+  } else { hint.style.opacity = 0; hint.classList.remove('armed'); $('.fxb', fx).style.opacity = 1; }
   el.focus({ preventScroll:true });   // focus moves into the conversation, without a ring on the close button
   chatLoad();
 }
@@ -3413,12 +3423,13 @@ function pullSet(d){
   if (!pull.d && d) { const sel = window.getSelection && getSelection(); if (sel) sel.removeAllRanges(); }   // a mouse drag must not leave text selected
   pull.d = d; document.body.classList.add('pulling'); document.body.classList.remove('pullback');
   [$('#app'), $('#navbar')].forEach(e => { e.style.transform = d ? `translateY(${d}px)` : ''; });
-  const h = $('#pullhint'); h.style.opacity = Math.min(1, d / PULL_OPEN).toFixed(2); h.textContent = d >= PULL_OPEN ? 'Let go to ask Coach' : 'Pull to ask Coach';
+  const h = $('#pullhint'), armed = d >= PULL_OPEN; h.style.opacity = Math.min(1, d / PULL_OPEN).toFixed(2);
+  if (armed !== h.classList.contains('armed')) { h.classList.toggle('armed', armed); h.textContent = armed ? 'Let go to ask Coach' : 'Pull to ask Coach'; }   // a small springy pop at the line
 }
 function pullReset(instant){
   const was = pull.d; pull.on = false; pull.id = null; pull.tid = null; pull.d = 0;
   document.body.classList.remove('pulling'); if (was && !instant && !reduced()) document.body.classList.add('pullback');
-  [$('#app'), $('#navbar')].forEach(e => { e.style.transform = ''; }); $('#pullhint').style.opacity = 0;
+  [$('#app'), $('#navbar')].forEach(e => { e.style.transform = ''; }); $('#pullhint').style.opacity = 0; $('#pullhint').classList.remove('armed');
   setTimeout(() => document.body.classList.remove('pullback'), 600);
 }
 const pullDist = dy => 150 * (1 - Math.exp(-Math.max(0, dy) / 240));
