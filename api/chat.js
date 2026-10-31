@@ -2,11 +2,15 @@
 //
 //   GET    /api/chat                 { mode, messages:[the latest 80], more, profile, spend }   mode: "live" or "pretend"
 //   GET    /api/chat?before=N        { messages:[up to 80 older than message N], more }
-//   POST   /api/chat                 body { text, snapshot, retry }  -> text/event-stream of JSON events:
+//   POST   /api/chat                 body { text, snapshot, retry, qid }  -> text/event-stream of JSON events:
 //                                    user (the stored message), status, delta, done (the stored reply), error
 //                                    409 { error:'busy' } while another reply is still being written
-//                                    retry: answer the question already stored at the end again instead of storing it twice
-//   POST   /api/chat?distill=1       body { text, force }     -> { profile } written from imported chat history
+//                                    qid: the question's id, kept with it; the same id again (Try again, or a send the
+//                                    phone never heard back from) answers the stored question instead of storing it twice.
+//                                    Without an id (older messages), retry matches the question by its text
+//   POST   /api/chat?distill=1       body { text, force }     -> { profile } written from imported chat history; the same
+//                                    history again returns the profile already written from it, without a second charge;
+//                                    409 while one is still being read
 //   PUT    /api/chat?profile=1       body { text }            -> { profile }
 //   DELETE /api/chat                 clears the conversation (the profile stays); 409 while a reply is being written
 //
@@ -71,7 +75,8 @@ const K = {
   month: m => `${P()}:chat:m:${m}`,                      // gzipped array of messages of that month
   profile: () => `${P()}:chat:profile`,                  // { text, updatedAt }
   spend: day => `${P()}:chat:spend:${day}`,              // { usd, n } for one day, kept 3 days
-  busy: () => `${P()}:chat:busy`                         // held while a reply is written, so two never write at once
+  busy: () => `${P()}:chat:busy`,                        // held while a reply is written, so two never write at once
+  reading: () => `${P()}:chat:reading`                   // held while imported history is read into a profile
 };
 
 function authorised(req){
@@ -113,10 +118,18 @@ async function removeMessage(env, msg){
   const m = monthOf(msg.ts), list = await readMonth(env, m);
   await redis(env, [['SET', K.month(m), pack(list.filter(x => x.n !== msg.n))]]);
 }
+async function updateMessage(env, msg, patch){
+  const m = monthOf(msg.ts), list = await readMonth(env, m), x = list.find(y => y.n === msg.n);
+  Object.assign(msg, patch); if (!x) return;
+  Object.assign(x, patch); await redis(env, [['SET', K.month(m), pack(list)]]);
+}
 /* one writer at a time: appends read the month's list and write it back, so two replies written at once (a second send
-   while the server still finishes one the phone gave up on) would overwrite each other. The lock expires on its own. */
-async function lock(env){ const id = crypto.randomUUID(); const [ok] = await redis(env, [['SET', K.busy(), id, 'NX', 'EX', '300']]); return ok === 'OK' ? id : null; }
-async function unlock(env, id){ const [v] = await redis(env, [['GET', K.busy()]]); if (v === id) await redis(env, [['DEL', K.busy()]]); }
+   while the server still finishes one the phone gave up on) would overwrite each other. The lock expires on its own.
+   It is released before the response ends (`held`): work after the response is not guaranteed to run on Vercel, and a
+   lock left behind would turn the next message away for up to 5 minutes. */
+async function lock(env, key = K.busy()){ const id = crypto.randomUUID(); const [ok] = await redis(env, [['SET', key, id, 'NX', 'EX', '300']]); return ok === 'OK' ? id : null; }
+async function unlock(env, id, key = K.busy()){ const [v] = await redis(env, [['GET', key]]); if (v === id) await redis(env, [['DEL', key]]); }
+function held(env, id, key){ let on = true; return async () => { if (on) { on = false; await unlock(env, id, key).catch(() => {}); } }; }
 async function addSpend(env, usd){
   const s = await readSpend(env); s.usd += usd; s.n += 1;
   await redis(env, [['SET', K.spend(today()), JSON.stringify(s), 'EX', String(3 * 86400)]]);
@@ -131,6 +144,7 @@ const costUsd = u => ((u.input_tokens || 0) * PRICE.in + (u.cache_creation_input
 function buildRequest(profile, history, text, snapshot){
   const msgs = [];
   for (const m of history) {   // the API wants user and assistant turns in turn, starting with the user
+    if (m.refused || !String(m.text || '').trim()) continue;   // a declined question would only be declined again; empty text is refused by the API
     if (!msgs.length && m.role !== 'user') continue;
     const last = msgs[msgs.length - 1];
     if (last && last.role === m.role) last.text += '\n\n' + m.text; else msgs.push({ role: m.role, text: m.text });
@@ -261,20 +275,22 @@ async function chat(env, req, res, live){
   if (live && spend.usd >= capUsd()) return res.status(429).json({ error: 'cap', spend: spendOut(spend) });
   const id = await lock(env);
   if (!id) return res.status(409).json({ error: 'busy' });
-  try { await answer(env, req, res, live, b, text, snapshot, spend); }
-  finally { await unlock(env, id).catch(() => {}); }
+  const release = held(env, id);
+  try { await answer(env, req, res, live, b, text, snapshot, spend, release); }
+  finally { await release(); }
 }
-async function answer(env, req, res, live, b, text, snapshot, spend){
+async function answer(env, req, res, live, b, text, snapshot, spend, release){
   const [meta, profile] = await Promise.all([readMeta(env), readProfile(env)]);
-  // Try again: the question is usually stored already (the reply failed after it). It is answered again rather than
-  // stored twice; a reply that was cut off makes way, and one that did arrive after all is simply returned.
+  // Try again: the question is often stored already (the reply failed after it, or the phone lost the answer). It is
+  // answered again rather than stored twice; a reply that was cut off makes way, and one that did arrive is simply returned.
   const recent = (await readMessages(env, meta, 0, CONTEXT_MESSAGES + 2)).messages;
-  const last = recent[recent.length - 1], prev = recent[recent.length - 2];
-  const asked = m => m && m.role === 'user' && m.text === text;
+  const last = recent[recent.length - 1], prev = recent[recent.length - 2], qid = String(b.qid || '').slice(0, 64);
+  const asked = m => !!(m && m.role === 'user' && (qid && m.qid ? m.qid === qid : b.retry && m.text === text));
   let history = recent, userMsg = null;
-  if (b.retry && asked(last)) { userMsg = last; history = recent.slice(0, -1); }
-  else if (b.retry && last && last.role === 'assistant' && asked(prev)) {
+  if (asked(last)) { userMsg = last; history = recent.slice(0, -1); }
+  else if (last && last.role === 'assistant' && asked(prev)) {
     if (!last.cut) {
+      await release();
       res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store, no-transform' });
       res.write(`data: ${JSON.stringify({ t: 'user', msg: prev })}\n\n`); res.write(`data: ${JSON.stringify({ t: 'done', msg: last, spend: spendOut(spend) })}\n\n`);
       return res.end();
@@ -286,7 +302,8 @@ async function answer(env, req, res, live, b, text, snapshot, spend){
   res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store, no-transform', 'X-Accel-Buffering': 'no', Connection: 'keep-alive' });
   let gone = false; res.on('close', () => { gone = true; });   // closing the chat mid-reply: the reply is still finished and saved
   const send = (t, data) => { if (!gone) res.write(`data: ${JSON.stringify({ t, ...data })}\n\n`); };
-  if (!userMsg) userMsg = await appendMessage(env, meta, { role: 'user', text, ts: Date.now() });
+  const finish = async (t, data) => { await release(); send(t, data); res.end(); };   // everything stored, then the lock, then the end
+  if (!userMsg) userMsg = await appendMessage(env, meta, { role: 'user', text, ts: Date.now(), ...(qid ? { qid } : {}) });
   send('user', { msg: userMsg });
   if (snapshot) send('status', { text: 'Reading your log…' });
 
@@ -297,24 +314,26 @@ async function answer(env, req, res, live, b, text, snapshot, spend){
         if (type === 'status') send('status', { text: x }); else { reply += x; send('delta', { text: x }); }
       });
       const after = await addSpend(env, costUsd(out.usage));
-      if (out.stop === 'refusal' && !out.text) { send('error', { code: 'refusal', message: 'Coach AI could not answer that one.' }); return res.end(); }
-      const msg = await appendMessage(env, meta, { role: 'assistant', text: out.text, ts: Date.now(), ...(out.stop === 'max_tokens' ? { cut: true } : {}) });
-      send('done', { msg, spend: spendOut(after) });
+      // declined, even part way: what was written is dropped (the API says to discard it), and the question is kept out of
+      // later requests, where it would only be declined again
+      if (out.stop === 'refusal') { await updateMessage(env, userMsg, { refused: true }); return finish('error', { code: 'refusal', message: 'Coach AI could not answer that one.' }); }
+      if (!out.text.trim()) return finish('error', { code: 'empty', message: 'Coach AI could not answer. Try again.' });   // stored, it would be sent back empty with every later request
+      const msg = await appendMessage(env, meta, { role: 'assistant', text: out.text, ts: Date.now(), ...(out.stop !== 'end_turn' ? { cut: true } : {}) });
+      return finish('done', { msg, spend: spendOut(after) });
     } else {
       const p = pretendReply(text, snapshot);
       await wait(snapshot ? 700 : 300); send('status', { text: 'Thinking…' }); await wait(900);
-      if (p.error) { send('error', { code: 'pretend', message: 'A pretend error, to test how failures look.' }); return res.end(); }
+      if (p.error) return finish('error', { code: 'pretend', message: 'A pretend error, to test how failures look.' });
       for (const word of p.text.split(/(\s+)/)) { if (!word) continue; reply += word; send('delta', { text: word }); if (!gone && word.trim()) await wait(28); }
       const msg = await appendMessage(env, meta, { role: 'assistant', text: p.text, ts: Date.now() });
-      send('done', { msg, spend: spendOut(spend) });
+      return finish('done', { msg, spend: spendOut(spend) });
     }
   } catch (e) {
     console.error(e);
     if (e.usage) await addSpend(env, costUsd(e.usage)).catch(() => {});   // what a failed stream used still counts towards the cap
     if (reply) await appendMessage(env, meta, { role: 'assistant', text: reply, ts: Date.now(), cut: true }).catch(() => {});
-    send('error', { code: e.status === 429 ? 'busy' : 'failed', message: e.status === 429 || e.status === 529 ? 'Claude is busy right now. Try again in a moment.' : 'Coach AI could not answer. Try again.' });
+    return finish('error', { code: e.status === 429 ? 'busy' : 'failed', message: e.status === 429 || e.status === 529 ? 'Claude is busy right now. Try again in a moment.' : 'Coach AI could not answer. Try again.' });
   }
-  res.end();
 }
 
 /* write the profile from imported chat history: one request, at most about 600k tokens of history */
@@ -322,24 +341,35 @@ async function distill(env, req, res, live){
   const b = await readBody(req), text = String(b.text || '');
   if (!text.trim()) return res.status(400).json({ error: 'empty' });
   if (text.length > 2400000) return res.status(413).json({ error: 'too-long' });
-  const spend = await readSpend(env);
+  // the same history again (the phone lost the answer while the profile was written, and Write my profile was tapped
+  // again): the profile already written from it, no second charge
+  const src = crypto.createHash('sha256').update(text).digest('hex').slice(0, 32);
+  const [spend, cur] = await Promise.all([readSpend(env), readProfile(env)]);
+  if (cur.src === src) return res.status(200).json({ profile: cur, spend: spendOut(spend) });
   if (live && spend.usd >= capUsd() && !b.force) return res.status(429).json({ error: 'cap', spend: spendOut(spend) });
+  const id = await lock(env, K.reading()); if (!id) return res.status(409).json({ error: 'busy' });   // one read at a time
+  const release = held(env, id, K.reading());
+  try { return await readInto(env, res, live, text, src, release); } finally { await release(); }
+}
+async function readInto(env, res, live, text, src, release){
   let profileText;
   if (live) {
-    const body = { model: MODEL, max_tokens: 8000, stream: true, output_config: { effort: 'medium' }, fallbacks: 'default',
+    // thinking counts towards max_tokens; only a profile that ended on its own is kept, not one cut off or declined
+    const body = { model: MODEL, max_tokens: 16000, stream: true, output_config: { effort: 'medium' }, fallbacks: 'default',
       messages: [{ role: 'user', content: [{ type: 'text', text: DISTILL }, { type: 'text', text: '<history>\n' + text + '\n</history>' }] }] };
     let out;
     try { out = await streamClaude(body, () => {}); }
     catch (e) { if (e.usage) await addSpend(env, costUsd(e.usage)).catch(() => {}); throw e; }
     await addSpend(env, costUsd(out.usage));
-    if (!out.text) return res.status(502).json({ error: 'empty-reply' });
+    if (out.stop !== 'end_turn' || !out.text.trim()) { await release(); return res.status(502).json({ error: out.stop === 'refusal' ? 'refusal' : 'unfinished' }); }
     profileText = out.text.trim();
   } else {
     await wait(1500);
     const n = (text.match(/\n(You|Human|User|Me):/gi) || []).length;
     profileText = `This is a pretend profile. Coach AI is not connected to Claude yet, so it could not read your ${Math.round(text.length / 1000)}k characters of history${n ? ` (${n} of your messages)` : ''}.\n\nOnce the API key is in, importing again writes the real profile here: your goals, training split, food rules and limits, routine and how you like answers.`;
   }
-  const profile = { text: profileText, updatedAt: new Date().toISOString() };
+  const profile = { text: profileText, updatedAt: new Date().toISOString(), src };
   await redis(env, [['SET', K.profile(), JSON.stringify(profile)]]);
-  return res.status(200).json({ profile, spend: spendOut(await readSpend(env)) });
+  const spend = await readSpend(env); await release();
+  return res.status(200).json({ profile, spend: spendOut(spend) });
 }

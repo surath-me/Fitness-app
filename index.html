@@ -712,6 +712,8 @@ body.lock{overflow:hidden}
 @keyframes shim{from{background-position:100% 0}to{background-position:-60% 0}}
 .cm.err{font-size:14px;color:var(--red-ink)}
 .cm.err button{color:var(--accent);font-weight:600;margin-left:6px;min-height:32px}
+.cm.u.failed .bub{opacity:.6}   /* not sent: it stays until it is, with its own Try again (a later message used to make it look delivered) */
+.unsent{display:block;margin:2px 0 14px auto;min-height:32px;font-size:13px;color:var(--red-ink)}
 .chat-more{display:block;margin:0 auto 20px;min-height:36px;color:var(--accent);font-size:14px;font-weight:600}
 .chat-empty{margin:18vh 12px 0;text-align:center;color:var(--ink2);font-size:15px;line-height:1.4}
 .chat-empty .btn{margin-top:16px}
@@ -781,7 +783,7 @@ body.lock{overflow:hidden}
   <div class="chat-top"><button class="tbtn glass" data-act="chatclose" aria-label="Close"></button><h2>Coach AI</h2><span aria-hidden="true"></span></div>
   <div id="chatlog" class="chat-log"></div>
   <div id="chatsay" class="sr" aria-live="polite"></div>
-  <div class="chat-in"><div class="composer glass"><textarea id="chatq" rows="1" placeholder="Type a message…" enterkeyhint="send" autocomplete="off" aria-label="Message to Coach AI"></textarea><button class="send" data-act="chatsend" aria-label="Send"></button></div></div>
+  <div class="chat-in"><div class="composer glass"><textarea id="chatq" rows="1" maxlength="8000" placeholder="Type a message…" enterkeyhint="send" autocomplete="off" aria-label="Message to Coach AI"></textarea><button class="send" data-act="chatsend" aria-label="Send"></button></div></div>
 </div>
 <script>
 'use strict';
@@ -790,7 +792,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.59';
+const APP_VERSION = '3.60';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2734,15 +2736,16 @@ const H = {
   chatclose(){ closeChat(); },
   chatsend(){ const ta = $('#chatq'); if (ta) chatSend(ta.value); },
   chatsug(t){ chatSend(t.dataset.q); },
-  chatretry(){ const q = chat.err && chat.err.retry; if (!q) return;
-    // only a question the server never got is sent again; one it stored is answered again (a cut-off reply makes way),
-    // and if its reply arrived after all there is nothing to do
-    const m = chat.msgs, tail = m[m.length - 1], before = m[m.length - 2], asked = x => x && x.role === 'user' && !x.failed && x.text === q;
-    let again = false;
-    if (tail && tail.role === 'user' && tail.failed) m.pop();
-    else if (asked(tail)) again = true;
-    else if (tail && tail.role === 'assistant' && asked(before)) { if (!tail.cut) { chat.err = null; renderChatLog(true); return; } m.pop(); again = true; }
-    chat.err = null; renderChatLog(true); chatSend(q, again); },
+  chatretry(){ const r = chat.err && chat.err.retry; if (!r) return;
+    // the question goes again with its id: the server answers it once, storing it only if it never got it (the phone cannot
+    // always know); a cut-off reply makes way, and if the reply arrived after all there is nothing to do
+    const m = chat.msgs, tail = m[m.length - 1], before = m[m.length - 2];
+    if (tail && tail.role === 'assistant' && chatSame(before, r)) { if (!tail.cut) { chat.err = null; renderChatLog(true); return; } m.pop(); }
+    chat.err = null; renderChatLog(true); chatSend(r.text, chatSame(m[m.length - 1], r), r.qid); },
+  chatresend(t){ const m = chat.msgs, k = m.findIndex(x => x.failed && (x.qid || '') === t.dataset.q); if (k < 0 || chat.sending) return;
+    const q = m[k];
+    if (k === m.length - 1) { renderChatLog(true); return chatSend(q.text, true, q.qid); }
+    m.splice(k, 1); renderChatLog(true); chatSend(q.text, false, q.qid); },   // passed by later messages: asked again at the end
   chatmore(){ chatOlder(); },
   chatsettings(t){ closeChat(); ui.tab = 'setup'; ui.setupPage = t.dataset.p || 'chat'; window.scrollTo(0, 0); render({ transition:true, tab:true }); },
   chatprofilesave(){ const ta = $('#chatprofile'); if (!ta) return;
@@ -3077,6 +3080,8 @@ if (window.visualViewport) {
     const end = log && log.scrollHeight - log.scrollTop - log.clientHeight <= 1;
     set('--kb', (up && k > 40 ? k : 0) + 'px'); set('--vvh', Math.round(h) + 'px'); set('--vvt', t1 + 'px'); r.classList.toggle('kbopen', up);
     if (log) { if (end) log.scrollTop = log.scrollHeight; else if (t1 !== t0) log.scrollTop += t1 - t0; }   // the conversation keeps what is on screen in place (a drag in progress too)
+    // your message on its way and the copies fading out are placed in Coach AI itself: they keep their place on screen too
+    if (t1 !== t0) $$('#chat > .bub.fly, #chat > .chat-ghost').forEach(f => { f._dy = (f._dy || 0) + t0 - t1; f.style.transform = `translateY(${f._dy}px)`; });
   };
   /* Coach AI and the keyboard, measured on the simulator frame by frame. Opening: iOS tells us as its slide starts,
      already with where it ends, then slides the screen up for about 0.25 s. Moving Coach AI there at once drew it low and
@@ -3130,7 +3135,8 @@ let verAt = 0;
 function checkVersion(){
   if (Date.now() - verAt < 30000 || navigator.onLine === false) return; verAt = Date.now();
   fetch('/', { cache:'no-store' }).then(r => r.ok ? r.text() : '').then(t => {
-    const m = t.match(/APP_VERSION = '([\d.]+)'/), busy = (RT.iv && !RT.done) || ui.sheet || (document.activeElement && document.activeElement.matches('input,textarea,select'));
+    const q = $('#chatq'), m = t.match(/APP_VERSION = '([\d.]+)'/), busy = (RT.iv && !RT.done) || ui.sheet || (document.activeElement && document.activeElement.matches('input,textarea,select'))
+      || chat.open || chat.sending || (q && q.value.trim());   // Coach AI open, a reply coming, or a message typed and not sent
     if (m && m[1] !== APP_VERSION && !busy) location.reload();
   }).catch(() => {});
 }
@@ -3278,7 +3284,11 @@ const chat = { open:false, msgs:[], more:false, mode:null, sending:false, status
 try { const c = JSON.parse(localStorage.getItem(CHAT_CACHE)); if (c && Array.isArray(c.msgs)) { chat.msgs = c.msgs; chat.mode = c.mode || null; } } catch(e) {}
 const chatOn = () => !!(S.settings.beta && S.settings.beta.chat);
 const chatFor = tab => chatOn() && ['train', 'eat', 'progress'].includes(tab);
-function chatCache(){ try { localStorage.setItem(CHAT_CACHE, JSON.stringify({ msgs: chat.msgs.filter(m => !m.pending && !m.failed).slice(-150), mode: chat.mode })); } catch(e) {} }
+function chatCache(){ try { localStorage.setItem(CHAT_CACHE, JSON.stringify({ msgs: chat.msgs.filter(m => !m.pending).slice(-150), mode: chat.mode })); } catch(e) {} }
+// every question gets an id, kept with it on the server, so sending it again (Try again) never stores or answers it twice,
+// even when the phone never heard whether the server got it. randomUUID needs a secure context, which the phone's test
+// address is not
+const chatQid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 async function chatApi(method, query = '', body){
   const r = await fetch('/api/chat' + query, { method, cache:'no-store', body: body ? JSON.stringify(body) : undefined,
     headers: Object.assign({ Authorization: 'Bearer ' + cloud.token }, body ? { 'Content-Type':'application/json' } : {}) });
@@ -3291,7 +3301,13 @@ async function chatLoad(){
   chat.loading = true;
   try {
     const j = await chatApi('GET');
-    if (!chat.sending) { chat.msgs = j.messages; chat.more = j.more; }
+    if (!chat.sending) {   // messages that never reached the server stay, in their place (one it had after all goes)
+      const unsent = chat.msgs.filter(m => m.failed && !j.messages.some(x => x.qid && x.qid === m.qid));
+      chat.msgs = j.messages.concat(unsent).sort((a, b) => a.ts - b.ts); chat.more = j.more;
+      // a reply that was cut off on the phone but finished on the server: the error goes once the reply is here
+      const t = chat.msgs[chat.msgs.length - 1], p = chat.msgs[chat.msgs.length - 2];
+      if (chat.err && chat.err.kind === 'cut' && t && t.role === 'assistant' && !t.cut && p && chatSame(p, chat.err.retry)) chat.err = null;
+    }
     chat.mode = j.mode; chat.profile = j.profile; chat.spend = j.spend; chat.loadErr = null; chatCache();
     if (chat.open && !chat.sending) renderChatLog(true);
     const pe = $('#chatprofile');   // never redraw the page under someone typing their profile
@@ -3372,8 +3388,11 @@ const chatTimeLine = (m, prev) => prev && fmtD(new Date(prev.ts)) === fmtD(new D
   : `<p class="chat-time"><b>${chatDay(m.ts)}</b> ${chatTime(m.ts)}</p>`;
 const chatSugsHTML = sugs => sugs.length ? `<div class="sugs">${sugs.slice(0, 3).map(q => `<button class="sugb" data-act="chatsug" data-q="${esc(q)}">${CI.sug}<span>${esc(q)}</span></button>`).join('')}</div>` : '';
 /* one message. Yours: a Messages bubble, the tail only on the last of a run. Coach's: plain text, nothing under it (Surath did not want copy or thumbs) */
+const chatSame = (m, r) => !!(m && r && m.role === 'user' && (m.qid && r.qid ? m.qid === r.qid : m.text === r.text));
+// under a message that was not sent, unless the error line just below it already offers Try again
+const chatUnsentHTML = m => m.failed && !(chat.err && chatSame(m, chat.err.retry)) ? `<button class="unsent" data-act="chatresend" data-q="${esc(m.qid || '')}">Not sent. Try again</button>` : '';
 function chatMsgHTML(m, o = {}){
-  if (m.role === 'user') return `<div class="cm u${o.tail ? ' tail' : ''}" data-n="${m.n}"><div class="bub">${esc(m.text)}</div></div>`;
+  if (m.role === 'user') return `<div class="cm u${o.tail ? ' tail' : ''}${m.failed ? ' failed' : ''}" data-n="${m.n}"><div class="bub">${esc(m.text)}</div></div>` + chatUnsentHTML(m);
   const md = chatMD(m.streaming ? m.text.slice(0, m.shown || 0) : m.text);
   return `<div class="cm a${m.streaming ? ' stream' : ''}" data-n="${m.n}"><div class="md">${md.html}</div>${!m.streaming ? chatSugsHTML(md.sugs) : ''}</div>`;
 }
@@ -3435,7 +3454,7 @@ function chatGhostOut(el){
   const box = $('#chat'); if (!el || !box) return;
   const c = box.getBoundingClientRect(), sc = c.width / box.offsetWidth || 1, r = el.getBoundingClientRect();
   if (!reduced() && r.height && r.bottom > c.top && r.top < c.bottom) {
-    const g = el.cloneNode(true); g.classList.remove('in'); g.removeAttribute('data-n'); g.setAttribute('aria-hidden', 'true');
+    const g = el.cloneNode(true); g.classList.remove('in'); g.classList.add('chat-ghost'); g.removeAttribute('data-n'); g.setAttribute('aria-hidden', 'true');
     g.style.cssText = `position:absolute;z-index:1;margin:0;left:${(r.left - c.left) / sc}px;top:${(r.top - c.top) / sc}px;width:${r.width / sc}px;pointer-events:none`;
     box.appendChild(g);
     g.animate([{ opacity:1 }, { opacity:0 }], { duration:160, easing:'ease-out', fill:'forwards' }).finished.then(() => g.remove(), () => g.remove());
@@ -3531,10 +3550,16 @@ function chatInput(){
 
 /* send one message and stream the reply: user (the stored message), status, delta, done or error. `again` answers the
    question already at the end of the conversation (Try again after it was stored), so it is not asked twice */
-async function chatSend(text, again){
-  text = String(text || '').trim();
+async function chatSend(text, again, qid){
+  text = String(text || '').trim().slice(0, 8000);   // what the server keeps, so a question and its stored copy match
   if (!text || chat.sending || !cloud.token) return;
   chat.sending = true; chat.err = null; chat.draft = null; chat.status = '';
+  qid = qid || chatQid();
+  const mine = again ? chat.msgs[chat.msgs.length - 1] : null;   // again: the question is your last bubble already
+  if (mine && mine.failed) { mine.failed = false; mine.pending = true; $$(`#chatlog .cm.u[data-n="${mine.n}"]`).forEach(b => b.classList.remove('failed')); }
+  // a message that was not sent and is passed by this one keeps its own Try again, now that the error line under it goes
+  chat.msgs.forEach(m => { if (!m.failed || m === mine) return; const b = $(`#chatlog .cm.u[data-n="${m.n}"]`);
+    if (b && !(b.nextElementSibling && b.nextElementSibling.matches('.unsent'))) b.insertAdjacentHTML('afterend', chatUnsentHTML(m)); });
   // an error makes way, and the hello once the conversation starts; suggestions stay under their reply (Surath)
   const drop = $$('#chatlog .cm.err').concat(chat.msgs.length ? [] : $$('#chatlog .cm.a'));
   const kept = $$('#chatlog .chat-inner > *').filter(e => !drop.includes(e)), lastEl = kept[kept.length - 1];
@@ -3544,7 +3569,7 @@ async function chatSend(text, again){
   else {
     if (lastEl && lastEl.classList.contains('u')) lastEl.classList.remove('tail');   // the run continues: the tail moves to the new bubble
     const prev = chat.msgs[chat.msgs.length - 1];
-    temp = { n:'p' + Date.now(), role:'user', text, ts: Date.now(), pending:true };
+    temp = { n:'p' + Date.now(), role:'user', text, ts: Date.now(), pending:true, qid };
     chat.msgs.push(temp);
     const ta = $('#chatq'); if (ta && ta.value.trim() === text) { ta.value = ''; chatInput(); }   // first, so the field has its final height
     // the status line ("Thinking…") is placed with your bubble, hidden, so the bubble lands where it stays and the line just appears under it
@@ -3553,15 +3578,15 @@ async function chatSend(text, again){
   }
   let res;
   try { res = await fetch('/api/chat', { method:'POST', cache:'no-store', headers:{ Authorization:'Bearer ' + cloud.token, 'Content-Type':'application/json' },
-    body: JSON.stringify({ text, snapshot: chatSnapshot(), retry: !!again }) }); }
-  catch(e) { await landed; return chatFail(temp, { message:'No connection. Try again when you are back online.', retry:text }); }
+    body: JSON.stringify({ text, snapshot: chatSnapshot(), retry: !!again, qid }) }); }
+  catch(e) { await landed; return chatFail(temp || mine, { message:'No connection. Try again when you are back online.', retry:{ text, qid } }); }
   await landed;   // the status line and the reply wait for your bubble to land
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));
-    return chatFail(temp, j.error === 'cap' ? { message:`That's today's €${j.spend ? j.spend.capEur : 1} for Coach AI. It's back tomorrow.` }
+    return chatFail(temp || mine, j.error === 'cap' ? { message:`That's today's €${j.spend ? j.spend.capEur : 1} for Coach AI. It's back tomorrow.` }
       : res.status === 401 ? { message:'Your cloud passphrase was not accepted.' }
-      : res.status === 409 ? { message:'Coach AI is still writing your last reply. Try again in a moment.', retry:text }
-      : { message:'Coach AI could not answer. Try again.', retry:text });
+      : res.status === 409 ? { message:'Coach AI is still writing your last reply. Try again in a moment.', retry:{ text, qid } }
+      : { message:'Coach AI could not answer. Try again.', retry:{ text, qid } });
   }
   const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '', finished = false;
   const status = t => { chat.status = t; let st = $('#chatlog .cm.st');
@@ -3575,7 +3600,7 @@ async function chatSend(text, again){
         const line = buf.slice(0, i); buf = buf.slice(i + 2);
         if (!line.startsWith('data:')) continue;
         const ev = JSON.parse(line.slice(5));
-        if (ev.t === 'user') { const k = chat.msgs.indexOf(temp); if (k >= 0) chat.msgs[k] = ev.msg; if (node) node.dataset.n = ev.msg.n; }
+        if (ev.t === 'user') { const k = chat.msgs.indexOf(temp || mine); if (k >= 0) chat.msgs[k] = ev.msg; if (node) node.dataset.n = ev.msg.n; }
         else if (ev.t === 'status') { if (!chat.draft) status(ev.text); }
         else if (ev.t === 'delta') {
           if (!chat.draft) {   // the status line turns into the reply in place
@@ -3589,18 +3614,18 @@ async function chatSend(text, again){
           if (chat.draft) { chat.draft.done = true; chat.draft.final = ev.msg; chat.draft.text = ev.msg.text; chatRevealGo(); }
           else { chat.sending = false; chat.status = ''; chat.msgs.push(ev.msg); chatSay(ev.msg.text);
             const st = $('#chatlog .cm.st'); chatGrow(chatMsgHTML(ev.msg), false, st ? [st] : []); chatCache(); } }
-        else if (ev.t === 'error') { finished = true; chatFail(null, { message: ev.message, retry: ev.code === 'refusal' ? null : text }); }
+        else if (ev.t === 'error') { finished = true; chatFail(null, { message: ev.message, retry: ev.code === 'refusal' ? null : { text, qid }, discard: ev.code === 'refusal' }); }   // a declined reply goes, even part written
       }
     }
   } catch(e) {}
-  if (!finished) { chatFail(null, { message:'The reply was cut off. Try again in a moment.', retry:text }); chatLoad(); }   // the server finishes and saves the reply anyway
+  if (!finished) { chatFail(null, { message:'The reply was cut off. Try again in a moment.', retry:{ text, qid }, kind:'cut' }); chatLoad(); }   // the server finishes and saves the reply anyway
 }
 function chatFail(temp, err){
-  if (temp) { temp.pending = false; temp.failed = true; }
+  if (temp) { temp.pending = false; temp.failed = true; const b = $(`#chatlog .cm.u[data-n="${temp.n}"]`); if (b) b.classList.add('failed'); }
   cancelAnimationFrame(revealRaf); revealRaf = 0;
   const drop = [$('#chatlog .cm.st')];   // they leave the layout as the error comes in (fading as copies), so nothing jumps later
   const d = chat.draft; chat.draft = null;
-  if (d) { const el = $('#chatlog .cm.stream'); if (el) { el.classList.remove('stream'); if (!d.text) drop.push(el); } }
+  if (d) { const el = $('#chatlog .cm.stream'); if (el) { el.classList.remove('stream'); if (!d.text || err.discard) drop.push(el); } }
   chat.err = err; chat.sending = false; chat.status = '';
   chatGrow(chatErrHTML(err), false, drop.filter(Boolean)); chatCache();
 }
@@ -3661,18 +3686,20 @@ function closeChat(){
     H.chatsend(); if (typing) ta.focus({ preventScroll:true });
   });
   send.addEventListener('mousedown', e => e.preventDefault());
-  // the ✕ also acts on touchend: with the keyboard up, iOS took the focus from the field first, Coach AI moved for the
-  // keyboard going away and the ✕ slid from under the finger, so the first tap only closed the keyboard (Surath)
-  const x = $('#chat [data-act=chatclose]');
-  x.addEventListener('touchend', e => {
-    if (!e.cancelable) return; e.preventDefault();
-    const t = e.changedTouches[0], r = x.getBoundingClientRect();
+  // Every other button in Coach AI (the ✕, a suggestion, Try again, Show earlier messages) also acts on touchend, with the
+  // tap cancelled: with the keyboard up, iOS took the focus from the field on the tap, Coach AI moved for the keyboard going
+  // away and the button slid from under the finger, so the first tap only closed the keyboard (Surath, with the ✕). Acting
+  // here also keeps the keyboard up, as sending does.
+  $('#chat').addEventListener('touchend', e => {
+    const b = e.target.closest && e.target.closest('[data-act]'); if (!b || b === send || !H[b.dataset.act] || !e.cancelable) return;
+    const t = e.changedTouches[0], r = b.getBoundingClientRect();
+    if (Math.abs(t.clientX - x0) > 10 || Math.abs(t.clientY - y0) > 10) return;   // a drag, not a tap
     if (t.clientX < r.left - 8 || t.clientX > r.right + 8 || t.clientY < r.top - 8 || t.clientY > r.bottom + 8) return;   // slid off it
-    closeChat();
+    e.preventDefault(); H[b.dataset.act](b, e);
   });
   document.addEventListener('touchstart', e => { if (chat.open && e.touches.length === 1) { x0 = e.touches[0].clientX; y0 = lastY = e.touches[0].clientY; } }, { passive:true });
-  log.addEventListener('touchend', e => { const t = e.changedTouches[0];
-    if (document.activeElement === ta && Math.abs(t.clientX - x0) < 10 && Math.abs(t.clientY - y0) < 10) ta.blur(); });
+  log.addEventListener('touchend', e => { const t = e.changedTouches[0];   // a tap on the conversation, not on a button in it
+    if (document.activeElement === ta && !e.target.closest('[data-act]') && Math.abs(t.clientX - x0) < 10 && Math.abs(t.clientY - y0) < 10) ta.blur(); });
   /* Safari lets a drag move the whole screen, page and all, most of all with the keyboard up: inside Coach AI a drag only
      scrolls the conversation (or the field, when its text is longer than it); with the keyboard up, only while that has
      room to go that way (at its ends the drag would carry on into the screen), otherwise its ends still bounce */
@@ -3728,7 +3755,8 @@ function pullSet(d){
   pull.d = d; document.body.classList.add('pulling');
   if (!pull.raf) pull.raf = requestAnimationFrame(pullFrame);
   const h = $('#pullhint'), armed = d >= PULL_OPEN; h.style.opacity = Math.min(1, d / PULL_OPEN).toFixed(2);
-  if (armed !== pull.armed) { pull.armed = armed; h.classList.toggle('armed', armed); h.textContent = armed ? 'Let go to ask Coach AI' : 'Pull to ask Coach AI'; if (armed) haptic(); }
+  const words = armed ? 'Let go to ask Coach AI' : 'Pull to ask Coach AI'; if (h.textContent !== words) h.textContent = words;   // also after a pull that opened it
+  if (armed !== pull.armed) { pull.armed = armed; h.classList.toggle('armed', armed); if (armed) haptic(); }
 }
 /* every part springs back from where it is, the top first and each one a moment after the one above */
 function pullSpringBack(){
@@ -3791,7 +3819,7 @@ const pullEnd = e => { if (pull.id !== e.pointerId) return; const open = pull.on
 document.addEventListener('pointerup', pullEnd);
 document.addEventListener('pointercancel', pullEnd);
 document.addEventListener('touchstart', e => {
-  if (e.touches.length !== 1 || !pullCan(e.target)) { pull.tid = null; return; }
+  if (e.touches.length !== 1 || !pullCan(e.target)) { if (pull.tid !== null && (pull.d || pull.layers)) pullSpringBack(); pull.tid = null; return; }   // a second finger lets a pull go
   const t = e.touches[0]; pull.tid = t.identifier; pull.x0 = t.clientX; pull.y0 = t.clientY; pull.on = false;
 }, { passive:true });
 document.addEventListener('touchmove', e => {
@@ -3869,13 +3897,21 @@ async function chatImport(force){
   sh.busy = true; drawSheet();
   try {
     const j = await chatApi('POST', '?distill=1', { text, force: !!force });
-    chat.profile = j.profile; if (j.spend) chat.spend = j.spend;
-    closeSheet(); render(); toast('Profile written. Check it below');
+    chat.profile = j.profile; chat.profileDraft = null; if (j.spend) chat.spend = j.spend;   // the new profile, not an unsaved edit of the old one
+    if (ui.sheet === sh) closeSheet(); render(); toast('Profile written. Check it below');
   } catch(e) {
-    sh.busy = false; drawSheet();
-    if (e.body && e.body.error === 'cap' && !force) {
-      if (await askGlass('Over today’s limit', `Reading this goes past today’s €${e.body.spend ? e.body.spend.capEur : 1} for Coach AI. Read it anyway?`, 'Read it')) chatImport(true);
-    } else toast(e.body && e.body.error === 'too-long' ? 'That is too much at once, pick fewer chats' : 'Could not write the profile');
+    sh.busy = false; if (ui.sheet === sh) drawSheet();   // only its own sheet: another may have been opened while it read
+    const err = e.body && e.body.error;
+    if (!e.status) {   // the phone lost the answer; the server still finishes, saves and charges, so show what it saves
+      chat.profile = null; chat.profileDraft = null;
+      setTimeout(() => { chat.profile = null; chatLoad(); }, 60000);
+      toast('Lost the connection while Coach AI read your chats. If it finished, the profile shows here in a minute.');
+    } else if (err === 'cap' && !force) {
+      if (ui.sheet === sh && await askGlass('Over today’s limit', `Reading this goes past today’s €${e.body.spend ? e.body.spend.capEur : 1} for Coach AI. Read it anyway?`, 'Read it')) chatImport(true);
+    } else toast(err === 'too-long' ? 'That is too much at once, pick fewer chats'
+      : err === 'busy' ? 'Coach AI is still reading your chats. Check again in a minute.'
+      : err === 'unfinished' ? 'Coach AI could not finish the profile. Try fewer chats.'
+      : err === 'refusal' ? 'Coach AI could not write a profile from these chats.' : 'Could not write the profile');
   }
 }
 $('#chat .chat-top .tbtn').innerHTML = ICON.close;
