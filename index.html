@@ -3588,7 +3588,12 @@ const hapticEl = (() => { const l = document.createElement('label'), i = documen
   i.type = 'checkbox'; i.setAttribute('switch', ''); i.tabIndex = -1; l.appendChild(i); document.body.appendChild(l); return l; })();
 function haptic(){ if (navigator.vibrate) { navigator.vibrate(10); return; } try { hapticEl.click(); } catch (e) {} }
 const pullDist = dy => 150 * (1 - Math.exp(-Math.max(0, dy) / 240));
-const pullCan = target => chatFor(ui.tab) && !chat.open && !ui.sheet && !ui.menu && window.scrollY <= 0 && !pullBlocked(target);
+/* only a page already resting at the top can be pulled: a scroll or fling that has just reached the top (and iOS's bounce
+   there) must not open Coach AI with the next drag (Surath: a long scroll up from the bottom opened it) */
+let scrolledAt = 0;
+window.addEventListener('scroll', () => { scrolledAt = performance.now(); }, { passive:true });
+const restingTop = () => window.scrollY <= 0 && performance.now() - scrolledAt > 400;
+const pullCan = target => chatFor(ui.tab) && !chat.open && !ui.sheet && !ui.menu && restingTop() && !pullBlocked(target);
 // a mouse: pointer events. A finger: touch events, because Safari takes a vertical drag for scrolling and cancels pointer events
 document.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'mouse' || e.button > 0 || !pullCan(e.target)) return;
@@ -3604,7 +3609,7 @@ document.addEventListener('pointermove', e => {
   pullSet(pullDist(dy - 10));
 }, { passive:true });
 const pullEnd = e => { if (pull.id !== e.pointerId) return; const open = pull.on && pull.d >= PULL_OPEN && e.type === 'pointerup'; pull.id = null;
-  if (open) { haptic(); openChat(); } else if (pull.d) pullReset(); };
+  if (open) { haptic(); openChat(); } else if (pull.d || pull.layers) pullReset(); };   // also a pull dragged back to where it started
 document.addEventListener('pointerup', pullEnd);
 document.addEventListener('pointercancel', pullEnd);
 document.addEventListener('touchstart', e => {
@@ -3625,14 +3630,14 @@ document.addEventListener('touchmove', e => {
 const touchEnd = e => {
   if (pull.tid === null || ![...e.changedTouches].some(x => x.identifier === pull.tid)) return;
   const open = pull.on && pull.d >= PULL_OPEN && e.type === 'touchend'; pull.tid = null; pull.on = false;
-  if (open) { haptic(); openChat(); } else if (pull.d) pullReset();
+  if (open) { haptic(); openChat(); } else if (pull.d || pull.layers) pullReset();
 };
 document.addEventListener('touchend', touchEnd);
 document.addEventListener('touchcancel', touchEnd);
 // a trackpad (testing on the Mac): scrolling up past the top pulls the same way
 let wheelPull = 0, wheelAt = 0, wheelT = 0, wheelOk = false;
 window.addEventListener('wheel', e => {
-  const now = Date.now(); if (now - wheelAt > 300) wheelOk = window.scrollY <= 0 && chatFor(ui.tab) && !chat.open && !ui.sheet && !ui.menu; wheelAt = now;
+  const now = Date.now(); if (now - wheelAt > 300) wheelOk = restingTop() && chatFor(ui.tab) && !chat.open && !ui.sheet && !ui.menu; wheelAt = now;
   if (!wheelOk || e.deltaY >= 0 || window.scrollY > 0) { if (wheelPull && e.deltaY > 0) { wheelPull = 0; pullReset(); } return; }
   wheelPull += -e.deltaY; pullSet(pullDist(wheelPull));
   clearTimeout(wheelT); wheelT = setTimeout(() => { const open = pull.d >= PULL_OPEN; wheelPull = 0; if (open) openChat(); else pullReset(); }, 160);
