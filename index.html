@@ -63,7 +63,8 @@ if (window.__LAUNCH__ || navigator.standalone || (window.matchMedia && matchMedi
   /* motion: the same springs as SwiftUI .bouncy, .smooth and .snappy */
   --spring:cubic-bezier(.34,1.4,.64,1); --smooth:cubic-bezier(.22,1,.36,1); --snappy:cubic-bezier(.3,1.25,.6,1);
   --out:cubic-bezier(.22,1,.36,1); --io:cubic-bezier(.65,0,.35,1);
-  --r-card:26px; --hl-gap:6px;   /* the row highlight's gap from the card on every side */
+  --r-card:26px; --hl-gap:6px; --hl-r:12px;   /* the row highlight: its gap from the card on every side, and its corners */
+  --hl-outer:calc(var(--r-card) - var(--hl-gap));   /* a highlight corner next to the card's own corner follows its curve */
   color-scheme:light;
 }
 /* Dark mode follows the system, with Apple's iOS 26 dark colours */
@@ -435,9 +436,12 @@ body.under .edge.top{opacity:1}
 .swipe::after{content:"";position:absolute;z-index:1;top:0;left:16px;right:16px;height:var(--sep-w);background:var(--sep);pointer-events:none;transition:opacity .2s}
 .swipe.dragging::after,.swipe.opened::after,.swipe.dragging+.swipe::after,.swipe.opened+.swipe::after{opacity:0}
 /* the touch highlight and the swiped row are one shape: a grey rounded rectangle inset a little from the card, as in iOS 26.
-   The same gap on every side and corners concentric with the card's (its radius less the gap), so at the top and bottom
-   rows the highlight follows the card's curve */
-.swipe-fg::before,.ex-head::before{content:"";position:absolute;inset:var(--hl-gap);border-radius:calc(var(--r-card) - var(--hl-gap));z-index:-1;background:transparent;transition:background-color .2s}
+   The same gap on every side */
+.swipe-fg::before,.ex-head::before{content:"";position:absolute;inset:var(--hl-gap);border-radius:var(--hl-r);z-index:-1;background:transparent;transition:background-color .2s}
+/* corners of 12 px (Surath found the 20 px all round too round), except where a row meets the card's own rounded corner:
+   the top of the first row and the bottom of the last (a lift only while closed), which follow the card's curve */
+.group>.swipe:first-child>.swipe-fg::before,.group>.ex:first-child .ex-head::before{border-top-left-radius:var(--hl-outer);border-top-right-radius:var(--hl-outer)}
+.group>.swipe:last-child>.swipe-fg::before,.group>.ex:last-child .ex-head[aria-expanded="false"]::before{border-bottom-left-radius:var(--hl-outer);border-bottom-right-radius:var(--hl-outer)}
 .entry.swipe-fg:active::before,.ex-head:active::before{background:var(--press)}
 @media (hover:hover){.entry.swipe-fg:hover::before,.ex-head:hover::before{background:var(--fill2)}}
 /* swipe to delete as in iOS 26: the row turns grey and rounds its trailing corners as it slides, and the action is a red
@@ -811,7 +815,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.78';
+const APP_VERSION = '3.79';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
