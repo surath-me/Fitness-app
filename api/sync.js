@@ -7,11 +7,15 @@
 //   GET /api/sync?snapshot=DAY    { day, state } for one snapshot
 //
 // Every request needs "Authorization: Bearer <COACH_TOKEN>". No npm packages: Node built-ins and fetch only.
+// Keys start with COACH_PREFIX (default "coach", the live data), the same as api/chat.js, so the dev site keeps its
+// data apart under "dev"; its Upstash token can only reach dev:* keys, so a mistake here cannot touch the live data.
 const crypto = require('crypto');
 const zlib = require('zlib');
 
 const KEEP_DAYS = 31;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const P = () => process.env.COACH_PREFIX || 'coach';
+const K = { meta: () => `${P()}:meta`, state: () => `${P()}:state`, snap: day => `${P()}:snap:${day}` };
 
 // The Marketplace names the variables KV_REST_API_URL / _TOKEN (with an optional prefix) or UPSTASH_REDIS_REST_URL / _TOKEN.
 function redisEnv(){
@@ -49,7 +53,7 @@ function authorised(req){
 }
 
 async function readMeta(env){
-  const [raw] = await redis(env, [['GET', 'coach:meta']]);
+  const [raw] = await redis(env, [['GET', K.meta()]]);
   return raw ? JSON.parse(raw) : { rev: 0 };
 }
 
@@ -63,14 +67,14 @@ module.exports = async function handler(req, res){
     if (req.method === 'GET' && q.snapshots) {
       const days = []; let cursor = '0';
       do {
-        const [[next, keys]] = await redis(env, [['SCAN', cursor, 'MATCH', 'coach:snap:*', 'COUNT', '200']]);
-        cursor = String(next); keys.forEach(k => days.push(k.slice('coach:snap:'.length)));
+        const [[next, keys]] = await redis(env, [['SCAN', cursor, 'MATCH', K.snap('*'), 'COUNT', '200']]);
+        cursor = String(next); keys.forEach(k => days.push(k.slice(K.snap('').length)));
       } while (cursor !== '0');
       return res.status(200).json({ days: days.sort() });
     }
     if (req.method === 'GET' && q.snapshot) {
       if (!DAY.test(q.snapshot)) return res.status(400).json({ error: 'bad-day' });
-      const [raw] = await redis(env, [['GET', 'coach:snap:' + q.snapshot]]);
+      const [raw] = await redis(env, [['GET', K.snap(q.snapshot)]]);
       if (!raw) return res.status(404).json({ error: 'no-snapshot' });
       return res.status(200).json({ day: q.snapshot, state: unpack(raw) });
     }
@@ -78,7 +82,7 @@ module.exports = async function handler(req, res){
       const meta = await readMeta(env);
       if (String(meta.rev) === String(q.rev)) return res.status(200).json({ same: true, rev: meta.rev });
       if (!meta.rev) return res.status(200).json({ rev: 0, empty: true });
-      const [raw] = await redis(env, [['GET', 'coach:state']]);
+      const [raw] = await redis(env, [['GET', K.state()]]);
       return res.status(200).json({ rev: meta.rev, savedAt: meta.savedAt, device: meta.device, state: raw ? unpack(raw) : null });
     }
     if (req.method === 'PUT') {
@@ -86,16 +90,16 @@ module.exports = async function handler(req, res){
       if (!st || typeof st !== 'object' || !st.settings || !st.days || !st.workouts) return res.status(400).json({ error: 'bad-state' });
       const meta = await readMeta(env);
       if (Number(b.baseRev) !== Number(meta.rev || 0)) {
-        const [raw] = await redis(env, [['GET', 'coach:state']]);
+        const [raw] = await redis(env, [['GET', K.state()]]);
         return res.status(409).json({ rev: meta.rev, savedAt: meta.savedAt, device: meta.device, state: raw ? unpack(raw) : null });
       }
       const rev = (meta.rev || 0) + 1, savedAt = new Date().toISOString();
       const device = String(b.device || '').slice(0, 40), day = DAY.test(b.day) ? b.day : savedAt.slice(0, 10);
       const packed = pack(st);
       await redis(env, [
-        ['SET', 'coach:state', packed],
-        ['SET', 'coach:snap:' + day, packed, 'EX', String(KEEP_DAYS * 86400)],
-        ['SET', 'coach:meta', JSON.stringify({ rev, savedAt, device })]
+        ['SET', K.state(), packed],
+        ['SET', K.snap(day), packed, 'EX', String(KEEP_DAYS * 86400)],
+        ['SET', K.meta(), JSON.stringify({ rev, savedAt, device })]
       ], '/multi-exec');
       return res.status(200).json({ rev, savedAt });
     }
