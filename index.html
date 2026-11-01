@@ -63,7 +63,7 @@ if (window.__LAUNCH__ || navigator.standalone || (window.matchMedia && matchMedi
   /* motion: the same springs as SwiftUI .bouncy, .smooth and .snappy */
   --spring:cubic-bezier(.34,1.4,.64,1); --smooth:cubic-bezier(.22,1,.36,1); --snappy:cubic-bezier(.3,1.25,.6,1);
   --out:cubic-bezier(.22,1,.36,1); --io:cubic-bezier(.65,0,.35,1);
-  --r-card:26px; --hl-gap:6px; --hl-r:12px;   /* the row highlight: its gap from the card on every side, and its corners */
+  --r-card:26px; --hl-gap:4px; --hl-r:22px;   /* the row highlight: its gap from the card on every side, and its corners: 22 = 26 - 4, so they follow the card's curve */
   --hl-outer:calc(var(--r-card) - var(--hl-gap));   /* a highlight corner next to the card's own corner follows its curve */
   color-scheme:light;
 }
@@ -438,8 +438,8 @@ body.under .edge.top{opacity:1}
 /* the touch highlight and the swiped row are one shape: a grey rounded rectangle inset a little from the card, as in iOS 26.
    The same gap on every side */
 .swipe-fg::before,.ex-head::before{content:"";position:absolute;inset:var(--hl-gap);border-radius:var(--hl-r);z-index:-1;background:transparent;transition:background-color .2s}
-/* corners of 12 px (Surath found the 20 px all round too round), except where a row meets the card's own rounded corner:
-   the top of the first row and the bottom of the last (a lift only while closed), which follow the card's curve */
+/* where a row meets the card's own rounded corner (the top of the first row, the bottom of the last, a lift only while
+   closed) the corner is the card's radius less the gap, so it follows the card's curve; now the same as every other corner */
 .group>.swipe:first-child>.swipe-fg::before,.group>.ex:first-child .ex-head::before{border-top-left-radius:var(--hl-outer);border-top-right-radius:var(--hl-outer)}
 .group>.swipe:last-child>.swipe-fg::before,.group>.ex:last-child .ex-head[aria-expanded="false"]::before{border-bottom-left-radius:var(--hl-outer);border-bottom-right-radius:var(--hl-outer)}
 .entry.swipe-fg:active::before,.ex-head:active::before{background:var(--press)}
@@ -815,7 +815,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.79';
+const APP_VERSION = '3.80';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
