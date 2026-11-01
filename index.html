@@ -796,7 +796,7 @@ body.lock{overflow:hidden}
 <div id="sheet" class="sheet glass" role="dialog" aria-modal="true" hidden></div>
 <div id="alert" class="alertwrap" hidden></div>
 <div id="toast" class="toast glass ghost" role="status" hidden></div>
-<div id="pullhint" class="pullhint" aria-hidden="true">Pull to ask Coach AI</div>
+<div id="pullhint" class="pullhint" aria-hidden="true">Ask Coach AI</div>
 <div id="chatfx" class="chatfx" hidden aria-hidden="true"><i class="fxb"></i><i class="fxt"></i></div>
 <div id="chat" class="chat" role="dialog" aria-modal="true" aria-label="Coach AI" tabindex="-1" hidden>
   <div class="chat-top"><button class="tbtn glass" data-act="chatclose" aria-label="Close"></button><h2>Coach AI</h2><span aria-hidden="true"></span></div>
@@ -811,7 +811,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.76';
+const APP_VERSION = '3.77';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3812,7 +3812,6 @@ function pullSet(d){
   pull.d = d; document.body.classList.add('pulling');
   if (!pull.raf) pull.raf = requestAnimationFrame(pullFrame);
   const h = $('#pullhint'), armed = d >= PULL_OPEN; h.style.opacity = Math.min(1, d / PULL_OPEN).toFixed(2);
-  const words = armed ? 'Let go to ask Coach AI' : 'Pull to ask Coach AI'; if (h.textContent !== words) h.textContent = words;   // also after a pull that opened it
   if (armed !== pull.armed) { pull.armed = armed; h.classList.toggle('armed', armed); if (armed) haptic(); }
 }
 /* every part springs back from where it is, the top first and each one a moment after the one above */
