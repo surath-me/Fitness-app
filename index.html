@@ -807,7 +807,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.69';
+const APP_VERSION = '3.70';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1793,48 +1793,13 @@ function extraDone(date, id){
   const wk = S.workouts[date], p = getPlan(date), it = p.extras && p.extras.items.find(i => i.id === id);
   if (it && setsDone(wk, id).length >= setTarget(wk, it)) wk.added = [...(wk.added || []), id];
 }
-/* When a tick moves a lift to another section it closes, then folds away where it was (its whole section fades out when it
-   was the last lift there), and unfolds in its new place, or, when that section is new, the section fades in while
-   everything below it glides down to make room. Nothing jumps. The lift flashes where it lands, brought into view. */
+/* when a tick moves a lift to another section, it closes, the page redraws and it flashes in its new place, brought into view */
 function relocateEx(date, id){
   const key = date + '|' + id, host = findEx(key); if (!host) return;
   const p = getPlan(date), wasExtra = !!host.closest('.extras'), isExtra = !!(p.extras && p.extras.items.some(i => i.id === id));
   if (wasExtra === isExtra) return;
-  const still = reduced(), dest = isExtra ? 'section.extras' : 'section.added';
-  const land = () => {
-    const had = !!$(dest), before = blockSpots(); ui.flashEx = key; render();
-    const el = findEx(key); if (!el) return;
-    if (!still) {
-      const sec = el.closest('section');
-      if (had || !sec) fold(el, true);
-      else sec.animate([{ opacity:0, transform:'translateY(-8px)' }, { opacity:1, transform:'none' }], { duration:420, delay:60, easing:EASE.smooth, fill:'backwards' });
-      slideBlocks(before);
-    }
-    if (el.scrollIntoView) el.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block:'center' });
-  };
-  const leave = () => {
-    const el = findEx(key); if (!el || still) return land();
-    const sec = el.closest('section'), last = sec && sec.querySelectorAll('.ex').length === 1;
-    (last ? sec.animate([{ opacity:1 }, { opacity:0 }], { duration:220, easing:'ease-out', fill:'forwards' }).finished : fold(el, false)).then(land, land);
-  };
-  if (ui.open[key]) { closeEx(key); setTimeout(leave, still ? 0 : 420); } else leave();
-}
-/* a lift folds shut to no height inside its card, or unfolds from none to its own, fading with it */
-function fold(el, open){
-  const h = el.offsetHeight;
-  const a = el.animate(open ? [{ height:'0px', opacity:0 }, { height:h + 'px', opacity:1 }] : [{ height:h + 'px', opacity:1 }, { height:'0px', opacity:0 }],
-    { duration: open ? 460 : 320, easing: EASE.smooth, fill: open ? 'none' : 'forwards' });
-  return a.finished.then(() => {}, () => {});
-}
-/* the blocks of a day (cards, sections, headings): where each one sits before a redraw, then each that moved glides from
-   there to its new place */
-const blockSig = e => e.tagName + '.' + [...e.classList].filter(c => c !== 'flash' && c !== 'enter').sort().join('.');
-const blockKey = e => { let n = 0; for (let s = e.previousElementSibling; s; s = s.previousElementSibling) if (blockSig(s) === blockSig(e)) n++; return blockSig(e) + '#' + n; };
-const blockSpots = () => new Map($$('.daybody > *').map(e => [blockKey(e), e.getBoundingClientRect().top + scrollY]));
-function slideBlocks(before){
-  $$('.daybody > *').forEach(e => { const y0 = before.get(blockKey(e)); if (y0 == null) return;
-    const dy = y0 - (e.getBoundingClientRect().top + scrollY); if (Math.abs(dy) < 1) return;
-    e.animate([{ transform:`translateY(${dy}px)` }, { transform:'none' }], { duration:460, easing:EASE.smooth }); });
+  const move = () => { ui.flashEx = key; render(); const el = findEx(key); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block:'center' }); };
+  if (ui.open[key]) { closeEx(key); setTimeout(move, reduced() ? 0 : 450); } else move();
 }
 
 /* ---------- session card ---------- */
