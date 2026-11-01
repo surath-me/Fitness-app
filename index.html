@@ -620,6 +620,12 @@ body.lock{overflow:hidden}
 .toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 58px);z-index:40;display:flex;align-items:center;gap:8px;max-width:92vw;white-space:nowrap;padding:11px 18px 11px 12px;border-radius:99px;font-weight:600;font-size:13px;
   translate:-50% 0;transition:translate .6s var(--spring),scale .6s var(--spring),background-color .35s var(--out),box-shadow .35s var(--out),-webkit-backdrop-filter .35s var(--out),backdrop-filter .35s var(--out)}
 .toast.ghost{translate:-50% -16px}
+/* a toast with Undo is a button, so it sits where the thumb is: just above the tab bar (above the rest timer while it
+   shows, above the keyboard while that is up) and comes up from below (Surath: the top is out of reach) */
+.toast.low{top:auto;bottom:calc(max(12px, env(safe-area-inset-bottom) - 10px) + 74px)}
+body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inset-bottom) - 10px) + 134px)}
+.kbopen .toast.low{bottom:calc(var(--kb, 0px) + 12px)}
+.toast.low.ghost{translate:-50% 16px}
 .toast>span:not(.ok){overflow:hidden;text-overflow:ellipsis}
 .toast .ok{width:22px;height:22px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;flex:none}
 .toast .ok svg{width:13px;height:13px}
@@ -819,7 +825,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.86';
+const APP_VERSION = '3.87';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2202,6 +2208,7 @@ let toastT;
 function toast(m, opts = {}){
   const el = $('#toast');
   el.innerHTML = `<span class="ok${opts.bad ? ' bad' : ''}">${opts.bad ? ICON.skip : ICON.check}</span><span>${esc(m)}</span>` + (opts.undo ? `<button class="link" data-act="undo" style="margin-left:4px">Undo</button>` : '');
+  if (el.classList.contains('low') !== !!opts.undo) { el.classList.add('ghost'); el.classList.toggle('low', !!opts.undo); void el.offsetWidth; }   // an Undo toast sits low, the others at the top
   el.hidden = false; void el.offsetWidth; requestAnimationFrame(() => el.classList.remove('ghost'));
   clearTimeout(toastT);
   toastT = setTimeout(() => { el.classList.add('ghost'); toastT = setTimeout(() => { el.hidden = true; }, 550); }, opts.undo ? 4000 : 1900);
