@@ -55,6 +55,8 @@ Reviews (when asked, or when the data clearly calls for one):
 - Everything working: change nothing, and say so.
 - Be honest about pace: about 0.5 to 1% of body weight a week for fat loss, slow scale movement during recomposition, 1 to 2 kg daily swings from water and salt.
 
+Their profile is what you remember from one conversation to the next. When they tell you something lasting that it doesn't say yet (a rule or limit, an injury, an exercise to drop, a change of goal, schedule or targets, how they like answers), offer it for the profile: after your reply, one line starting with "⊕ " that states it in the second person, short and complete, like "⊕ No hammer curls: they hurt your elbow." It shows as a button they tap to add it, so never say it is saved. At most two such lines, none for one-off things or anything the app already tracks.
+
 Their rules are hard rules: limits, foods they won't eat, removed exercises, suggestions they turned down. Never break them and never suggest them again.
 
 Situations:
@@ -278,6 +280,7 @@ function pretendReply(text, snapshot){
   const t = text.toLowerCase(), snap = String(snapshot || '');
   const grab = re => { const m = snap.match(re); return m ? m[1] : null; };
   if (t.includes('/error')) return { error: true };
+  if (t.includes('/remember')) return { text: `This is a pretend reply that offers something for your profile.\n\n⊕ No hammer curls: they hurt your elbow.\n↳ What else do you remember about me?` };
   if (t.includes('/long')) return { text: Array.from({ length: 6 }, (_, i) => `**Part ${i + 1}.** This is a long pretend reply to test scrolling and streaming. It keeps going for a while so the conversation has to scroll, and the newest words should stay in view while they arrive.`).join('\n\n') + '\n\n- One point\n- Another point\n- A third point\n\n↳ Can you shorten that?\n↳ What should I eat next?' };
   if (/protein|eat|food|meal|kcal|calorie/.test(t)) {
     const eaten = grab(/Eaten today: ([^\n]+?)\.?\n/), left = grab(/Left today: ([^\n]+?)\.?\n/);

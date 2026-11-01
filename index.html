@@ -733,6 +733,11 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
 .md a{color:var(--accent)}
 .cm.stream .md>:last-child::after{content:"";display:inline-block;width:8px;height:8px;margin-left:5px;border-radius:50%;background:var(--ink3);animation:caret 1s ease-in-out infinite}
 @keyframes caret{50%{opacity:.25}}
+.mem{display:flex;align-items:center;gap:10px;width:100%;margin-top:12px;padding:10px 14px;border-radius:16px;background:var(--fill2);font-size:14px;line-height:1.35;text-align:left;color:var(--ink)}   /* offered for the profile: quiet, one tap */
+.mem svg{flex:none;width:17px;height:17px;color:var(--ink2)}
+.mem span{flex:1;min-width:0}
+.mem b{flex:none;font-weight:600;color:var(--accent)}
+.mem.done{color:var(--ink2)}.mem.done b{color:var(--ink2);font-weight:500}
 .sugs{margin-top:8px}
 .sugb{display:flex;align-items:flex-start;gap:10px;width:100%;min-height:36px;padding:6px 0;text-align:left;font-size:14px;line-height:1.35;color:var(--ink)}
 .sugb svg{flex:none;width:18px;height:18px;margin-top:1px}
@@ -826,7 +831,7 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.93';
+const APP_VERSION = '3.94';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2795,6 +2800,9 @@ const H = {
     m.splice(k, 1); renderChatLog(true); chatSend(q.text, false, q.qid); },   // passed by later messages: asked again at the end
   chatmore(){ chatOlder(); },
   chatsettings(t){ closeChat(); ui.tab = 'setup'; ui.setupPage = t.dataset.p || 'chat'; window.scrollTo(0, 0); render({ transition:true, tab:true }); },
+  chatremember(b){ const t = b.dataset.t, cur = ((chat.profile && chat.profile.text) || '').trim(); if (!t || chatInProfile(t)) return;
+    chatApi('PUT', '?profile=1', { text: (cur ? cur + '\n' : '') + '- ' + t }).then(j => { chat.profile = j.profile; chatCache();
+      $$('#chatlog .mem').forEach(el => { if (el.dataset.t === t) el.outerHTML = chatMemsHTML([t]); }); }, () => toast('Could not save to your profile')); },
   chatprofilesave(){ const ta = $('#chatprofile'); if (!ta) return;
     chatApi('PUT', '?profile=1', { text: ta.value }).then(j => { chat.profile = j.profile; chat.profileDraft = null; ta.blur(); toast('Profile saved'); }, () => toast('Could not save the profile')); },
   chatclear(){ askGlass('Clear the conversation?', 'Every message with Coach AI is deleted, on all your devices. What Coach AI knows about you stays.', 'Clear').then(ok => {
@@ -3481,8 +3489,8 @@ function chatSnapshot(){
 
 /* a small Markdown: paragraphs, lists, bold, code and links. Lines starting with ↳ are follow-up suggestions */
 function chatMD(src){
-  const sugs = [];
-  const lines = String(src || '').replace(/\r/g, '').split('\n').filter(l => { const m = l.match(/^\s*↳\s*(.*)$/); if (m) { if (m[1].trim()) sugs.push(m[1].trim()); return false; } return true; });
+  const sugs = [], mems = [];   // ↳ follow-ups, ⊕ lines Coach AI offers for the profile
+  const lines = String(src || '').replace(/\r/g, '').split('\n').filter(l => { const m = l.match(/^\s*(↳|⊕)\s*(.*)$/); if (m) { if (m[2].trim()) (m[1] === '↳' ? sugs : mems).push(m[2].trim()); return false; } return true; });
   const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
   let html = '', list = null, para = [];
@@ -3497,11 +3505,12 @@ function chatMD(src){
     para.push(l);
   }
   flushP(); flushL();
-  return { html, sugs };
+  return { html, sugs, mems };
 }
 const CI = {
   send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5.8 11.2 12 5l6.2 6.2"/></svg>',
-  sug:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v7a4 4 0 0 0 4 4h9M15 11l4 4-4 4"/></svg>'
+  sug:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v7a4 4 0 0 0 4 4h9M15 11l4 4-4 4"/></svg>',
+  mem:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h10a1 1 0 0 1 1 1V21l-6-4-6 4V4.5a1 1 0 0 1 1-1z"/></svg>'
 };
 const chatTime = ts => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 function chatDay(ts){ const d = fmtD(new Date(ts)), t = todayStr(); return d === t ? 'Today' : d === addDays(t, -1) ? 'Yesterday' : diffDays(d, t) < 7 ? WD[wdOf(d)] : dateLabel(d); }
@@ -3510,6 +3519,12 @@ const CHAT_HELLO = "Hi, I'm Coach AI. Ask me about your food, your training or a
 const CHAT_GAP = 3600000;
 const chatTimeLine = (m, prev) => prev && fmtD(new Date(prev.ts)) === fmtD(new Date(m.ts)) && m.ts - prev.ts < CHAT_GAP ? ''
   : `<p class="chat-time"><b>${chatDay(m.ts)}</b> ${chatTime(m.ts)}</p>`;
+/* something lasting Coach AI noticed, offered for the profile: one tap adds it, nothing is saved without it. Once the line
+   is in the profile it reads as added (also after a reload, since it is checked against the profile itself) */
+const chatInProfile = t => !!(chat.profile && (chat.profile.text || '').includes(t));
+const chatMemsHTML = mems => mems.slice(0, 2).map(t => chatInProfile(t)
+  ? `<p class="mem done">${CI.mem}<span>${esc(t)}</span><b>Added</b></p>`
+  : `<button class="mem" data-act="chatremember" data-t="${esc(t)}">${CI.mem}<span>${esc(t)}</span><b>Remember</b></button>`).join('');
 const chatSugsHTML = sugs => sugs.length ? `<div class="sugs">${sugs.slice(0, 3).map(q => `<button class="sugb" data-act="chatsug" data-q="${esc(q)}">${CI.sug}<span>${esc(q)}</span></button>`).join('')}</div>` : '';
 /* one message. Yours: a Messages bubble, the tail only on the last of a run. Coach's: plain text, nothing under it (Surath did not want copy or thumbs) */
 const chatSame = (m, r) => !!(m && r && m.role === 'user' && (m.qid && r.qid ? m.qid === r.qid : m.text === r.text));
@@ -3518,7 +3533,7 @@ const chatUnsentHTML = m => m.failed && !(chat.err && chatSame(m, chat.err.retry
 function chatMsgHTML(m, o = {}){
   if (m.role === 'user') return `<div class="cm u${o.tail ? ' tail' : ''}${m.failed ? ' failed' : ''}" data-n="${m.n}"><div class="bub">${esc(m.text)}</div></div>` + chatUnsentHTML(m);
   const md = chatMD(m.streaming ? m.text.slice(0, m.shown || 0) : m.text);
-  return `<div class="cm a${m.streaming ? ' stream' : ''}" data-n="${m.n}"><div class="md">${md.html}</div>${!m.streaming ? chatSugsHTML(md.sugs) : ''}</div>`;
+  return `<div class="cm a${m.streaming ? ' stream' : ''}" data-n="${m.n}"><div class="md">${md.html}</div>${!m.streaming ? chatMemsHTML(md.mems) + chatSugsHTML(md.sugs) : ''}</div>`;
 }
 const chatErrHTML = err => `<div class="cm err" role="alert">${esc(err.message)}${err.retry ? `<button data-act="chatretry">Try again</button>` : ''}</div>`;
 function chatLogHTML(){
@@ -3657,7 +3672,7 @@ function chatFinish(){
   if (el && msg) {
     el.classList.remove('stream'); el.dataset.n = msg.n;
     const md = chatMD(msg.text); $('.md', el).innerHTML = md.html;
-    const t = document.createElement('div'); t.innerHTML = chatSugsHTML(md.sugs);
+    const t = document.createElement('div'); t.innerHTML = chatMemsHTML(md.mems) + chatSugsHTML(md.sugs);
     [...t.children].forEach(n => { n.classList.add('in'); el.appendChild(n); });
     const log = $('#chatlog'); if (chatNearBottom(log)) log.scrollTo({ top: log.scrollHeight, behavior: reduced() ? 'auto' : 'smooth' });
   } else renderChatLog();
