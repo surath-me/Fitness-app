@@ -807,7 +807,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.70';
+const APP_VERSION = '3.72';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1787,19 +1787,22 @@ function refreshEx(date, id){
   const it = planItem(date, id); if (!it) return;
   host.outerHTML = exRow(it, date);
 }
-/* A lift from If you have time with every set done goes under Added (into wk.added, so it stays there, also on past days,
-   and does not count in the session ring); swiping it away there offers it under If you have time again */
+/* A lift from If you have time goes under Added as soon as one set of it is logged (a tick or 0 reps): it is being done,
+   however much of it. It goes into wk.added, so it stays there, also on past days, and does not count in the session ring;
+   swiping it away there offers it under If you have time again. */
 function extraDone(date, id){
   const wk = S.workouts[date], p = getPlan(date), it = p.extras && p.extras.items.find(i => i.id === id);
-  if (it && setsDone(wk, id).length >= setTarget(wk, it)) wk.added = [...(wk.added || []), id];
+  if (it && setsDone(wk, id).length > 0) wk.added = [...(wk.added || []), id];
 }
-/* when a tick moves a lift to another section, it closes, the page redraws and it flashes in its new place, brought into view */
+/* when that moves a lift to another section, the page redraws with it in its new place, still open so the next set can be
+   logged, flashing, brought into view */
 function relocateEx(date, id){
   const key = date + '|' + id, host = findEx(key); if (!host) return;
   const p = getPlan(date), wasExtra = !!host.closest('.extras'), isExtra = !!(p.extras && p.extras.items.some(i => i.id === id));
   if (wasExtra === isExtra) return;
-  const move = () => { ui.flashEx = key; render(); const el = findEx(key); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block:'center' }); };
-  if (ui.open[key]) { closeEx(key); setTimeout(move, reduced() ? 0 : 450); } else move();
+  if (host.contains(document.activeElement)) document.activeElement.blur();   // a 0 typed in a set: the keyboard goes first
+  ui.flashEx = key; render();
+  const el = findEx(key); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block:'center' });
 }
 
 /* ---------- session card ---------- */
@@ -2544,11 +2547,12 @@ function onSetInput(el){
   // typing never logs a set, only the tick does, with one exception: 0 reps logs it at once (a grey dot, no rest timer).
   // A logged set stays logged unless its reps are cleared; one logged only by its 0 needs the tick once it gets reps.
   row.d = row.r === 0 || (was && row.r !== '' && !(wasZero && f === 'r'));
-  if (row.d && !was) extraDone(date, ex);   // a last set logged as 0 reps finishes it too; it moves on the next redraw, not while typing
+  if (row.d && !was) extraDone(date, ex);   // a set logged as 0 reps counts too
   saveState();
   const sr = el.closest('.setrow');
   if (sr) { const on = isDoneSet(row), zero = on && +row.r === 0; sr.classList.toggle('on', on); sr.classList.toggle('zero', zero); const cb = $('.check', sr); cb.classList.toggle('on', on); cb.classList.toggle('zero', zero); cb.setAttribute('aria-pressed', String(on)); }
   refreshHead(date, ex); refreshSession(date);
+  if (row.d && !was) relocateEx(date, ex);   // and moves it under Added at once, like a tick
 }
 function setPath(path, raw){
   const parts = path.split('.'); let o = S.settings;
@@ -2590,7 +2594,7 @@ function removeLift(date, ex, row){
 function removeSet(date, ex, i, row){
   const finish = () => {
     const rows = materialize(date, ex), keep = rows.map(x => ({ ...x }));
-    rows.splice(i, 1); saveState(); refreshEx(date, ex); refreshSession(date);
+    rows.splice(i, 1); extraDone(date, ex); saveState(); refreshEx(date, ex); refreshSession(date); relocateEx(date, ex);
     ui.undo = { fn: () => { ensureWk(date).ex[ex] = keep; saveState(); refreshEx(date, ex); refreshSession(date); } };
     toast(`Set ${i + 1} deleted`, { undo:true });
   };
