@@ -293,8 +293,9 @@ body.under .edge.top{opacity:1}
 .capsule:active,.icb:active,.wd:active,.check:active{transform:scale(.92)}
 .food,.addline{position:relative;isolation:isolate}
 /* rows other than the card rows light up as a pill, fully rounded and inset from the card, as in iOS 26 lists (Surath) */
-.food::after,.addline::after{content:"";position:absolute;inset:4px calc(var(--hl-gap) - 16px);border-radius:999px;z-index:-1;background:transparent;transition:background-color .2s}
+.food::after{content:"";position:absolute;inset:4px calc(var(--hl-gap) - 16px);border-radius:999px;z-index:-1;background:transparent;transition:background-color .2s}
 .food:active::after,.addline:active::after{background:var(--press)}
+.addline::after{content:"";position:absolute;inset:var(--hl-gap) calc(var(--hl-gap) - 16px);border-radius:var(--hl-r);z-index:-1;background:transparent;transition:background-color .2s}   /* in the meal card: the cards' rounded highlight */
 
 /* ---------- session card ---------- */
 .session .top{display:flex;gap:14px;align-items:center}
@@ -489,7 +490,7 @@ body.under .edge.top{opacity:1}
 h2.first{margin-top:6px}
 /* rows that open a page: label, optional value, chevron; separators inset from the leading edge */
 .srow{position:relative;isolation:isolate;display:flex;align-items:center;gap:10px;width:100%;min-height:58px;padding:0 16px;font-size:15px;text-align:left;cursor:pointer}
-.srow::after{content:"";position:absolute;inset:4px var(--hl-gap);border-radius:999px;z-index:-1;background:transparent;transition:background-color .2s}   /* the press: a pill */
+.srow::after{content:"";position:absolute;inset:var(--hl-gap);border-radius:var(--hl-r);z-index:-1;background:transparent;transition:background-color .2s}   /* the press: the cards' rounded highlight (pills are for menus and trays only) */
 .srow+.srow::before,.frow+.frow::before{content:"";position:absolute;top:0;left:16px;right:16px;height:var(--sep-w);background:var(--sep)}
 .srow .v{color:var(--ink2)}
 .srow .chip{margin-left:8px;padding:2px 8px;vertical-align:1px}
@@ -825,7 +826,7 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.92';
+const APP_VERSION = '3.93';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
