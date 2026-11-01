@@ -807,7 +807,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.67';
+const APP_VERSION = '3.68';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1345,11 +1345,8 @@ function buildPlan(date, opts={}){
 
   // a skipped or missed session before today: its lifts wait at the bottom, to do if there is time
   const mu = date === today && tpl ? makeUp(date, id => pool.has(id) || byHand.has(id) || removed.has(id) || (!setsDone(wk, id).length && !!holdFor(id))) : null;
-  // one of them done today (every set ticked) joins the session in its usual place and counts in the ring: it was done
-  const offered = mu ? mu.ids.sort(byOrder(wk)).map(id => ({ id, origin:'extra', from:mu.from, sug: suggest(id, date) })) : [];
-  const joined = offered.filter(it => setsDone(wk, it.id).length >= setTarget(wk, it)), left = offered.filter(it => !joined.includes(it));
-  const extras = left.length ? { ...mu, items: left } : null;
-  const inExtras = new Set(left.map(it => it.id));
+  const extras = mu ? { ...mu, items: mu.ids.sort(byOrder(wk)).map(id => ({ id, origin:'extra', from:mu.from, sug: suggest(id, date) })) } : null;
+  const inExtras = new Set(mu ? mu.ids : []);
 
   // anything added by hand or already logged today
   const present = new Set(chosen.map(i => i.id));
@@ -1358,7 +1355,7 @@ function buildPlan(date, opts={}){
 
   // lifts added on top of the plan sit in their own section and do not count towards the session
   const ord = byOrder(wk), isAdded = it => it.origins.includes('added');
-  const items = chosen.filter(it => !isAdded(it)).concat(joined).sort((a, b) => ord(a.id, b.id)).map(it => ({ id:it.id, origin:'today', from:it.from, sug: it.sug || suggest(it.id, date) }));
+  const items = chosen.filter(it => !isAdded(it)).sort((a, b) => ord(a.id, b.id)).map(it => ({ id:it.id, origin:'today', from:it.from, sug: suggest(it.id, date) }));
   const added = chosen.filter(isAdded).sort((a, b) => ord(a.id, b.id)).map(it => ({ id:it.id, origin:'added', from:it.from, sug: suggest(it.id, date) }));
 
   const title = tpl ? tpl.name : items.length ? 'Workout' : 'Rest day';
@@ -1790,8 +1787,13 @@ function refreshEx(date, id){
   const it = planItem(date, id); if (!it) return;
   host.outerHTML = exRow(it, date);
 }
-/* A lift from If you have time joins the session once every set is ticked, and goes back if one is unticked. When a tick
-   moves it, the lift closes, the page redraws and it flashes in its new place, brought into view. */
+/* A lift from If you have time with every set done goes under Added (into wk.added, so it stays there, also on past days,
+   and does not count in the session ring); swiping it away there offers it under If you have time again */
+function extraDone(date, id){
+  const wk = S.workouts[date], p = getPlan(date), it = p.extras && p.extras.items.find(i => i.id === id);
+  if (it && setsDone(wk, id).length >= setTarget(wk, it)) wk.added = [...(wk.added || []), id];
+}
+/* when a tick moves a lift to another section, it closes, the page redraws and it flashes in its new place, brought into view */
 function relocateEx(date, id){
   const key = date + '|' + id, host = findEx(key); if (!host) return;
   const p = getPlan(date), wasExtra = !!host.closest('.extras'), isExtra = !!(p.extras && p.extras.items.some(i => i.id === id));
@@ -2542,6 +2544,7 @@ function onSetInput(el){
   // typing never logs a set, only the tick does, with one exception: 0 reps logs it at once (a grey dot, no rest timer).
   // A logged set stays logged unless its reps are cleared; one logged only by its 0 needs the tick once it gets reps.
   row.d = row.r === 0 || (was && row.r !== '' && !(wasZero && f === 'r'));
+  if (row.d && !was) extraDone(date, ex);   // a last set logged as 0 reps finishes it too; it moves on the next redraw, not while typing
   saveState();
   const sr = el.closest('.setrow');
   if (sr) { const on = isDoneSet(row), zero = on && +row.r === 0; sr.classList.toggle('on', on); sr.classList.toggle('zero', zero); const cb = $('.check', sr); cb.classList.toggle('on', on); cb.classList.toggle('zero', zero); cb.setAttribute('aria-pressed', String(on)); }
@@ -2660,6 +2663,7 @@ const H = {
       row.r = rv !== null && rv >= 0 ? rv : sug.high; row.d = true;   // 0 reps is a valid set (a grey dot instead of the tick)
       const wk = S.workouts[date]; if (isNotDone(wk, ex)) wk.notDone = wk.notDone.filter(x => x !== ex);   // done after all
       ui.popKey = date + '|' + ex + '|' + i; if (row.r > 0) startRest(ex);   // no rest after a set of 0 reps
+      extraDone(date, ex);
     }
     saveState(); refreshEx(date, ex); ui.popKey = null; refreshSession(date); relocateEx(date, ex);
   },
