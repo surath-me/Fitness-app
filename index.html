@@ -811,7 +811,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.74';
+const APP_VERSION = '3.75';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3786,7 +3786,7 @@ function closeChat(){
    further and a little later, like a loose stack (`pullLayers`, each eased towards its own target every frame). When
    the finger lets go they spring back one after another from the top (`pullSpringBack`). Crossing the line plays a
    haptic tick and the hint pops; letting go past it opens Coach. */
-const PULL_OPEN = 64;
+const PULL_OPEN = 48;
 const pull = { id:null, tid:null, x0:0, y0:0, t0:0, on:false, d:0, layers:null, raf:0, armed:false };
 // a pull can start anywhere on the page, the week strip and swipeable rows included (they only take sideways drags);
 // not on fields, the tab bar or what floats above the page
