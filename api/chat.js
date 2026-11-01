@@ -1,6 +1,7 @@
-// Coach chat (beta): one continuous conversation with Claude, kept in the same Upstash Redis as the cloud backup.
+// Coach chat (beta): one continuous conversation with Claude or OpenAI, kept in the same Upstash Redis as the cloud backup.
 //
-//   GET    /api/chat                 { mode, messages:[the latest 80], more, profile, spend }   mode: "live" or "pretend"
+//   GET    /api/chat                 { mode, ai, messages:[the latest 80], more, profile, spend }   mode: "live" or "pretend";
+//                                    ai: the model answering and its prices (null when pretend)
 //   GET    /api/chat?before=N        { messages:[up to 80 older than message N], more }
 //   POST   /api/chat                 body { text, snapshot, retry, qid }  -> text/event-stream of JSON events:
 //                                    user (the stored message), status, delta, done (the stored reply), error
@@ -14,15 +15,28 @@
 //   PUT    /api/chat?profile=1       body { text }            -> { profile }
 //   DELETE /api/chat                 clears the conversation (the profile stays); 409 while a reply is being written
 //
-// Same passphrase as /api/sync. No npm packages: Node built-ins and fetch only. Without ANTHROPIC_API_KEY every reply
-// is a pretend one, streamed the same way, so the app can be built and tested for free. Real requests stop for the
-// rest of the day once they have cost CHAT_DAILY_CAP_EUR (default 1). Keys start with COACH_PREFIX (default "coach"),
-// so a test deployment can keep its conversation apart from the real one.
+// Same passphrase as /api/sync. No npm packages: Node built-ins and fetch only. Claude answers when ANTHROPIC_API_KEY
+// is set, otherwise OpenAI when OPENAI_API_KEY is set (CHAT_PROVIDER=claude or openai picks one when both are). Without
+// either, every reply is a pretend one, streamed the same way, so the app can be built and tested for free. Real
+// requests stop for the rest of the day once they have cost CHAT_DAILY_CAP_EUR (default 1). Keys start with
+// COACH_PREFIX (default "coach"), so a test deployment can keep its conversation apart from the real one.
 const crypto = require('crypto');
 const zlib = require('zlib');
 
-const MODEL = process.env.CHAT_MODEL || 'claude-sonnet-5-5';
-const PRICE = { in: 2, cacheWrite: 2.5, cacheRead: 0.2, out: 10 };   // USD per million tokens, Claude Sonnet 5.5
+// USD per million tokens. OpenAI charges cache writes at 1.25 times input and prompts over 272k tokens at the long rates.
+// CHAT_MODEL swaps the model within the provider; the prices stay those of the default model.
+const AI = {
+  claude: { name: 'Claude Sonnet 5.5', model: 'claude-sonnet-5-5', price: { in: 2, cacheWrite: 2.5, cacheRead: 0.2, out: 10 } },
+  openai: { name: 'GPT-6.1 Sol', model: 'gpt-6.1-sol', price: { in: 2, cacheWrite: 2.5, cacheRead: 0.1, out: 10,
+    longFrom: 272000, long: { in: 4, cacheWrite: 5, cacheRead: 0.2, out: 15 } } }
+};
+function provider(){
+  const e = process.env, want = e.CHAT_PROVIDER;
+  if (want === 'openai' && e.OPENAI_API_KEY) return 'openai';
+  if (e.ANTHROPIC_API_KEY) return 'claude';
+  return e.OPENAI_API_KEY ? 'openai' : null;
+}
+const model = () => process.env.CHAT_MODEL || AI[provider()].model;
 const EUR_PER_USD = 0.92;
 const CONTEXT_MESSAGES = 40;   // the latest messages sent with each request; the profile carries what lasts
 const PAGE = 80;
@@ -135,73 +149,112 @@ async function addSpend(env, usd){
   await redis(env, [['SET', K.spend(today()), JSON.stringify(s), 'EX', String(3 * 86400)]]);
   return s;
 }
-const costUsd = u => ((u.input_tokens || 0) * PRICE.in + (u.cache_creation_input_tokens || 0) * PRICE.cacheWrite
-  + (u.cache_read_input_tokens || 0) * PRICE.cacheRead + (u.output_tokens || 0) * PRICE.out) / 1e6;
+// usage in Claude's terms: input_tokens is only the input that was not read from or written to the cache
+function costUsd(u){
+  const p0 = AI[provider() || 'claude'].price;
+  const all = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+  const p = p0.longFrom && all > p0.longFrom ? p0.long : p0;
+  return ((u.input_tokens || 0) * p.in + (u.cache_creation_input_tokens || 0) * p.cacheWrite
+    + (u.cache_read_input_tokens || 0) * p.cacheRead + (u.output_tokens || 0) * p.out) / 1e6;
+}
 
-/* ---------- the request to Claude ---------- */
-// The instructions and the profile come first and are cached; the conversation follows as plain text (Claude's own
+/* ---------- the request ---------- */
+// The instructions and the profile come first and are cached; the conversation follows as plain text (the model's own
 // thinking is never stored or replayed), cached up to the previous turn; the app data rides on the new message only.
+// It is written once as { system, turns, now } and put into each provider's format when sent.
 function buildRequest(profile, history, text, snapshot){
-  const msgs = [];
+  const turns = [];
   for (const m of history) {   // the API wants user and assistant turns in turn, starting with the user
     if (m.refused || !String(m.text || '').trim()) continue;   // a declined question would only be declined again; empty text is refused by the API
-    if (!msgs.length && m.role !== 'user') continue;
-    const last = msgs[msgs.length - 1];
-    if (last && last.role === m.role) last.text += '\n\n' + m.text; else msgs.push({ role: m.role, text: m.text });
+    if (!turns.length && m.role !== 'user') continue;
+    const last = turns[turns.length - 1];
+    if (last && last.role === m.role) last.text += '\n\n' + m.text; else turns.push({ role: m.role, text: m.text });
   }
-  if (msgs.length && msgs[msgs.length - 1].role === 'user') msgs.pop();   // an earlier message that never got its reply
-  const messages = msgs.map(m => ({ role: m.role, content: [{ type: 'text', text: m.text }] }));
-  if (messages.length) messages[messages.length - 1].content[0].cache_control = { type: 'ephemeral' };
+  if (turns.length && turns[turns.length - 1].role === 'user') turns.pop();   // an earlier message that never got its reply
   const now = [];
-  if (snapshot) now.push({ type: 'text', text: 'App data with this message:\n' + String(snapshot).slice(0, 20000) });
-  now.push({ type: 'text', text });
-  messages.push({ role: 'user', content: now });
-  return {
-    model: MODEL,
-    max_tokens: 4000,
-    stream: true,
-    output_config: { effort: 'low' },
-    fallbacks: 'default',
-    system: [
-      { type: 'text', text: INSTRUCTIONS },
-      { type: 'text', text: profile ? 'Their profile, kept by them in the app:\n\n' + profile : NO_PROFILE, cache_control: { type: 'ephemeral' } }
-    ],
-    messages
-  };
+  if (snapshot) now.push('App data with this message:\n' + String(snapshot).slice(0, 20000));
+  now.push(text);
+  return { system: [INSTRUCTIONS, profile ? 'Their profile, kept by them in the app:\n\n' + profile : NO_PROFILE], turns, now, effort: 'low', max: 4000 };
 }
-const anthropicHeaders = () => ({
-  'Content-Type': 'application/json',
-  'x-api-key': process.env.ANTHROPIC_API_KEY,
-  'anthropic-version': '2026-10-21',
-  'anthropic-beta': 'server-side-fallback-2026-07-01'
-});
+/* Claude caches up to the marks: the end of the system blocks and the last earlier turn */
+function claudeBody(q){
+  const messages = q.turns.map(m => ({ role: m.role, content: [{ type: 'text', text: m.text }] }));
+  if (messages.length) messages[messages.length - 1].content[0].cache_control = { type: 'ephemeral' };
+  messages.push({ role: 'user', content: q.now.map(text => ({ type: 'text', text })) });
+  const body = { model: model(), max_tokens: q.max, stream: true, output_config: { effort: q.effort }, fallbacks: 'default', messages };
+  if (q.system.length) body.system = q.system.map((text, i, all) => i === all.length - 1 ? { type: 'text', text, cache_control: { type: 'ephemeral' } } : { type: 'text', text });
+  return body;
+}
+/* OpenAI caches the longest prefix it has seen on its own. store:false: it does not keep the response (30 days otherwise) */
+function openaiBody(q){
+  const body = { model: model(), max_output_tokens: q.max, stream: true, store: false, reasoning: { effort: q.effort },
+    input: [...q.turns.map(m => ({ role: m.role, content: m.text })), { role: 'user', content: q.now.map(text => ({ type: 'input_text', text })) }] };
+  if (q.system.length) body.instructions = q.system.join('\n\n');
+  return body;
+}
 
-/* stream one reply from Claude; calls on(type, data) for status and text, resolves to { text, usage, stop } */
-async function streamClaude(body, on){
-  const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: anthropicHeaders(), body: JSON.stringify(body) });
+async function post(url, headers, body){
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
   if (!r.ok) {
-    let msg = 'http ' + r.status; try { const j = await r.json(); msg = (j.error && j.error.message) || msg; } catch (e) {}
-    const err = new Error(msg); err.status = r.status; throw err;
+    let msg = 'http ' + r.status, code; try { const j = await r.json(); msg = (j.error && j.error.message) || msg; code = j.error && j.error.code; } catch (e) {}
+    const err = new Error(msg); err.status = r.status; err.code = code; throw err;
   }
-  const usage = {}; let text = '', stop = null, buf = '';
-  const dec = new TextDecoder();
-  // a stream that fails part way was still billed: what it had used goes with the error, output estimated from the text
-  const fail = err => { err.usage = Object.assign({}, usage, { output_tokens: Math.max(usage.output_tokens || 0, Math.ceil(text.length / 3.5)) }); return err; };
-  try { for await (const chunk of r.body) {
+  return r;
+}
+/* the data of each server-sent event, parsed */
+async function* events(r){
+  const dec = new TextDecoder(); let buf = '';
+  for await (const chunk of r.body) {
     buf += dec.decode(chunk, { stream: true });
     let i;
     while ((i = buf.indexOf('\n\n')) >= 0) {
       const block = buf.slice(0, i); buf = buf.slice(i + 2);
       const line = block.split('\n').find(l => l.startsWith('data:')); if (!line) continue;
       let ev; try { ev = JSON.parse(line.slice(5).trim()); } catch (e) { continue; }
-      if (ev.type === 'message_start' && ev.message && ev.message.usage) Object.assign(usage, ev.message.usage);
-      else if (ev.type === 'content_block_start' && ev.content_block && ev.content_block.type === 'thinking') on('status', 'Thinking…');
-      else if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta') { text += ev.delta.text; on('delta', ev.delta.text); }
-      else if (ev.type === 'message_delta') { if (ev.usage) Object.assign(usage, ev.usage); if (ev.delta && ev.delta.stop_reason) stop = ev.delta.stop_reason; }
-      else if (ev.type === 'error') { const err = new Error((ev.error && ev.error.message) || 'stream error'); err.status = 529; throw err; }
+      yield ev;
     }
-  } } catch (e) { throw fail(e); }
+  }
+}
+// a stream that fails part way was still billed: what it had used goes with the error, output estimated from the text
+const billed = (err, usage, text) => { err.usage = Object.assign({}, usage, { output_tokens: Math.max(usage.output_tokens || 0, Math.ceil(text.length / 3.5)) }); return err; };
+
+/* stream one reply; calls on(type, data) for status and text, resolves to { text, usage, stop } in Claude's terms
+   (stop: end_turn when it finished, max_tokens when it was cut off, refusal when it was declined) */
+const streamAI = (q, on) => provider() === 'openai' ? streamOpenAI(openaiBody(q), on) : streamClaude(claudeBody(q), on);
+
+async function streamClaude(body, on){
+  const r = await post('https://api.anthropic.com/v1/messages', { 'x-api-key': process.env.ANTHROPIC_API_KEY,
+    'anthropic-version': '2026-10-21', 'anthropic-beta': 'server-side-fallback-2026-07-01' }, body);
+  const usage = {}; let text = '', stop = null;
+  try { for await (const ev of events(r)) {
+    if (ev.type === 'message_start' && ev.message && ev.message.usage) Object.assign(usage, ev.message.usage);
+    else if (ev.type === 'content_block_start' && ev.content_block && ev.content_block.type === 'thinking') on('status', 'Thinking…');
+    else if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta') { text += ev.delta.text; on('delta', ev.delta.text); }
+    else if (ev.type === 'message_delta') { if (ev.usage) Object.assign(usage, ev.usage); if (ev.delta && ev.delta.stop_reason) stop = ev.delta.stop_reason; }
+    else if (ev.type === 'error') { const err = new Error((ev.error && ev.error.message) || 'stream error'); err.status = 529; throw err; }
+  } } catch (e) { throw billed(e, usage, text); }
   return { text, usage, stop };
+}
+
+async function streamOpenAI(body, on){
+  const r = await post('https://api.openai.com/v1/responses', { Authorization: 'Bearer ' + process.env.OPENAI_API_KEY }, body);
+  // usage only comes at the end: until then a failure counts the whole request as uncached input
+  let usage = { input_tokens: Math.ceil(JSON.stringify(body).length / 3.5) }, text = '', stop = null, refused = false;
+  try { for await (const ev of events(r)) {
+    if (ev.type === 'response.output_item.added' && ev.item && ev.item.type === 'reasoning') on('status', 'Thinking…');
+    else if (ev.type === 'response.output_text.delta' && typeof ev.delta === 'string') { text += ev.delta; on('delta', ev.delta); }
+    else if (ev.type === 'response.refusal.delta') refused = true;   // a refusal is its own part, never shown as the reply
+    else if (ev.type === 'response.completed' || ev.type === 'response.incomplete' || ev.type === 'response.failed') {
+      const x = ev.response || {}, u = x.usage, d = (u && u.input_tokens_details) || {};
+      if (u) usage = { input_tokens: Math.max(0, (u.input_tokens || 0) - (d.cached_tokens || 0) - (d.cache_write_tokens || 0)),
+        cache_read_input_tokens: d.cached_tokens || 0, cache_creation_input_tokens: d.cache_write_tokens || 0, output_tokens: u.output_tokens || 0 };
+      if (ev.type === 'response.failed') { const err = new Error((x.error && x.error.message) || 'response failed'); err.status = 529; throw err; }
+      const why = x.incomplete_details && x.incomplete_details.reason;
+      stop = refused || why === 'content_filter' ? 'refusal' : ev.type === 'response.completed' ? 'end_turn' : why === 'max_output_tokens' ? 'max_tokens' : why || 'incomplete';
+    }
+    else if (ev.type === 'error') { const err = new Error(ev.message || 'stream error'); err.status = 529; err.code = ev.code; throw err; }
+  } } catch (e) { throw billed(e, usage, text); }
+  return { text, usage, stop: stop || (refused ? 'refusal' : null) };
 }
 
 /* ---------- pretend replies, for building without an API key ---------- */
@@ -213,13 +266,13 @@ function pretendReply(text, snapshot){
   if (t.includes('/long')) return { text: Array.from({ length: 6 }, (_, i) => `**Part ${i + 1}.** This is a long pretend reply to test scrolling and streaming. It keeps going for a while so the conversation has to scroll, and the newest words should stay in view while they arrive.`).join('\n\n') + '\n\n- One point\n- Another point\n- A third point\n\n↳ Can you shorten that?\n↳ What should I eat next?' };
   if (/protein|eat|food|meal|kcal|calorie/.test(t)) {
     const eaten = grab(/Eaten today: ([^\n]+?)\.?\n/), left = grab(/Left today: ([^\n]+?)\.?\n/);
-    return { text: `This is a pretend reply, Coach AI is not connected to Claude yet.\n\nFrom your log: you have eaten ${eaten || 'nothing yet'} today${left ? `, and ${left} is still open` : ''}. Once the API key is in, I will plan the rest of your day from these numbers.\n\n↳ What should I have for dinner?\n↳ Am I on track for protein this week?` };
+    return { text: `This is a pretend reply, Coach AI is not connected to an AI yet.\n\nFrom your log: you have eaten ${eaten || 'nothing yet'} today${left ? `, and ${left} is still open` : ''}. Once the API key is in, I will plan the rest of your day from these numbers.\n\n↳ What should I have for dinner?\n↳ Am I on track for protein this week?` };
   }
   if (/train|lift|session|gym|workout/.test(t)) {
     const plan = grab(/Training today: ([^\n]+)/);
-    return { text: `This is a pretend reply, Coach AI is not connected to Claude yet.\n\nToday's plan in the app: ${plan || 'no session'}. With the API key, I will look at your last sessions and tell you what to push and what to hold.\n\n↳ What weight for chest press today?\n↳ How did my last Push session go?` };
+    return { text: `This is a pretend reply, Coach AI is not connected to an AI yet.\n\nToday's plan in the app: ${plan || 'no session'}. With the API key, I will look at your last sessions and tell you what to push and what to hold.\n\n↳ What weight for chest press today?\n↳ How did my last Push session go?` };
   }
-  return { text: `This is a pretend reply. Coach AI is not connected to Claude yet, so I can't really answer, but everything you see here works the same way: your message is saved, this reply streams in word by word, and both are kept in your conversation.\n\nTry asking about **food** or **training** to see your app data come through, or send **/long** or **/error** to test those cases.` };   // like most real replies, no follow-ups
+  return { text: `This is a pretend reply. Coach AI is not connected to an AI yet, so I can't really answer, but everything you see here works the same way: your message is saved, this reply streams in word by word, and both are kept in your conversation.\n\nTry asking about **food** or **training** to see your app data come through, or send **/long** or **/error** to test those cases.` };   // like most real replies, no follow-ups
 }
 
 /* ---------- handler ---------- */
@@ -234,14 +287,15 @@ module.exports = async function handler(req, res){
   const env = redisEnv();
   if (!env || !process.env.COACH_TOKEN) return res.status(503).json({ error: 'not-configured' });
   if (!authorised(req)) { await new Promise(r => setTimeout(r, 400)); return res.status(401).json({ error: 'unauthorised' }); }
-  const live = !!process.env.ANTHROPIC_API_KEY, q = req.query || {};
+  const ai = provider(), live = !!ai, q = req.query || {};
   try {
     if (req.method === 'GET') {
       const meta = await readMeta(env), before = Number(q.before) || 0;
       const page = await readMessages(env, meta, before, PAGE);
       if (before) return res.status(200).json(page);
       const [profile, spend] = await Promise.all([readProfile(env), readSpend(env)]);
-      return res.status(200).json({ mode: live ? 'live' : 'pretend', ...page, profile, spend: spendOut(spend) });
+      return res.status(200).json({ mode: live ? 'live' : 'pretend', ai: live ? { name: process.env.CHAT_MODEL || AI[ai].name, price: AI[ai].price } : null,
+        ...page, profile, spend: spendOut(spend) });
     }
     if (req.method === 'PUT' && q.profile) {
       const b = await readBody(req), text = String(b.text || '').slice(0, 60000);
@@ -310,7 +364,7 @@ async function answer(env, req, res, live, b, text, snapshot, spend, release){
   let reply = '';
   try {
     if (live) {
-      const out = await streamClaude(buildRequest(profile.text, history, text, snapshot), (type, x) => {
+      const out = await streamAI(buildRequest(profile.text, history, text, snapshot), (type, x) => {
         if (type === 'status') send('status', { text: x }); else { reply += x; send('delta', { text: x }); }
       });
       const after = await addSpend(env, costUsd(out.usage));
@@ -332,7 +386,9 @@ async function answer(env, req, res, live, b, text, snapshot, spend, release){
     console.error(e);
     if (e.usage) await addSpend(env, costUsd(e.usage)).catch(() => {});   // what a failed stream used still counts towards the cap
     if (reply) await appendMessage(env, meta, { role: 'assistant', text: reply, ts: Date.now(), cut: true }).catch(() => {});
-    return finish('error', { code: e.status === 429 ? 'busy' : 'failed', message: e.status === 429 || e.status === 529 ? 'Claude is busy right now. Try again in a moment.' : 'Coach AI could not answer. Try again.' });
+    const broke = e.code === 'insufficient_quota' || /credit balance/i.test(e.message || '');   // OpenAI's and Anthropic's ways of saying so
+    return finish('error', broke ? { code: 'credit', message: 'Coach AI is out of API credit.' }
+      : { code: e.status === 429 ? 'busy' : 'failed', message: e.status === 429 || e.status === 529 ? 'Coach AI is busy right now. Try again in a moment.' : 'Coach AI could not answer. Try again.' });
   }
 }
 
@@ -355,10 +411,9 @@ async function readInto(env, res, live, text, src, release){
   let profileText;
   if (live) {
     // thinking counts towards max_tokens; only a profile that ended on its own is kept, not one cut off or declined
-    const body = { model: MODEL, max_tokens: 16000, stream: true, output_config: { effort: 'medium' }, fallbacks: 'default',
-      messages: [{ role: 'user', content: [{ type: 'text', text: DISTILL }, { type: 'text', text: '<history>\n' + text + '\n</history>' }] }] };
+    const q = { system: [], turns: [], now: [DISTILL, '<history>\n' + text + '\n</history>'], effort: 'medium', max: 16000 };
     let out;
-    try { out = await streamClaude(body, () => {}); }
+    try { out = await streamAI(q, () => {}); }
     catch (e) { if (e.usage) await addSpend(env, costUsd(e.usage)).catch(() => {}); throw e; }
     await addSpend(env, costUsd(out.usage));
     if (out.stop !== 'end_turn' || !out.text.trim()) { await release(); return res.status(502).json({ error: out.stop === 'refusal' ? 'refusal' : 'unfinished' }); }
@@ -366,7 +421,7 @@ async function readInto(env, res, live, text, src, release){
   } else {
     await wait(1500);
     const n = (text.match(/\n(You|Human|User|Me):/gi) || []).length;
-    profileText = `This is a pretend profile. Coach AI is not connected to Claude yet, so it could not read your ${Math.round(text.length / 1000)}k characters of history${n ? ` (${n} of your messages)` : ''}.\n\nOnce the API key is in, importing again writes the real profile here: your goals, training split, food rules and limits, routine and how you like answers.`;
+    profileText = `This is a pretend profile. Coach AI is not connected to an AI yet, so it could not read your ${Math.round(text.length / 1000)}k characters of history${n ? ` (${n} of your messages)` : ''}.\n\nOnce the API key is in, importing again writes the real profile here: your goals, training split, food rules and limits, routine and how you like answers.`;
   }
   const profile = { text: profileText, updatedAt: new Date().toISOString(), src };
   await redis(env, [['SET', K.profile(), JSON.stringify(profile)]]);

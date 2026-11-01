@@ -825,7 +825,7 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.90';
+const APP_VERSION = '3.91';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3343,7 +3343,7 @@ window.addEventListener('online', () => syncNow());
 document.addEventListener('visibilitychange', () => { if (!cloud.token) return; if (document.hidden) { if (syncTimer) syncNow(); } else syncNow(); });
 
 /* =====================================================================
-   COACH CHAT (beta, Settings > Coach AI). One continuous conversation with Claude through /api/chat, which keeps it in the
+   COACH CHAT (beta, Settings > Coach AI). One continuous conversation with Claude or OpenAI through /api/chat, which keeps it in the
    cloud next to the backup and adds what Coach AI knows about you (your profile). Pull down at the top of Train, Eat or
    Progress to open it (`pullStart`): the page blurs and turns milky, the conversation sharpens in over it (after
    Revolut's AI), and closing shrinks it into a card that fades as the page comes back. Each message carries a short
@@ -3352,7 +3352,7 @@ document.addEventListener('visibilitychange', () => { if (!cloud.token) return; 
    ===================================================================== */
 const CHAT_CACHE = 'coach-chat';
 // status: the line shown while Claude works (kept so a redraw mid-reply can show it again); profileDraft: unsaved profile edits
-const chat = { open:false, msgs:[], more:false, mode:null, sending:false, status:'', draft:null, err:null, profile:null, profileDraft:null, spend:null, loading:false, pageY:0 };
+const chat = { open:false, msgs:[], more:false, mode:null, ai:null, sending:false, status:'', draft:null, err:null, profile:null, profileDraft:null, spend:null, loading:false, pageY:0 };
 try { const c = JSON.parse(localStorage.getItem(CHAT_CACHE)); if (c && Array.isArray(c.msgs)) { chat.msgs = c.msgs; chat.mode = c.mode || null; } } catch(e) {}
 const chatOn = () => !!(S.settings.beta && S.settings.beta.chat);
 const chatFor = tab => chatOn() && ['train', 'eat', 'progress'].includes(tab);
@@ -3380,7 +3380,7 @@ async function chatLoad(){
       const t = chat.msgs[chat.msgs.length - 1], p = chat.msgs[chat.msgs.length - 2];
       if (chat.err && chat.err.kind === 'cut' && t && t.role === 'assistant' && !t.cut && p && chatSame(p, chat.err.retry)) chat.err = null;
     }
-    chat.mode = j.mode; chat.profile = j.profile; chat.spend = j.spend; chat.loadErr = null; chatCache();
+    chat.mode = j.mode; chat.ai = j.ai || null; chat.profile = j.profile; chat.spend = j.spend; chat.loadErr = null; chatCache();
     if (chat.open && !chat.sending) renderChatLog(true);
     const pe = $('#chatprofile');   // never redraw the page under someone typing their profile
     if (ui.tab === 'setup' && ui.setupPage === 'chat' && !(pe && document.activeElement === pe)) refreshSetup();
@@ -3941,7 +3941,7 @@ function chatSettings(){
   if (cloud.token && !chat.profile && !chat.loading) setTimeout(chatLoad);
   const pr = chat.profile, on = chatOn();
   let h = `<div class="group"><label class="switch"><input type="checkbox" data-chg="betachat" ${on ? 'checked' : ''}>Coach AI</label></div>
-    <p class="note">A beta. Pull down at the top of Train, Eat or Progress to talk to Coach AI. It sees your log and remembers the conversation.${chat.mode === 'pretend' ? ' Replies are pretend ones until the API key is added on the server.' : ''}${chat.mode === 'live' && chat.spend ? ` Today Coach AI has used €${chat.spend.eur.toFixed(2)} of €${chat.spend.capEur}.` : ''}</p>`;
+    <p class="note">A beta. Pull down at the top of Train, Eat or Progress to talk to Coach AI. It sees your log and remembers the conversation.${chat.mode === 'pretend' ? ' Replies are pretend ones until the API key is added on the server.' : ''}${chat.mode === 'live' && chat.ai ? ` Replies come from ${esc(chat.ai.name)}.` : ''}${chat.mode === 'live' && chat.spend ? ` Today Coach AI has used €${chat.spend.eur.toFixed(2)} of €${chat.spend.capEur}.` : ''}</p>`;
   if (!cloud.token) return h + `<h2>Needs Cloud backup</h2><div class="group">${srow('cloud', 'Off')}</div>
     <p class="note">Coach AI keeps your conversation and profile in your cloud backup, so it works on all your devices.</p>`;
   return h + `<h2>What Coach AI knows about you</h2>
@@ -3971,7 +3971,8 @@ function chatImportSheet(){
   const sh = ui.sheet;
   if (sh.busy) return sheetHead('Import chat history') + `<div class="chat-busy"><span class="shim">Reading your chats…</span><p class="note">A long history can take a minute. Keep this open.</p></div>`;
   const chars = sh.convs.reduce((a, c, i) => a + (sh.sel.has(i) ? c.chars : 0), 0), tokens = Math.round(chars / 3.6), tooMany = tokens > 600000;
-  const eur = (tokens * 2 + 3000 * 10) / 1e6 * 0.92;
+  const p0 = (chat.ai && chat.ai.price) || { in: 2, out: 10 }, p = p0.longFrom && tokens > p0.longFrom ? p0.long : p0;   // USD per million tokens
+  const eur = (tokens * p.in + 3000 * p.out) / 1e6 * 0.92;
   return sheetHead('Import chat history') + `<p class="note" style="margin-top:4px">Pick the chats Coach AI should learn from. It reads them once and writes your profile.</p>
     <div class="group">${sh.convs.map((c, i) => `<label class="frow improw"><input type="checkbox" data-act="chatimpsel" data-i="${i}" ${sh.sel.has(i) ? 'checked' : ''}>
       <span class="grow"><strong>${esc(c.title)}</strong><span class="small muted">${c.date ? dateLabel(fmtD(new Date(c.date))) + ', ' : ''}${c.msgs.length} message${c.msgs.length === 1 ? '' : 's'}</span></span></label>`).join('')}</div>
