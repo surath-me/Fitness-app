@@ -16,6 +16,15 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Coach</title>
+<script>/* every copy that is not the live app (the dev site, a branch preview, this Mac's test server) gets the orange dev
+   icon and is called Coach Dev, so the two never get mixed up on the home screen */
+if (!/^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.app$/.test(location.hostname)) {
+  const swap = (sel, attr, from, to) => document.querySelectorAll(sel).forEach(e => e.setAttribute(attr, e.getAttribute(attr).replace(from, to)));
+  swap('link[rel="apple-touch-icon"], link[rel="icon"]', 'href', /\.png$/, '-dev.png');
+  swap('link[rel="manifest"]', 'href', 'manifest.webmanifest', 'manifest-dev.webmanifest');
+  swap('meta[name="apple-mobile-web-app-title"], meta[name="application-name"]', 'content', 'Coach', 'Coach Dev');
+  document.title = 'Coach Dev';
+}</script>
 <script>/* opened from the home screen: the tab bar waits below the screen from the first frame until launch() slides it up */
 if (window.__LAUNCH__ || navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)) {
   const r = document.documentElement; r.classList.add('launching'); setTimeout(() => r.classList.remove('launching'), 3000);   // in case launch() never runs
@@ -801,7 +810,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.64';
+const APP_VERSION = '3.65';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {

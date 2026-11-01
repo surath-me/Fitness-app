@@ -7,6 +7,7 @@ A single-file web app for one person (Surath). It tracks meals and macros, lift 
 - `index.html`: the whole app (HTML, CSS, JavaScript). Vercel serves it from the repo root.
 - `apple-touch-icon.png` (180), `icon-192.png`, `icon-512.png`, `favicon-32.png`: the app icon (blue gradient, glass dumbbell). Must sit next to `index.html`.
 - `manifest.webmanifest`: name, standalone display, icons.
+- `apple-touch-icon-dev.png`, `icon-192-dev.png`, `icon-512-dev.png`, `favicon-32-dev.png`, `manifest-dev.webmanifest`: the dev copy's icon (the same dumbbell on orange, with DEV under it) and name, Coach Dev. A small script at the top of `index.html` switches to them on every address except the live ones (`fitness-app-chi-gilt`, `fitness-app-surath-me` and `fitness-app-git-main-surath-me` on vercel.app), so the dev site, previews and this Mac's test servers never look like the real app. Add a new live address (a custom domain) to that list.
 - `api/sync.js`: the cloud backup function (Vercel Node function, no npm packages, Node built-ins and `fetch` only). It stores the app's data in Upstash Redis.
 - `api/chat.js`: Coach chat (beta), the same kind of function: one continuous conversation with Claude, stored next to the backup.
 - `vercel.json`: runs the function in Frankfurt (`fra1`), next to the database.
