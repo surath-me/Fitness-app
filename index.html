@@ -63,8 +63,8 @@ if (window.__LAUNCH__ || navigator.standalone || (window.matchMedia && matchMedi
   /* motion: the same springs as SwiftUI .bouncy, .smooth and .snappy */
   --spring:cubic-bezier(.34,1.4,.64,1); --smooth:cubic-bezier(.22,1,.36,1); --snappy:cubic-bezier(.3,1.25,.6,1);
   --out:cubic-bezier(.22,1,.36,1); --io:cubic-bezier(.65,0,.35,1);
-  --r-card:26px; --hl-gap:5px; --hl-r:21px;   /* the row highlight: its gap from the card on every side, and its corners: 21 = 26 - 5, so they follow the card's curve */
-  --hl-outer:calc(var(--r-card) - var(--hl-gap));   /* a highlight corner next to the card's own corner follows its curve */
+  --r-card:26px; --hl-gap:6px; --hl-r:22px;   /* the row highlight: its gap from the card on every side, and its corners */
+  --hl-outer:22px;   /* its corners next to the card's own corners: set by eye (Surath), not the card's radius less the gap */
   color-scheme:light;
 }
 /* Dark mode follows the system, with Apple's iOS 26 dark colours */
@@ -815,7 +815,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.81';
+const APP_VERSION = '3.82';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
