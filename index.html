@@ -754,7 +754,7 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
 .composer{display:flex;align-items:flex-end;gap:8px;min-height:46px;padding:5px 5px 5px 18px;border-radius:23px;box-shadow:var(--glass-edge)}   /* 46 px: Surath found 54 too big */
 .composer:focus-within{outline:2px solid var(--accent-t);outline-offset:1px}
 @media (hover:none){.composer:focus-within{outline:none}}   /* on the phone the cursor shows the focus, as in Messages */
-.composer textarea{flex:1;min-width:0;max-height:8em;margin:0;padding:7px 0;border:0;outline:0;resize:none;background:none;color:var(--ink);font:inherit;font-size:14px;line-height:19px}
+.composer textarea{flex:1;min-width:0;max-height:8em;margin:0;padding:8.5px 0;border:0;outline:0;resize:none;background:none;color:var(--ink);font:inherit;font-size:14px;line-height:19px}   /* one line is 36 px, the field's inside, so the text sits in its middle */
 .composer textarea::placeholder{color:var(--ink3)}
 .send{flex:none;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--send-bg);color:var(--send-ink);transition:scale .35s var(--spring),opacity .2s}
 .send svg{width:19px;height:19px}
@@ -825,7 +825,7 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.89';
+const APP_VERSION = '3.90';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
