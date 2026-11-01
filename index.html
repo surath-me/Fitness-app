@@ -825,7 +825,7 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.91';
+const APP_VERSION = '3.92';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3113,6 +3113,28 @@ window.addEventListener('scroll', () => { if (scrollRaf) return; scrollRaf = req
 window.addEventListener('resize', () => closeMenu());
 /* the on-screen keyboard: Safari shrinks the visual viewport, and sheets move up to sit on top of the keyboard */
 const KB_RISE = 250;   // iOS's keyboard slide, measured on the simulator (it ends 220 to 250 ms after iOS tells us)
+/* the iPhone keyboard's slide, up and down alike, traced frame by frame on the simulator (within 5 pt all the way): how
+   long it takes, its curve, how far in it is when iOS tells us, and when it starts down after the field lets go. A
+   cubic-bezier, not linear(): Safari runs it on the compositor, while linear() ran on the page's thread and stalled with it */
+const KB_MS = 335, KB_EASE = 'cubic-bezier(.2,1.18,.725,.95)', KB_UP = 12, KB_DOWN = 36;
+/* A tap on the message field focuses it lifted near the top and see-through, with a copy of it in its place: iOS then has
+   no reason to slide the screen up (see the keyboard below). It comes back once Coach AI has made room for the keyboard,
+   or by itself when no keyboard comes (a hardware one). */
+let fieldUp = null;
+function liftField(){
+  dropField();
+  const ta = $('#chatq'), r = ta.getBoundingClientRect(), copy = ta.cloneNode();
+  copy.removeAttribute('id'); copy.value = ta.value; copy.tabIndex = -1; copy.readOnly = true; copy.setAttribute('aria-hidden', 'true');
+  copy.style.cssText = `position:absolute;left:${ta.offsetLeft}px;top:${ta.offsetTop}px;width:${ta.offsetWidth}px;height:${ta.offsetHeight}px;pointer-events:none`;
+  ta.after(copy); copy.scrollTop = ta.scrollTop;
+  ta.style.transform = `translateY(${Math.round(100 - r.top - r.height / 2)}px)`; ta.style.opacity = '0';
+  fieldUp = { copy, t: setTimeout(dropField, 800) };
+}
+function dropField(){
+  if (!fieldUp) return;
+  clearTimeout(fieldUp.t); fieldUp.copy.remove(); fieldUp = null;
+  const ta = $('#chatq'); ta.style.transform = ta.style.opacity = '';
+}
 if (window.visualViewport) {
   // The keyboard is up when the visible area is much shorter than the page's viewport. For a field near the end of the page
   // iOS also shifts the visible area up (offsetTop), which lifts the bottom bar with it, so the dock moves down by that too.
@@ -3129,22 +3151,41 @@ if (window.visualViewport) {
     // your message on its way and the copies fading out are placed in Coach AI itself: they keep their place on screen too
     if (t1 !== t0) $$('#chat > .bub.fly, #chat > .chat-ghost').forEach(f => { f._dy = (f._dy || 0) + t0 - t1; f.style.transform = `translateY(${f._dy}px)`; });
   };
-  /* Coach AI and the keyboard, measured on the simulator frame by frame. Opening: iOS tells us as its slide starts,
-     already with where it ends, then slides the screen up for about 0.25 s. Moving Coach AI there at once drew it low and
-     it came up from the bottom (Surath). So nothing changes during the slide: Coach AI stays full height and the keyboard
-     pushes it up; once the slide is over it takes the visible area, its title bar (pushed off the top with the rest) fades
-     back in and the field settles onto the keyboard. Anything redrawn during iOS's slide made it jump back and forth, and
-     holding the bar at the top over iOS's curve wobbled 35 pt and more (iOS starts a frame or two before it tells us).
-     Closing: iOS starts its slide about 40 ms before telling us, so Coach AI changes when the field loses focus, all in one
-     frame just before the slide, and the keyboard takes it down with it. */
-  /* With the keyboard up the field sits 8 pt above it instead of clear of the home indicator. That 26 pt is covered during
-     the slide by moving the field (and a conversation at its end) down on the compositor, so nothing is redrawn and the
-     keyboard takes everything straight to its place; settling it after the slide looked like a bounce (Surath). The real
-     layout replaces the moves when Coach AI takes the visible area. */
-  let rise = 0, moves = [];
+  /* Coach AI and the keyboard, measured on the simulator frame by frame. iOS centres a field that takes the focus in what
+     the keyboard leaves of the screen, so for the message field at the bottom it slid the whole screen up with the
+     keyboard: a short conversation and the title went out of sight and came back once the keyboard was up (Surath). A
+     field in the top half needs no slide, so a tap focuses the field lifted (liftField) and the screen stays still. The
+     keyboard comes up over Coach AI, the field rides up with it on the keyboard's own curve, 8 pt above it instead of clear
+     of the home indicator, and the conversation goes up only as far as its end has to: with room to spare the keyboard
+     just covers the empty space, and a conversation at its end goes up with the field. All on the compositor; the real
+     layout replaces the moves once the slide is over. iOS tells us as its slide starts, already with where it ends, but a
+     frame or so in (KB_UP). Going down is the same curve, from when the field lets go, but the keyboard only starts a
+     moment later (KB_DOWN). The moves are timed from those moments, not from when their first frame is drawn: right
+     after the focus changes iOS can hold the page's frames back a frame or two, and the field then trailed the keyboard
+     by as much (timed from the event it catches up). Which frame each side lands in still varies by about half a frame
+     either way. */
+  /* A field focused any other way still has iOS slide the screen. Then nothing changes during the slide: Coach AI stays
+     full height and the keyboard pushes it up; once the slide is over it takes the visible area, its title bar (pushed off
+     the top with the rest) fades back in and the field settles onto the keyboard. Moving Coach AI there at once drew it
+     low and it came up from the bottom, anything redrawn during iOS's slide made it jump back and forth, and holding the
+     bar at the top over iOS's curve wobbled 35 pt and more. The 26 pt the field drops onto the keyboard is covered during
+     that slide on the compositor; settling it after the slide looked like a bounce (Surath). */
+  let rise = 0, moves = [], falls = [];
+  const slide = (el, from, to, at, o) => { const a = el.animate([{ transform:from }, { transform:to }], { duration:KB_MS, easing:KB_EASE, ...o }); a.startTime = at; return a; };
   const riseMoves = () => { if (reduced()) return;
     const box = $('#chat .chat-in'), log = $('#chatlog'), inner = log && $('.chat-inner', log); if (!box) return;
-    const d = parseFloat(getComputedStyle(box).paddingBottom) - 8; if (!(d > 0)) return;
+    const d = parseFloat(getComputedStyle(box).paddingBottom) - 8;
+    falls.forEach(a => a.cancel()); falls = [];
+    if (fieldUp) {
+      const v = visualViewport, lift = document.documentElement.clientHeight - v.height - d, at = performance.now() - KB_UP;
+      // where the conversation ends (not scrollHeight, which is never less than the screen), with the gap the field leaves
+      const ends = inner ? inner.offsetTop + inner.offsetHeight + parseFloat(getComputedStyle(log).paddingBottom) - d : 0;
+      const by = inner && log.scrollHeight - log.scrollTop - log.clientHeight <= 1 ? Math.max(0, ends - v.height) - log.scrollTop : 0;
+      moves = [slide(box, 'none', `translateY(${-lift}px)`, at, { fill:'forwards' })];
+      if (inner && by > 0) moves.push(slide(inner, 'translateY(0px)', `translateY(${-by}px)`, at, { fill:'forwards', composite:'add' }));
+      return;
+    }
+    if (!(d > 0)) return;
     const opt = { duration:KB_RISE, easing:'cubic-bezier(.42,0,.58,1)', fill:'forwards' };
     moves = [box.animate([{ transform:'none' }, { transform:`translateY(${d}px)` }], opt)];
     if (inner && log.scrollHeight - log.scrollTop - log.clientHeight <= 1) moves.push(inner.animate([{ transform:'translateY(0px)' }, { transform:`translateY(${d}px)` }], { ...opt, composite:'add' }));
@@ -3155,18 +3196,28 @@ if (window.visualViewport) {
   const kb = () => {
     const v = visualViewport, r = document.documentElement, up = r.clientHeight - v.height > 120;
     if (up && chat.open && !r.classList.contains('kbopen')) {   // rising: wait for the slide to end
-      if (!rise) { riseMoves(); rise = setTimeout(() => { rise = 0; const bar = $('#chat .chat-top'), up = now(); settle();
-        if (up && chat.open && bar && !reduced()) bar.animate([{ opacity:0 }, { opacity:1 }], { duration:180, easing:'ease-out' }); }, KB_RISE + 10); }
+      if (!rise) { const lifted = !!fieldUp; if (lifted) clearTimeout(fieldUp.t);
+        riseMoves(); rise = setTimeout(() => { rise = 0; const bar = $('#chat .chat-top'), up = now(); settle(); dropField();
+        if (up && chat.open && bar && v.offsetTop > 0 && !reduced()) bar.animate([{ opacity:0 }, { opacity:1 }], { duration:180, easing:'ease-out' }); }, lifted ? KB_MS - KB_UP : KB_RISE + 10); }
       return;
     }
     settle(); now();
   };
   visualViewport.addEventListener('resize', kb); visualViewport.addEventListener('scroll', kb);
   $('#chatq').addEventListener('blur', () => {   // also when Coach AI closes
-    const r = document.documentElement;
+    const r = document.documentElement; dropField();
     if (rise) { settle(); return; }   // it had not moved yet
     if (!r.classList.contains('kbopen')) return;
-    apply(false, r.clientHeight, 0, 0); setTimeout(kb, 400);   // then checked against what iOS reports
+    // with the screen still, the field and the conversation go back down with the keyboard, from where they are
+    const box = $('#chat .chat-in'), inner = $('#chatlog .chat-inner'), top = el => el ? el.getBoundingClientRect().top : 0, b0 = top(box), i0 = top(inner);
+    apply(false, r.clientHeight, 0, 0); chatPad();
+    if (chat.open && !reduced() && !(parseFloat(r.style.getPropertyValue('--vvt')) > 0)) {
+      const at = performance.now() + KB_DOWN, di = i0 - top(inner);
+      falls.forEach(a => a.cancel());
+      falls = [slide(box, `translateY(${b0 - top(box)}px)`, 'none', at, { fill:'backwards' })];
+      if (di) falls.push(slide(inner, `translateY(${di}px)`, 'translateY(0px)', at, { fill:'backwards', composite:'add' }));
+    }
+    setTimeout(kb, 400);   // then checked against what iOS reports
   });
 }
 /* Opened from the home screen: the title and week fade in, the toolbar glass materialises, the day's cards come in one
@@ -3617,6 +3668,7 @@ function chatSay(text){ const el = $('#chatsay'); if (!el) return; const t = doc
 function chatInput(){
   const ta = $('#chatq'); if (!ta) return;
   ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 150) + 'px';
+  if (fieldUp) fieldUp.copy.value = ta.value;   // typed before the field is back in place
   $('.composer').classList.toggle('has', !!ta.value.trim()); chatPad();
 }
 
@@ -3758,6 +3810,12 @@ function closeChat(){
     H.chatsend(); if (typing) ta.focus({ preventScroll:true });
   });
   send.addEventListener('mousedown', e => e.preventDefault());
+  // a tap on the field while the keyboard is down focuses it lifted, so iOS keeps the screen still (liftField)
+  $('#chat .composer').addEventListener('touchend', e => {
+    if (document.activeElement === ta || !chat.open || !e.cancelable || e.target.closest('.send')) return;
+    const t = e.changedTouches[0]; if (Math.abs(t.clientX - x0) > 10 || Math.abs(t.clientY - y0) > 10) return;   // a drag, not a tap
+    e.preventDefault(); liftField(); ta.focus({ preventScroll:true }); ta.setSelectionRange(ta.value.length, ta.value.length);
+  });
   // Every other button in Coach AI (the ✕, a suggestion, Try again, Show earlier messages) also acts on touchend, with the
   // tap cancelled: with the keyboard up, iOS took the focus from the field on the tap, Coach AI moved for the keyboard going
   // away and the button slid from under the finger, so the first tap only closed the keyboard (Surath, with the ✕). Acting
