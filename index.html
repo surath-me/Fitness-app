@@ -811,7 +811,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.75';
+const APP_VERSION = '3.76';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3866,7 +3866,7 @@ document.addEventListener('visibilitychange', pullFresh); window.addEventListene
    switched off the moment the finger lands (pullHold), so the page and the pull never move at once. A quick flick, the
    whole drag shorter than PULL_FLICK ms, springs back instead of opening Coach AI, so a flick to keep scrolling up that
    reaches the top does not open it (Surath asked for that earlier) while a deliberate pull does. */
-const PULL_FLICK = 200;
+const PULL_FLICK = 100;
 const pullCan = target => chatFor(ui.tab) && !chat.open && !ui.sheet && !ui.menu && window.scrollY < 1 && !pullBlocked(target);
 const pullHold = () => { clearTimeout(pullsT); document.documentElement.classList.add('pulls'); pull.t0 = performance.now(); };
 // whether the drag so far is a pull: down, mostly straight, nothing else under way
