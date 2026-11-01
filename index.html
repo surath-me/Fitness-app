@@ -97,13 +97,17 @@ if (window.__LAUNCH__ || navigator.standalone || (window.matchMedia && matchMedi
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{-webkit-text-size-adjust:100%;background:var(--bg);touch-action:pan-x pan-y}   /* the app never zooms: no pinch, no double tap */
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.35 var(--font);-webkit-font-smoothing:antialiased;overscroll-behavior-y:none}
-html.pulls{overscroll-behavior-y:none}   /* where pulling down opens Coach AI the page itself never bounces (the root's own bounce is set here, not on body) */
+html.pulls{overscroll-behavior-y:none}   /* resting at the top where pulling down opens Coach AI, the page does not bounce; scrolled away from the top it does (pullBounce). The root's own bounce is set here, not on body */
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:inherit;-webkit-user-select:none;user-select:none}
 input,select{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:12px}
 [hidden]{display:none!important}
 svg{display:block}
-.app{position:relative;max-width:560px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 52px) 16px calc(150px + env(safe-area-inset-bottom));overflow-x:clip}   /* nothing sliding or edge to edge may widen the page: iPhone Safari would zoom out to fit it */
+.app{position:relative;max-width:560px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 52px) 16px calc(max(12px, env(safe-area-inset-bottom) - 10px) + 66px);overflow-x:clip}   /* nothing sliding or edge to edge may widen the page: iPhone Safari would zoom out to fit it */
+/* the end of a page stops about 20 px above the tab bar (the dock's bottom plus its 62 px, less the last card's margin), and
+   above the rest timer while it shows */
+body:has(#timer:not(.ghost)) .app{padding-bottom:calc(max(12px, env(safe-area-inset-bottom) - 10px) + 126px)}
+.app>:last-child,.daybody>:last-child{margin-bottom:16px}   /* every page ends on the same margin, a note as much as a card */
 
 /* ---------- Liquid Glass material ---------- */
 /* Without backdrop-filter the material falls back to a frosted solid. */
@@ -807,7 +811,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.72';
+const APP_VERSION = '3.73';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2514,7 +2518,7 @@ function afterRender(opts){
   $$('#tabs .tab').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ui.tab ? 'page' : 'false'));
   placeIndicator(opts.fromX);
   setToolbar(); initSegs();
-  document.documentElement.classList.toggle('pulls', chatFor(ui.tab));   // pulling down opens Coach AI here, so the page does not bounce
+  pullBounce(true);
   const pushed = ui.tab === 'setup' && !!ui.setupPage;   // a page opened from Setup: inline title, back button
   document.body.classList.toggle('pushed', pushed);
   $('#nbtitle').textContent = pushed ? SETUP_PAGES[ui.setupPage] : TAB_TITLES[ui.tab];
@@ -3841,6 +3845,17 @@ let scrolledAt = 0;
 window.addEventListener('scroll', () => { if (window.scrollY >= 1) scrolledAt = performance.now(); }, { passive:true });
 // at the top within a pixel (coming back to Safari can leave the page a fraction of a pixel down), and not mid-bounce
 const atTop = () => window.scrollY > -1 && window.scrollY < 1;
+/* Pulling down at the top opens Coach AI, so resting there the page must not bounce (html.pulls); anywhere else it bounces
+   as usual, also at the bottom. The switch follows the scroll: off as soon as the page leaves the top, back on once it has
+   come to rest there (so a fling up to the top still bounces) */
+let pullsT = 0;
+function pullBounce(now){
+  clearTimeout(pullsT); const r = document.documentElement;
+  if (!(chatFor(ui.tab) && atTop())) r.classList.remove('pulls');
+  else if (now) r.classList.add('pulls');
+  else pullsT = setTimeout(() => r.classList.toggle('pulls', chatFor(ui.tab) && atTop()), 150);
+}
+window.addEventListener('scroll', () => pullBounce(false), { passive:true });
 const restingTop = () => atTop() && performance.now() - scrolledAt > 400;
 // coming back to the app: a pull cut off by leaving it (no touchend arrives) is let go, so the next one starts clean
 const pullFresh = () => { if (!document.hidden && !chat.open) pullSpringBack(); };
