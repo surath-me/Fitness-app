@@ -63,7 +63,7 @@ if (window.__LAUNCH__ || navigator.standalone || (window.matchMedia && matchMedi
   /* motion: the same springs as SwiftUI .bouncy, .smooth and .snappy */
   --spring:cubic-bezier(.34,1.4,.64,1); --smooth:cubic-bezier(.22,1,.36,1); --snappy:cubic-bezier(.3,1.25,.6,1);
   --out:cubic-bezier(.22,1,.36,1); --io:cubic-bezier(.65,0,.35,1);
-  --r-card:26px;
+  --r-card:26px; --hl-gap:6px;   /* the row highlight's gap from the card on every side */
   color-scheme:light;
 }
 /* Dark mode follows the system, with Apple's iOS 26 dark colours */
@@ -318,7 +318,7 @@ body.under .edge.top{opacity:1}
 /* hold an exercise, then drag it to a new place */
 .ex-head{-webkit-touch-callout:none}
 .group.reordering{overflow:visible}
-.ex.lifting{position:relative;z-index:5;background:var(--card);border-radius:20px;box-shadow:0 14px 34px rgba(0,0,0,.2);scale:1.03;transition:scale .3s var(--spring),box-shadow .3s var(--out)}
+.ex.lifting{position:relative;z-index:5;background:var(--card);border-radius:calc(var(--r-card) - var(--hl-gap));box-shadow:0 14px 34px rgba(0,0,0,.2);scale:1.03;transition:scale .3s var(--spring),box-shadow .3s var(--out)}
 .ex.shifting{transition:transform .25s var(--out)}
 .extras .ex-head{min-height:62px}
 .extras .wt{font-size:24px;color:var(--ink2)}
@@ -430,8 +430,10 @@ body.under .edge.top{opacity:1}
 /* rows run edge to edge; only the separator is inset, so a row can slide off the card's left edge as in Mail */
 .swipe::after{content:"";position:absolute;z-index:1;top:0;left:16px;right:16px;height:var(--sep-w);background:var(--sep);pointer-events:none;transition:opacity .2s}
 .swipe.dragging::after,.swipe.opened::after,.swipe.dragging+.swipe::after,.swipe.opened+.swipe::after{opacity:0}
-/* the touch highlight and the swiped row are one shape: a grey rounded rectangle inset a little from the card, as in iOS 26 */
-.swipe-fg::before,.ex-head::before{content:"";position:absolute;inset:3px 6px;border-radius:16px;z-index:-1;background:transparent;transition:background-color .2s}
+/* the touch highlight and the swiped row are one shape: a grey rounded rectangle inset a little from the card, as in iOS 26.
+   The same gap on every side and corners concentric with the card's (its radius less the gap), so at the top and bottom
+   rows the highlight follows the card's curve */
+.swipe-fg::before,.ex-head::before{content:"";position:absolute;inset:var(--hl-gap);border-radius:calc(var(--r-card) - var(--hl-gap));z-index:-1;background:transparent;transition:background-color .2s}
 .entry.swipe-fg:active::before,.ex-head:active::before{background:var(--press)}
 @media (hover:hover){.entry.swipe-fg:hover::before,.ex-head:hover::before{background:var(--fill2)}}
 /* swipe to delete as in iOS 26: the row turns grey and rounds its trailing corners as it slides, and the action is a red
@@ -805,7 +807,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.66';
+const APP_VERSION = '3.67';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1343,8 +1345,11 @@ function buildPlan(date, opts={}){
 
   // a skipped or missed session before today: its lifts wait at the bottom, to do if there is time
   const mu = date === today && tpl ? makeUp(date, id => pool.has(id) || byHand.has(id) || removed.has(id) || (!setsDone(wk, id).length && !!holdFor(id))) : null;
-  const extras = mu ? { ...mu, items: mu.ids.sort(byOrder(wk)).map(id => ({ id, origin:'extra', from:mu.from, sug: suggest(id, date) })) } : null;
-  const inExtras = new Set(mu ? mu.ids : []);
+  // one of them done today (every set ticked) joins the session in its usual place and counts in the ring: it was done
+  const offered = mu ? mu.ids.sort(byOrder(wk)).map(id => ({ id, origin:'extra', from:mu.from, sug: suggest(id, date) })) : [];
+  const joined = offered.filter(it => setsDone(wk, it.id).length >= setTarget(wk, it)), left = offered.filter(it => !joined.includes(it));
+  const extras = left.length ? { ...mu, items: left } : null;
+  const inExtras = new Set(left.map(it => it.id));
 
   // anything added by hand or already logged today
   const present = new Set(chosen.map(i => i.id));
@@ -1353,7 +1358,7 @@ function buildPlan(date, opts={}){
 
   // lifts added on top of the plan sit in their own section and do not count towards the session
   const ord = byOrder(wk), isAdded = it => it.origins.includes('added');
-  const items = chosen.filter(it => !isAdded(it)).sort((a, b) => ord(a.id, b.id)).map(it => ({ id:it.id, origin:'today', from:it.from, sug: suggest(it.id, date) }));
+  const items = chosen.filter(it => !isAdded(it)).concat(joined).sort((a, b) => ord(a.id, b.id)).map(it => ({ id:it.id, origin:'today', from:it.from, sug: it.sug || suggest(it.id, date) }));
   const added = chosen.filter(isAdded).sort((a, b) => ord(a.id, b.id)).map(it => ({ id:it.id, origin:'added', from:it.from, sug: suggest(it.id, date) }));
 
   const title = tpl ? tpl.name : items.length ? 'Workout' : 'Rest day';
@@ -1784,6 +1789,15 @@ function refreshEx(date, id){
   const host = findEx(date + '|' + id); if (!host) return;
   const it = planItem(date, id); if (!it) return;
   host.outerHTML = exRow(it, date);
+}
+/* A lift from If you have time joins the session once every set is ticked, and goes back if one is unticked. When a tick
+   moves it, the lift closes, the page redraws and it flashes in its new place, brought into view. */
+function relocateEx(date, id){
+  const key = date + '|' + id, host = findEx(key); if (!host) return;
+  const p = getPlan(date), wasExtra = !!host.closest('.extras'), isExtra = !!(p.extras && p.extras.items.some(i => i.id === id));
+  if (wasExtra === isExtra) return;
+  const move = () => { ui.flashEx = key; render(); const el = findEx(key); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block:'center' }); };
+  if (ui.open[key]) { closeEx(key); setTimeout(move, reduced() ? 0 : 450); } else move();
 }
 
 /* ---------- session card ---------- */
@@ -2647,7 +2661,7 @@ const H = {
       const wk = S.workouts[date]; if (isNotDone(wk, ex)) wk.notDone = wk.notDone.filter(x => x !== ex);   // done after all
       ui.popKey = date + '|' + ex + '|' + i; if (row.r > 0) startRest(ex);   // no rest after a set of 0 reps
     }
-    saveState(); refreshEx(date, ex); ui.popKey = null; refreshSession(date);
+    saveState(); refreshEx(date, ex); ui.popKey = null; refreshSession(date); relocateEx(date, ex);
   },
   swipedelset(t){ removeSet(t.dataset.date, t.dataset.ex, +t.dataset.i, t.closest('.setswipe')); },
   forcetpl(t){   // train a different session on this day, saved; the week's other sessions move to cover it
