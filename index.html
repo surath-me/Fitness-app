@@ -811,7 +811,7 @@ body.lock{overflow:hidden}
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.73';
+const APP_VERSION = '3.74';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3787,7 +3787,7 @@ function closeChat(){
    the finger lets go they spring back one after another from the top (`pullSpringBack`). Crossing the line plays a
    haptic tick and the hint pops; letting go past it opens Coach. */
 const PULL_OPEN = 64;
-const pull = { id:null, tid:null, x0:0, y0:0, on:false, d:0, layers:null, raf:0, armed:false };
+const pull = { id:null, tid:null, x0:0, y0:0, t0:0, on:false, d:0, layers:null, raf:0, armed:false };
 // a pull can start anywhere on the page, the week strip and swipeable rows included (they only take sideways drags);
 // not on fields, the tab bar or what floats above the page
 const pullBlocked = t => !!(t.closest && t.closest('input, textarea, select, .dock, .sheet, .menu, .chat, .alertwrap'));
@@ -3861,18 +3861,22 @@ const restingTop = () => atTop() && performance.now() - scrolledAt > 400;
 const pullFresh = () => { if (!document.hidden && !chat.open) pullSpringBack(); };
 document.addEventListener('visibilitychange', pullFresh); window.addEventListener('pageshow', pullFresh);
 /* Any drag down that starts with the page at the top becomes the pull, so the bars always move with it (Surath: when
-   they did not, Safari was just bouncing the page and Coach AI never opened; the pull tabs have no bounce now). Right
-   after the page has scrolled to the top the drag waits: it turns into the pull once the page has been still for a
-   moment (restingTop), starting from where the finger is then, so a quick flick to keep scrolling never opens it but a
-   deliberate pull still does. */
-const pullCan = target => chatFor(ui.tab) && !chat.open && !ui.sheet && !ui.menu && atTop() && !pullBlocked(target);
-// whether the drag so far is a pull: down, mostly straight, the page at rest at the top, nothing else under way
-const pullStarts = (dx, dy, slop) => dy > slop && dy > Math.abs(dx) * 1.4 && restingTop() && !pullYield();
+   they did not, Safari was just bouncing the page and Coach AI never opened). That includes a touch that lands while the
+   page is still bouncing back from a fling to the top (Surath did not want to wait for it to settle): the bounce is
+   switched off the moment the finger lands (pullHold), so the page and the pull never move at once. A quick flick, the
+   whole drag shorter than PULL_FLICK ms, springs back instead of opening Coach AI, so a flick to keep scrolling up that
+   reaches the top does not open it (Surath asked for that earlier) while a deliberate pull does. */
+const PULL_FLICK = 200;
+const pullCan = target => chatFor(ui.tab) && !chat.open && !ui.sheet && !ui.menu && window.scrollY < 1 && !pullBlocked(target);
+const pullHold = () => { clearTimeout(pullsT); document.documentElement.classList.add('pulls'); pull.t0 = performance.now(); };
+// whether the drag so far is a pull: down, mostly straight, nothing else under way
+const pullStarts = (dx, dy, slop) => dy > slop && dy > Math.abs(dx) * 1.4 && !pullYield();
+const pullOpens = () => pull.on && pull.d >= PULL_OPEN && performance.now() - pull.t0 >= PULL_FLICK;
 const pullGivesUp = (dx, dy) => Math.abs(dx) > 10 || dy < -6 || pullYield();
 // a mouse: pointer events. A finger: touch events, because Safari takes a vertical drag for scrolling and cancels pointer events
 document.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'mouse' || e.button > 0 || !pullCan(e.target)) return;
-  pull.id = e.pointerId; pull.x0 = e.clientX; pull.y0 = e.clientY; pull.on = false;
+  pull.id = e.pointerId; pull.x0 = e.clientX; pull.y0 = e.clientY; pull.on = false; pullHold();
 }, { passive:true });
 document.addEventListener('pointermove', e => {
   if (pull.id !== e.pointerId) return;
@@ -3883,13 +3887,13 @@ document.addEventListener('pointermove', e => {
   }
   pullSet(pullDist(e.clientY - pull.y0 - 10));
 }, { passive:true });
-const pullEnd = e => { if (pull.id !== e.pointerId) return; const open = pull.on && pull.d >= PULL_OPEN && e.type === 'pointerup'; pull.id = null;
+const pullEnd = e => { if (pull.id !== e.pointerId) return; const open = pullOpens() && e.type === 'pointerup'; pull.id = null;
   if (open) { haptic(); openChat(); } else if (pull.d || pull.layers) pullSpringBack(); };   // also a pull dragged back to where it started
 document.addEventListener('pointerup', pullEnd);
 document.addEventListener('pointercancel', pullEnd);
 document.addEventListener('touchstart', e => {
   if (e.touches.length !== 1 || !pullCan(e.target)) { if (pull.tid !== null && (pull.d || pull.layers)) pullSpringBack(); pull.tid = null; return; }   // a second finger lets a pull go
-  const t = e.touches[0]; pull.tid = t.identifier; pull.x0 = t.clientX; pull.y0 = t.clientY; pull.on = false;
+  const t = e.touches[0]; pull.tid = t.identifier; pull.x0 = t.clientX; pull.y0 = t.clientY; pull.on = false; pullHold();
 }, { passive:true });
 document.addEventListener('touchmove', e => {
   if (pull.tid === null) return;
@@ -3904,7 +3908,7 @@ document.addEventListener('touchmove', e => {
 }, { passive:false });
 const touchEnd = e => {
   if (pull.tid === null || ![...e.changedTouches].some(x => x.identifier === pull.tid)) return;
-  const open = pull.on && pull.d >= PULL_OPEN && e.type === 'touchend'; pull.tid = null; pull.on = false;
+  const open = pullOpens() && e.type === 'touchend'; pull.tid = null; pull.on = false;
   if (open) { haptic(); openChat(); } else if (pull.d || pull.layers) pullSpringBack();
 };
 document.addEventListener('touchend', touchEnd);
