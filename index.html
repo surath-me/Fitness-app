@@ -832,7 +832,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.99';
+const APP_VERSION = '4.00';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2220,7 +2220,7 @@ function toast(m, opts = {}){
   el.classList.add('low');   // every toast sits low, above the tab bar, the rest timer or the keyboard (Surath)
   el.hidden = false; void el.offsetWidth; requestAnimationFrame(() => el.classList.remove('ghost'));
   clearTimeout(toastT);
-  toastT = setTimeout(() => { el.classList.add('ghost'); toastT = setTimeout(() => { el.hidden = true; }, 550); }, opts.undo ? 4000 : 1900);
+  toastT = setTimeout(() => { el.classList.add('ghost'); toastT = setTimeout(() => { el.hidden = true; }, 550); }, opts.undo ? 5000 : 3000);   // long enough to read, and to reach Undo (Surath found 1.9 and 4 s too short)
 }
 function hideToast(){ const el = $('#toast'); clearTimeout(toastT); el.classList.add('ghost'); toastT = setTimeout(() => { el.hidden = true; }, 550); }
 
