@@ -831,7 +831,7 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.96';
+const APP_VERSION = '3.97';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2213,8 +2213,9 @@ const closeSheet = () => { ui.sheet = null; drawSheet(); };
 let toastT;
 function toast(m, opts = {}){
   const el = $('#toast');
-  el.innerHTML = `<span class="ok${opts.bad ? ' bad' : ''}">${opts.bad ? ICON.skip : ICON.check}</span><span>${esc(m)}</span>` + (opts.undo ? `<button class="link" data-act="undo" style="margin-left:4px">Undo</button>` : '');
-  if (el.classList.contains('low') !== !!opts.undo) { el.classList.add('ghost'); el.classList.toggle('low', !!opts.undo); void el.offsetWidth; }   // an Undo toast sits low, the others at the top
+  // a tick when it worked, a red skip mark for a skipped or not done session, a red cross when something failed or is missing
+  el.innerHTML = `<span class="ok${opts.bad || opts.err ? ' bad' : ''}">${opts.err ? ICON.close : opts.bad ? ICON.skip : ICON.check}</span><span>${esc(m)}</span>` + (opts.undo ? `<button class="link" data-act="undo" style="margin-left:4px">Undo</button>` : '');
+  el.classList.add('low');   // every toast sits low, above the tab bar, the rest timer or the keyboard (Surath)
   el.hidden = false; void el.offsetWidth; requestAnimationFrame(() => el.classList.remove('ghost'));
   clearTimeout(toastT);
   toastT = setTimeout(() => { el.classList.add('ghost'); toastT = setTimeout(() => { el.hidden = true; }, 550); }, opts.undo ? 4000 : 1900);
@@ -2736,10 +2737,10 @@ const H = {
   backlist(){ ui.sheet.sel = null; drawSheet(); },
   qtystep(t){ const f = foodById(ui.sheet.sel), inc = f.inc || (f.unit === 'g' ? 10 : 0.5);
     ui.sheet.qty = Math.max(0, Math.round((ui.sheet.qty + (+t.dataset.d) * inc) * 100) / 100); $('#qtyin').value = fmtW(ui.sheet.qty); updateQtyPreview(); },
-  confirmfood(){ const sh = ui.sheet, f = foodById(sh.sel); if (!(sh.qty > 0)) { toast('Enter a quantity first'); return; }
+  confirmfood(){ const sh = ui.sheet, f = foodById(sh.sel); if (!(sh.qty > 0)) { toast('Enter a quantity first', { err:true }); return; }
     addAndFlash([[f, sh.qty]], sh.slot); ui.slot = sh.slot; closeSheet(); render(); toast(`Added to ${slotName(sh.slot)}`); },
   confirmquick(){ const k = num($('#qe-k').value), p = num($('#qe-p').value) || 0, f = num($('#qe-f').value) || 0, c = num($('#qe-c').value) || 0;
-    if (k === null) { toast('Enter the calories first'); return; }
+    if (k === null) { toast('Enter the calories first', { err:true }); return; }
     const name = $('#qe-name').value.trim() || 'Quick entry', sh = ui.sheet;
     const e = { id:uid(), food:null, name, unit:'portion', qty:1, slot:sh.slot, kcal:k, p, f, c, k:{ kcal:k, p, f, c }, cap:null, capQty:0 };
     (S.days[ui.date] = S.days[ui.date] || { entries:[] }).entries.push(e); ui.flash = e.id;
@@ -2758,16 +2759,16 @@ const H = {
     const d = S.days[u.date] || (S.days[u.date] = { entries:[] });
     d.entries.splice(Math.min(u.idx, d.entries.length), 0, u.entry); ui.flash = u.entry.id; ui.undo = null; saveState(); render(); hideToast(); },
   copyday(){ openSheet({ type:'copyday' }); },
-  confirmcopy(){ const from = $('#copyd').value; if (!from || from === ui.date) { toast('Pick a different day'); return; }
-    const src = dayEntries(from).filter(e => e.slot !== 'imported'); if (!src.length) { toast('No meals logged that day'); return; }
+  confirmcopy(){ const from = $('#copyd').value; if (!from || from === ui.date) { toast('Pick a different day', { err:true }); return; }
+    const src = dayEntries(from).filter(e => e.slot !== 'imported'); if (!src.length) { toast('No meals logged that day', { err:true }); return; }
     const d = S.days[ui.date] || (S.days[ui.date] = { entries:[] }); src.forEach(e => d.entries.push({ ...deepClone(e), id:uid() }));
     saveState(); closeSheet(); ui.anim = true; render(); toast(`Copied ${src.length} items`); },
-  addwaist(){ const v = num($('#waistcm').value); if (!v) { toast('Enter your waist in cm'); return; }
+  addwaist(){ const v = num($('#waistcm').value); if (!v) { toast('Enter your waist in cm', { err:true }); return; }
     const d = todayStr(); S.waist = S.waist.filter(x => x.date !== d); S.waist.push({ date:d, cm:v }); saveState(); render(); toast('Waist saved'); },
   delwaist(t){ S.waist = S.waist.filter(x => x.date !== t.dataset.date); saveState(); render(); },
   nfunit(t){ ui.nfUnit = t.dataset.v; $$('[data-act="nfunit"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === ui.nfUnit))); },
   addfoodcustom(){ const name = $('#nf-name').value.trim(), k = num($('#nf-k').value);
-    if (!name || k === null) { toast('Name and kcal are required'); return; }
+    if (!name || k === null) { toast('Name and kcal are required', { err:true }); return; }
     const pc = ui.nfUnit === 'pc';
     S.foods.push({ id:'c_' + uid(), name, unit: pc ? 'portion' : 'g', group:'My foods', kcal:k, p:num($('#nf-p').value)||0, f:num($('#nf-f').value)||0, c:num($('#nf-c').value)||0, step: pc ? 1 : 100, inc: pc ? 0.5 : 10 });
     saveState(); render(); toast(`${name} saved`); },
@@ -2802,12 +2803,12 @@ const H = {
   chatsettings(t){ closeChat(); ui.tab = 'setup'; ui.setupPage = t.dataset.p || 'chat'; window.scrollTo(0, 0); render({ transition:true, tab:true }); },
   chatremember(b){ const t = b.dataset.t, cur = ((chat.profile && chat.profile.text) || '').trim(); if (!t || chatInProfile(t)) return;
     chatApi('PUT', '?profile=1', { text: (cur ? cur + '\n' : '') + '- ' + t }).then(j => { chat.profile = j.profile; chatCache();
-      $$('#chatlog .mem').forEach(el => { if (el.dataset.t === t) el.outerHTML = chatMemsHTML([t]); }); }, () => toast('Could not save to your profile')); },
+      $$('#chatlog .mem').forEach(el => { if (el.dataset.t === t) el.outerHTML = chatMemsHTML([t]); }); }, () => toast('Could not save to your profile', { err:true })); },
   chatprofilesave(){ const ta = $('#chatprofile'); if (!ta) return;
-    chatApi('PUT', '?profile=1', { text: ta.value }).then(j => { chat.profile = j.profile; chat.profileDraft = null; ta.blur(); toast('Profile saved'); }, () => toast('Could not save the profile')); },
+    chatApi('PUT', '?profile=1', { text: ta.value }).then(j => { chat.profile = j.profile; chat.profileDraft = null; ta.blur(); toast('Profile saved'); }, () => toast('Could not save the profile', { err:true })); },
   chatclear(){ askGlass('Clear the conversation?', 'Every message with Coach AI is deleted, on all your devices. What Coach AI knows about you stays.', 'Clear').then(ok => {
     if (!ok) return; chatApi('DELETE').then(() => { chat.msgs = []; chat.more = false; chat.err = null; chatCache(); toast('Conversation cleared'); },
-      e => toast(e.status === 409 ? 'Coach AI is still writing a reply. Try again in a moment.' : 'Could not clear it')); }); },
+      e => toast(e.status === 409 ? 'Coach AI is still writing a reply. Try again in a moment.' : 'Could not clear it', { err:true })); }); },
   chatimpgo(){ chatImport(); }
 };
 
@@ -3090,7 +3091,7 @@ document.addEventListener('change', e => {
   else if (t.id === 'chatimport' && t.files && t.files[0]) {
     const f = t.files[0], rd = new FileReader();
     rd.onload = () => { const convs = chatParseHistory(String(rd.result), f.name.replace(/\.[a-z]+$/i, ''));
-      if (!convs.length) { toast('No chats found in that file'); return; }
+      if (!convs.length) { toast('No chats found in that file', { err:true }); return; }
       convs.forEach(c => { c.chars = c.msgs.reduce((a, m) => a + m.text.length + 8, c.title.length); });
       convs.sort((a, b) => b.chars - a.chars);
       openSheet({ type:'chatimport', convs, sel: new Set([0]) }); };
@@ -3101,7 +3102,7 @@ document.addEventListener('change', e => {
     rd.onload = () => { try { const obj = JSON.parse(rd.result);
         if (obj && obj.kind === 'coach-history') { const n = mergeHistory(obj); saveState(); render(); toast(`Added ${n.days} days and ${n.sessions} sessions`); return; }
         if (!obj || !obj.settings || !obj.workouts) throw new Error('bad'); S = migrate(obj); saveState(); render(); toast('Backup imported'); }
-      catch(err) { toast('That file is not a Coach backup'); } };
+      catch(err) { toast('That file is not a Coach backup', { err:true }); } };
     rd.readAsText(t.files[0]); t.value = '';
   }
 });
@@ -3383,10 +3384,10 @@ function cloudOff(){ clearTimeout(syncTimer); ['token','rev','lastSync','lastFro
 Object.assign(H, {
   async cloudconnect(){
     const v = ($('#cloudpass') && $('#cloudpass').value || '').trim();
-    if (!v) { toast('Enter the passphrase first'); return; }
+    if (!v) { toast('Enter the passphrase first', { err:true }); return; }
     cloud.token = v; cloud.rev = 0; delete cloud.status; setBase(null);
     let res = null; try { res = await cloudApi('GET', null, '?rev=-1'); } catch(e) {}
-    const fail = m => { cloudOff(); toast(m); };
+    const fail = m => { cloudOff(); toast(m, { err:true }); };
     if (!res) return fail('No connection. Try again when you have signal.');
     if (res.status === 401) return fail('That passphrase is not right');
     if (res.status === 503) return fail('Cloud backup is not set up on the server yet');
@@ -3394,9 +3395,9 @@ Object.assign(H, {
     if (res.data && res.data.state) {   // the cloud already has data: combine it with this device's
       S = migrate(merge3(null, S, res.data.state)); saveLocal(); setBase(res.data.state); cloud.rev = res.data.rev; cloud.lastFrom = res.data.device;
     }
-    cloudSave(); await syncNow(); render(); toast(cloud.status === 'ok' ? 'Cloud backup is on' : cloudLine());
+    cloudSave(); await syncNow(); render(); toast(cloud.status === 'ok' ? 'Cloud backup is on' : cloudLine(), { err: cloud.status !== 'ok' });
   },
-  cloudsync(){ if (!cloud.token) return; syncNow().then(() => toast(cloud.status === 'ok' ? 'Synced' : cloudLine())); },
+  cloudsync(){ if (!cloud.token) return; syncNow().then(() => toast(cloud.status === 'ok' ? 'Synced' : cloudLine(), { err: cloud.status !== 'ok' })); },
   clouddisconnect(){ askGlass('Turn off cloud backup here?', 'Your data stays on this device and in the cloud. This device just stops syncing.', 'Turn off').then(ok => {
     if (!ok) return; cloudOff(); render(); toast('Cloud backup is off on this device'); }); }
 });
@@ -3452,7 +3453,7 @@ async function chatOlder(){
   const first = chat.msgs.find(m => typeof m.n === 'number'); if (!first) return;
   const el = $('#chatlog'), h0 = el.scrollHeight;
   try { const j = await chatApi('GET', '?before=' + first.n); chat.msgs = j.messages.concat(chat.msgs); chat.more = j.more;
-    renderChatLog(); el.scrollTop += el.scrollHeight - h0; } catch(e) { toast('Could not load earlier messages'); }
+    renderChatLog(); el.scrollTop += el.scrollHeight - h0; } catch(e) { toast('Could not load earlier messages', { err:true }); }
 }
 
 /* what Coach sees with each message: today's food against targets, the week's training and recent sessions */
@@ -4068,13 +4069,13 @@ async function chatImport(force){
     if (!e.status) {   // the phone lost the answer; the server still finishes, saves and charges, so show what it saves
       chat.profile = null; chat.profileDraft = null;
       setTimeout(() => { chat.profile = null; chatLoad(); }, 60000);
-      toast('Lost the connection while Coach AI read your chats. If it finished, the profile shows here in a minute.');
+      toast('Lost the connection while Coach AI read your chats. If it finished, the profile shows here in a minute.', { err:true });
     } else if (err === 'cap' && !force) {
       if (ui.sheet === sh && await askGlass('Over today’s limit', `Reading this goes past today’s €${e.body.spend ? e.body.spend.capEur : 1} for Coach AI. Read it anyway?`, 'Read it')) chatImport(true);
     } else toast(err === 'too-long' ? 'That is too much at once, pick fewer chats'
       : err === 'busy' ? 'Coach AI is still reading your chats. Check again in a minute.'
       : err === 'unfinished' ? 'Coach AI could not finish the profile. Try fewer chats.'
-      : err === 'refusal' ? 'Coach AI could not write a profile from these chats.' : 'Could not write the profile');
+      : err === 'refusal' ? 'Coach AI could not write a profile from these chats.' : 'Could not write the profile', { err:true });
   }
 }
 $('#chat .chat-top .tbtn').innerHTML = ICON.close;
