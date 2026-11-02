@@ -831,7 +831,7 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.94';
+const APP_VERSION = '3.95';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3191,7 +3191,8 @@ if (window.visualViewport) {
       const ends = inner ? inner.offsetTop + inner.offsetHeight + parseFloat(getComputedStyle(log).paddingBottom) - d : 0;
       const by = inner && log.scrollHeight - log.scrollTop - log.clientHeight <= 1 ? Math.max(0, ends - v.height) - log.scrollTop : 0;
       moves = [slide(box, 'none', `translateY(${-lift}px)`, at, { fill:'forwards' })];
-      if (inner && by > 0) moves.push(slide(inner, 'translateY(0px)', `translateY(${-by}px)`, at, { fill:'forwards', composite:'add' }));
+      // a plain move, not added to others: Safari runs only that on the compositor, and the conversation stuttered against the field
+      if (inner && by > 0) { inner.getAnimations().forEach(a => a.finish()); moves.push(slide(inner, 'translateY(0px)', `translateY(${-by}px)`, at, { fill:'forwards' })); }
       return;
     }
     if (!(d > 0)) return;
@@ -3224,7 +3225,7 @@ if (window.visualViewport) {
       const at = performance.now() + KB_DOWN, di = i0 - top(inner);
       falls.forEach(a => a.cancel());
       falls = [slide(box, `translateY(${b0 - top(box)}px)`, 'none', at, { fill:'backwards' })];
-      if (di) falls.push(slide(inner, `translateY(${di}px)`, 'translateY(0px)', at, { fill:'backwards', composite:'add' }));
+      if (di) { inner.getAnimations().forEach(a => a.finish()); falls.push(slide(inner, `translateY(${di}px)`, 'translateY(0px)', at, { fill:'backwards' })); }
     }
     setTimeout(kb, 400);   // then checked against what iOS reports
   });
