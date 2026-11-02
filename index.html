@@ -826,12 +826,13 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
 </div>
 <script>
 'use strict';
+const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.app$/.test(location.hostname);   // the live app, not the dev site, a preview or this Mac's test server
 /* =====================================================================
    CONFIG. Edit this block (or ask Claude to) to change foods, lifts,
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.97';
+const APP_VERSION = '3.98';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2066,8 +2067,9 @@ function setupPage(p){
     : `<p class="note" style="margin-top:0">Keeps a copy of everything in a private database in Frankfurt and keeps your devices in step, for example the Home Screen app and Safari. The app still works without signal and syncs when it can. A copy of each day is kept for 31 days.</p>
       <h2>Connect this device</h2><div class="group pad stack">
         <input id="cloudpass" class="field" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Passphrase" aria-label="Cloud backup passphrase" style="text-align:left;font-family:var(--font);font-weight:400">
+        <button class="link" data-act="cloudpeek" style="align-self:flex-start;min-height:32px">Show passphrase</button>
         <button class="btn" data-act="cloudconnect">Connect</button></div>
-      <p class="note">You enter the passphrase once on each device. If this device already has data, it is combined with the cloud copy, nothing is replaced.</p>`;
+      <p class="note">You enter the passphrase once on each device. If this device already has data, it is combined with the cloud copy, nothing is replaced.${LIVE ? '' : ` This is a test copy (${esc(location.hostname)}): it takes the test passphrase, not the live one.`}</p>`;
   if (p === 'chat') return chatSettings();
   if (p === 'foods') return ((S.foods||[]).length ? `<div class="group">` + S.foods.map(f => `<div class="lift"><div><strong>${esc(f.name)}</strong><div class="small muted">${f.unit==='g' ? 'per 100 g' : 'per '+esc(f.unit)}: ${f.kcal} kcal, ${f.p} P, ${f.f} F, ${f.c} C</div></div><span></span><button class="link" data-act="delfood" data-id="${f.id}">Remove</button></div>`).join('') + `</div>`
       : `<p class="note" style="margin-top:0">Foods you save while logging appear here. The built-in list has ${FOODS.length} items.</p>`) +
@@ -3382,6 +3384,7 @@ function syncNow(){
 }
 function cloudOff(){ clearTimeout(syncTimer); ['token','rev','lastSync','lastFrom','status'].forEach(k => delete cloud[k]); cloudSave(); setBase(null); }
 Object.assign(H, {
+  cloudpeek(b){ const f = $('#cloudpass'); if (!f) return; const show = f.type === 'password'; f.type = show ? 'text' : 'password'; b.textContent = show ? 'Hide passphrase' : 'Show passphrase'; },
   async cloudconnect(){
     const v = ($('#cloudpass') && $('#cloudpass').value || '').trim();
     if (!v) { toast('Enter the passphrase first', { err:true }); return; }
@@ -3389,7 +3392,7 @@ Object.assign(H, {
     let res = null; try { res = await cloudApi('GET', null, '?rev=-1'); } catch(e) {}
     const fail = m => { cloudOff(); toast(m, { err:true }); };
     if (!res) return fail('No connection. Try again when you have signal.');
-    if (res.status === 401) return fail('That passphrase is not right');
+    if (res.status === 401) return fail(LIVE ? 'That passphrase is not right' : `That passphrase is not right for ${location.hostname}`);
     if (res.status === 503) return fail('Cloud backup is not set up on the server yet');
     if (res.status !== 200) return fail('The cloud did not answer. Try again later.');
     if (res.data && res.data.state) {   // the cloud already has data: combine it with this device's
