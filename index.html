@@ -618,7 +618,7 @@ body.lock{overflow:hidden}
 .alert .row .btn{flex:1;min-height:48px;padding:0 12px}
 
 /* ---------- toast (glass banner from the top) ---------- */
-.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 58px);z-index:40;display:flex;align-items:center;gap:8px;max-width:92vw;white-space:nowrap;padding:11px 18px 11px 12px;border-radius:99px;font-weight:600;font-size:13px;
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 58px);z-index:40;display:flex;align-items:center;gap:8px;max-width:min(calc(100vw - 42px),400px);white-space:nowrap;padding:11px 18px 11px 12px;border-radius:99px;font-weight:600;font-size:13px;
   translate:-50% 0;transition:translate .6s var(--spring),scale .6s var(--spring),background-color .35s var(--out),box-shadow .35s var(--out),-webkit-backdrop-filter .35s var(--out),backdrop-filter .35s var(--out)}
 .toast.ghost{translate:-50% -16px}
 /* a toast with Undo is a button, so it sits where the thumb is: just above the tab bar (above the rest timer while it
@@ -751,7 +751,7 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
 .chat-more{display:block;margin:0 auto 20px;min-height:36px;color:var(--accent);font-size:14px;font-weight:600}
 .chat-empty{margin:18vh 12px 0;text-align:center;color:var(--ink2);font-size:15px;line-height:1.4}
 .chat-empty .btn{margin-top:16px}
-.chat-in{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:6px max(21px,calc(50% - 200px)) max(12px,env(safe-area-inset-bottom))}   /* the field as wide as the tab bar, the other glass bar at the bottom (12 pt from the edges was wider than everything else) */
+.chat-in{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:6px max(21px,calc(50% - 200px)) max(12px,calc(env(safe-area-inset-bottom) - 10px))}   /* the field where the tab bar is: as wide and as far from the bottom (Surath) */
 /* nothing above the field dims or blurs (Surath did not want that band): text stays sharp until it slides under the glass;
    only the strip beside and below the capsule blurs, fading in from its top edge so its rounded ends show no seam */
 .chat-in::before{content:"";position:absolute;inset:6px 0 0;z-index:-1;pointer-events:none;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);background:linear-gradient(transparent,var(--chat-veil) 60%);-webkit-mask-image:linear-gradient(transparent,#000 28px);mask-image:linear-gradient(transparent,#000 28px)}
@@ -832,7 +832,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '3.98';
+const APP_VERSION = '3.99';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
