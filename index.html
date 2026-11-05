@@ -870,7 +870,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.08';
+const APP_VERSION = '4.09';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3643,7 +3643,7 @@ function chatActHTML(n, a){
   if (a.done) {
     const word = a.name === 'log_food' ? `Added to ${slotName(x.meal).toLowerCase()}` : a.name === 'remove_entry' ? 'Removed' : 'Updated';
     const undo = a.name === 'log_food' ? !!a.ref : !!chat.actUndo[a.id];
-    return `<div ${at.replace('act"', 'act done"')}>${actTop(a.name === 'log_food' ? (p.name || x.name || '') : (p.e ? p.e.name : (chat.actUndo[a.id] || {}).name || 'Food'), null, hd, !!(p.made || (p.f && p.f.id === 'c_' + a.id))}
+    return `<div ${at.replace('act"', 'act done"')}>${actTop(a.name === 'log_food' ? (p.name || x.name || '') : (p.e ? p.e.name : (chat.actUndo[a.id] || {}).name || 'Food'), null, hd, !!(p.made || (p.f && p.f.id === 'c_' + a.id)))}
       <p class="act-ok"><span class="tk">${ICON.check}</span>${esc(word)}${undo ? `<button data-act="chatactundo">Undo</button>` : ''}</p></div>`;
   }
   const editing = !!chat.actEdit[a.id] && p.kind !== 'remove_entry';
@@ -3652,7 +3652,7 @@ function chatActHTML(n, a){
     <select class="pick act-meal" aria-label="Meal">${SLOTS.map(([k, l]) => `<option value="${k}"${k === p.meal ? ' selected' : ''}>${l}</option>`).join('')}</select></div>` : '';
   const go = actGo(p);
   const btns = p.err && !p.fixable ? '' : `<div class="act-bt">${p.kind !== 'remove_entry' && !editing ? `<button class="chg" data-act="chatactchg">Change</button>` : ''}<button class="go${p.kind === 'remove_entry' ? ' del' : ''}" data-act="chatactgo"${p.err ? ' disabled' : ''}>${go}</button></div>`;
-  return `<div ${at}>${actTop(p.name || x.name || '', editing ? null : p.amount || '', hd, !!(p.made || (p.f && p.f.id === 'c_' + a.id))}${edit}${actMacros(p.m)}
+  return `<div ${at}>${actTop(p.name || x.name || '', editing ? null : p.amount || '', hd, !!(p.made || (p.f && p.f.id === 'c_' + a.id)))}${edit}${actMacros(p.m)}
     ${p.save ? `<p class="act-sv">Also saved to your foods, ${fmtInt(p.f.kcal)} kcal per ${p.f.unit === 'g' ? '100 g' : esc(p.f.unit)}</p>` : ''}
     ${p.err || p.warn ? `<p class="act-wn">${CI.warn}<span>${esc(p.err || p.warn)}</span></p>` : ''}${btns}</div>`;
 }
