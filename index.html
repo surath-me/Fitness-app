@@ -768,11 +768,15 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
 .act-bt button:disabled{opacity:.4}
 /* Change adds one row of small pills under the macros; everything above stays as it was and follows what is typed */
 .act-ed{display:flex;gap:8px;margin:12px 0 0;padding-top:12px;border-top:var(--sep-w) solid var(--sep)}
-.act-q{flex:none;display:flex;align-items:center;height:36px;padding:0 12px 0 4px;border-radius:999px;background:var(--fill2);color:var(--ink2);font-size:15px}
-.act-q input{width:64px;height:36px;border:0;background:none;color:var(--ink);font:inherit;font-size:16px;font-weight:600;text-align:right;padding:0 5px 0 0}
+/* widths balanced for 375 to 430 pt phones: the amount is fixed (up to 4 digits and a short unit), the meal and the day
+   share the rest equally, never narrower than Breakfast and Sat 31 Oct need */
+.act-q{flex:0 0 84px;width:84px;min-width:0;display:flex;align-items:center;height:36px;padding:0 10px 0 0;border-radius:999px;background:var(--fill2);color:var(--ink2);font-size:14px}
+.act-q input{flex:1;width:0;min-width:0;height:36px;border:0;background:none;color:var(--ink);font:inherit;font-size:16px;font-weight:600;text-align:right;padding:0 4px 0 0}
 .act-q input:focus{outline:none}
 .act-q:focus-within{box-shadow:0 0 0 2px var(--accent)}
-.act-ed .pick{flex:1 1 0;min-width:0;height:36px;max-width:none;padding:0 28px 0 12px;border-radius:999px;background-color:var(--fill2);background-position:right 10px center;color:var(--ink);font-size:15px;text-align:left;text-align-last:left}
+.act-ed .pick{min-width:0;height:36px;max-width:none;padding:0 24px 0 11px;border-radius:999px;background-color:var(--fill2);background-position:right 9px center;color:var(--ink);font-size:14px;text-align:left;text-align-last:left;text-overflow:ellipsis}
+.act-ed .act-meal{flex:1 1 0;min-width:96px}
+.act-ed .act-day{flex:1 1 0;min-width:112px}
 .act-ok{display:flex;align-items:center;gap:8px;margin:12px 0 0;color:var(--ink2)}
 .act-ok .tk{width:20px;height:20px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;flex:none}
 .act-ok .tk svg{width:12px;height:12px}
@@ -873,7 +877,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.11';
+const APP_VERSION = '4.12';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3612,7 +3616,8 @@ CI.food = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-wid
 CI.warn = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></svg>';
 chat.actEdit = {}; chat.actUndo = {};
 const dayWord = d => { const t = todayStr(); return d === t ? 'today' : d === addDays(t, -1) ? 'yesterday' : d === addDays(t, 1) ? 'tomorrow' : dateLabel(d); };
-const unitText = (q, u) => u === 'g' ? `${fmtW(q)} g` : `${fmtW(q)} ${u}${q === 1 || /s$/.test(u) ? '' : 's'}`;
+const unitText = (q, u) => u === 'g' ? `${fmtW(q)} g` : u === 'piece' ? `${fmtW(q)} pcs` : `${fmtW(q)} ${u}${q === 1 || /s$/.test(u) ? '' : 's'}`;
+const unitShort = u => ['g', 'tbsp', 'tsp', 'cup'].includes(u) ? u : 'pcs';   // in the amount pill: measures stay, anything counted is pcs
 const isDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') && diffDays(addDays(todayStr(), -30), d) >= 0 && diffDays(d, addDays(todayStr(), 1)) >= 0;
 /* how much of a limit a day would use with qty more of a capped food */
 function capAfter(date, cap, add){
@@ -3672,7 +3677,7 @@ function chatActHTML(n, a){
   }
   const editing = !!chat.actEdit[a.id] && p.kind !== 'remove_entry';
   const unit = p.f ? p.f.unit : p.e ? p.e.unit : 'g';
-  const edit = editing ? `<div class="act-ed"><label class="act-q"><input class="act-in" inputmode="decimal" value="${p.qty != null && !isNaN(p.qty) ? fmtW(p.qty) : ''}" aria-label="Amount">${unit === 'g' ? 'g' : esc(unit)}</label>
+  const edit = editing ? `<div class="act-ed"><label class="act-q"><input class="act-in" inputmode="decimal" value="${p.qty != null && !isNaN(p.qty) ? fmtW(p.qty) : ''}" aria-label="Amount in ${esc(unit)}">${unitShort(unit)}</label>
     <select class="pick act-meal" aria-label="Meal">${SLOTS.map(([k, l]) => `<option value="${k}"${k === p.meal ? ' selected' : ''}>${l}</option>`).join('')}</select>
     ${p.kind === 'log_food' ? `<select class="pick act-day" aria-label="Day">${actDays(p.date)}</select>` : ''}</div>` : '';
   const go = actGo(p);
