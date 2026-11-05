@@ -36,7 +36,7 @@ if (window.__LAUNCH__ || navigator.standalone || (window.matchMedia && matchMedi
   --chat-bg:#F3F3F3; --chat-veil:rgba(243,243,243,.55); --chat-bub:#E5E5EA; --send-bg:#1C1C1E; --send-ink:#FFFFFF;
   --sep:rgba(60,60,67,.12); --sep-w:1px; --fill:rgba(120,120,128,.16); --fill2:rgba(120,120,128,.10);
   --accent:#0088FF; --accent-press:#006FD6; --accent-t:rgba(0,136,255,.12); --accent-glow:rgba(0,136,255,.32); --accent-ink:#007AEB;
-  --red:#FF383C; --red-t:rgba(255,56,60,.12); --red-ink:#D70015; --gray:#8E8E93;
+  --red:#FF383C; --red-t:rgba(255,56,60,.12); --red-ink:#D70015; --gray:#8E8E93; --over-fill:#FF9C9E;
   --green:#34C759; --green-t:rgba(52,199,89,.16); --green-ink:#1F8A3B;
   /* macro colours: data only */
   --kcal:#0088FF; --pro:#6155F5; --fat:#FFCC00; --carb:#34C759; --water:#00A9E0; --water-on:#fff;
@@ -73,7 +73,7 @@ if (window.__LAUNCH__ || navigator.standalone || (window.matchMedia && matchMedi
   --chat-bg:#000000; --chat-veil:rgba(0,0,0,.5); --chat-bub:#2C2C2E; --send-bg:#FFFFFF; --send-ink:#000000;
   --sep:rgba(84,84,88,.4); --fill:rgba(120,120,128,.36); --fill2:rgba(120,120,128,.24);
   --accent:#0091FF; --accent-press:#3AA7FF; --accent-t:rgba(0,145,255,.22); --accent-glow:rgba(0,145,255,.38); --accent-ink:#45ADFF;
-  --red:#FF4245; --red-t:rgba(255,66,69,.2); --red-ink:#FF6B6E; --gray:#98989D;
+  --red:#FF4245; --red-t:rgba(255,66,69,.2); --red-ink:#FF6B6E; --gray:#98989D; --over-fill:#B23D40;
   --green:#30D158; --green-t:rgba(48,209,88,.22); --green-ink:#30D158;
   --kcal:#0091FF; --pro:#6D7CFF; --fat:#FFD600; --carb:#30D158; --water:#3CD3FE; --water-on:rgba(0,0,0,.78);
   --kcal-t:#4DB0FF; --pro-t:#9AA4FF; --fat-t:#FFD600; --carb-t:#30D158;
@@ -389,7 +389,12 @@ body.under .edge.top{opacity:1}
 /* over the calorie target: a plus before the number and a small red exclamation mark beside it, nothing else turns red
    (Surath found red rings and bars too loud) */
 .hero .sign{margin-right:1px}
-.overmark{display:grid;place-items:center;width:24px;height:24px;margin-left:8px;border-radius:50%;background:var(--red-t);color:var(--red-ink);font-size:16px;font-weight:800;line-height:1;flex:none}
+.overmark{position:relative;display:grid;place-items:center;width:24px;height:24px;margin-left:8px;border-radius:50%;background:var(--red-t);color:var(--red-ink);font-size:16px;font-weight:800;line-height:1;flex:none}
+.overmark::after{content:"";position:absolute;inset:-10px}   /* a 44 pt tap target around the small mark */
+.overmark:active{opacity:.6}
+.mbar .extra{position:absolute;top:0;bottom:0;right:0;background:var(--over-fill)}   /* calories past the target, tinted red */
+.menu .mnote{padding:2px 20px 10px;font-size:13px;line-height:1.4;color:var(--ink)}
+.menu .mnote.sub{color:var(--ink2);font-size:12px}
 .mbar .tick{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--card)}   /* where the target is, on a bar that went past it */
 .hl{font-size:13px;font-weight:600;color:var(--ink2);margin-top:2px}
 .hp{font-size:12px;font-weight:600;margin-top:6px}
@@ -883,7 +888,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.15';
+const APP_VERSION = '4.16';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1971,7 +1976,7 @@ function macroRow(label, cssVar, val, target, kind, on){
             : (val > target ? `${fmtInt(val - target)}${g} over` : `${fmtInt(target - val)}${g} left`);
   return `<div class="macro" style="--c:var(${cssVar})${on ? `;--on:${on}` : ''}">
     <div class="mtop"><span class="num">${fmtInt(val)}</span><span class="u">/ ${fmtInt(target)}${g}</span><span class="st">${sub}</span></div>
-    <div class="mbar ${over ? 'over' : ''}" role="img" aria-label="${label} ${r0(val)} of ${target}${g}"><span class="ml" aria-hidden="true">${label}</span><i style="width:${pct}%"><span class="ml" aria-hidden="true">${label}</span></i>${kind === 'target' && target && val > target ? `<b class="tick" style="left:${(target / val * 100).toFixed(1)}%"></b>` : ''}</div>
+    <div class="mbar ${over ? 'over' : ''}" role="img" aria-label="${label} ${r0(val)} of ${target}${g}"><span class="ml" aria-hidden="true">${label}</span><i style="width:${pct}%"><span class="ml" aria-hidden="true">${label}</span></i>${kind === 'target' && target && val > target ? (label === 'Calories' ? `<b class="extra" style="left:${(target / val * 100).toFixed(1)}%"></b>` : '') + `<b class="tick" style="left:${(target / val * 100).toFixed(1)}%"></b>` : ''}</div>
   </div>`;
 }
 function capChips(date){
@@ -2016,7 +2021,7 @@ function viewEat(){
   h += `<div class="group pad summary"><div class="sum-top">
       ${ringSVG([{ pct:cur.kcal/T.kcal, color:'var(--kcal)' }, { pct:cur.p/T.p, color:'var(--pro)' }, { pct:cur.f/T.f, color: fLeft < 0 ? 'var(--red)' : 'var(--fat)', w:8 }], 124, 14, ui.anim)}
       <div class="grow">
-        <div class="hero">${left < 0 ? '<span class="num sign" aria-hidden="true">+</span>' : ''}<span class="num" id="heroLeft" data-v="${r0(Math.abs(left))}">${fmtInt(Math.abs(left))}</span>${left < 0 ? '<span class="overmark" aria-hidden="true">!</span>' : ''}</div>
+        <div class="hero">${left < 0 ? '<span class="num sign" aria-hidden="true">+</span>' : ''}<span class="num" id="heroLeft" data-v="${r0(Math.abs(left))}">${fmtInt(Math.abs(left))}</span>${left < 0 ? '<button class="overmark" data-act="menu" data-menu="over" aria-label="Over the calorie target, what it means" aria-haspopup="menu">!</button>' : ''}</div>
         <div class="hl">${left >= 0 ? (date === todayStr() ? 'kcal left today' : 'kcal left') : 'kcal over target'}</div>
         <div class="hp" style="color:var(--pro-t)">${pLeft > 0 ? `${r0(pLeft)} g protein to go` : 'Protein floor reached'}</div>
       </div></div>
@@ -2478,6 +2483,7 @@ function setToolbar(){
 }
 
 /* ---------- menus: glass bubbles that grow out of the button that opens them ---------- */
+ICON.sparkle = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5c.5 4.6 2.4 6.9 7.5 7.6v1.8c-5.1.7-7 3-7.5 7.6h-1.6c-.5-4.6-2.4-6.9-7.4-7.6v-1.8c5-.7 6.9-3 7.4-7.6z" transform="translate(.8 .8) scale(.93)"/></svg>';
 function menuSpec(kind){
   const date = ui.date, out = [];
   if (kind === 'train' && getPlan(date).past) out.push(...pastFixes(date));
@@ -2517,12 +2523,18 @@ function menuSpec(kind){
     out.push({ head: date === todayStr() ? 'Time today' : 'Time for this day' },
       ...[45, 60, 75, 90].map(m => ({ act:'budget', v:m, label:`${m} min`, sub: m === DAY_MINUTES ? 'Default' : '', on: b === m })),
       { sep:true }, { act:'returning', label:'Back after a break or illness', sub:'Set 1 one step lighter', on: !!S.settings.returning, check:true });
+  } else if (kind === 'over') {   // the exclamation mark beside calories over target: what it means, and nothing to fix
+    const T = dayTarget(date), cur = sumMacros(dayEntries(date)), over = Math.round(cur.kcal - T.kcal), today = date === todayStr();
+    out.push({ head:'Over your calorie target' },
+      { note:`${fmtInt(over)} kcal over ${today ? "today's" : 'this day\'s'} ${fmtInt(T.kcal)} kcal for a ${dayType(date)} day (${Math.round(over / T.kcal * 100)}% more).` },
+      { note:'One day over hardly changes anything. Eat as normal at your next meal: no skipping and no extra cardio to make up for it.', sub:true });
+    if (chatOn() && today) out.push({ sep:true }, { act:'askover', label:'Ask Coach AI about it', icon:'sparkle' });
   } else if (kind === 'eat') {
     out.push({ act:'quickentry', label:'Quick entry', icon:'num' }, { act:'copyday', label:'Copy meals from another day', icon:'copy' });
   }
   return out;
 }
-const menuHTML = items => items.map(it => it.head ? `<div class="mh">${esc(it.head)}</div>` : it.sep ? '<div class="msep" role="separator"></div>' :
+const menuHTML = items => items.map(it => it.head ? `<div class="mh">${esc(it.head)}</div>` : it.note ? `<p class="mnote${it.sub ? ' sub' : ''}">${esc(it.note)}</p>` : it.sep ? '<div class="msep" role="separator"></div>' :
   `<button class="mi" role="${it.on === undefined ? 'menuitem' : it.check ? 'menuitemcheckbox' : 'menuitemradio'}"${it.on === undefined ? '' : ` aria-checked="${it.on}"`} data-act="${it.act}"${it.t === undefined ? '' : ` data-t="${it.t}"`}${it.v === undefined ? '' : ` data-v="${it.v}"`}${Object.entries(it.data || {}).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('')}><span class="mic">${it.on ? ICON.check : it.icon ? ICON[it.icon] : ''}</span><span class="mt">${esc(it.label)}${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span></button>`).join('');
 function openMenu(btn, kind){
   const m = $('#menu'), r = btn.getBoundingClientRect();
@@ -2850,6 +2862,7 @@ const H = {
   chatclose(){ closeChat(); },
   chatsend(){ const ta = $('#chatq'); if (ta) chatSend(ta.value); },
   chatsug(t){ chatSend(t.dataset.q); },
+  askover(){ closeMenu(); openChat(); const ta = $('#chatq'); if (ta && !ta.value.trim()) { ta.value = "I'm over my calories today. What should I do for the rest of the day?"; chatInput(); } },
   chatretry(){ const r = chat.err && chat.err.retry; if (!r) return;
     // the question goes again with its id: the server answers it once, storing it only if it never got it (the phone cannot
     // always know); a cut-off reply makes way, and if the reply arrived after all there is nothing to do
