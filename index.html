@@ -741,13 +741,21 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
 /* a change Coach AI proposes (log, change or remove food): a solid card, nothing happens until Add is tapped */
 .act{margin-top:12px;padding:14px 16px 16px;border-radius:22px;background:var(--card);font-size:14px;line-height:1.35}
 .act+.act{margin-top:8px}
-.act-hd{display:flex;align-items:center;gap:6px;margin:0;font-size:12.5px;color:var(--ink2)}
-.act-hd svg{width:15px;height:15px;flex:none}
-.act-nm{margin:6px 0 1px;font-size:17px;font-weight:600;letter-spacing:-.2px}
-.act-am{margin:0;color:var(--ink2)}
-.act-mc{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin:10px 0 0;color:var(--ink2)}
-.act-mc b{font-size:19px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
-.act-mc span::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;vertical-align:1px;background:var(--d)}
+.act-hd{margin:0 0 10px;font-size:12.5px;color:var(--ink2)}
+.act-top{display:flex;align-items:center;gap:10px}
+.act-ic{width:38px;height:38px;border-radius:11px;background:var(--accent-t);color:var(--accent-ink);display:grid;place-items:center;flex:none}
+.act-ic svg{width:21px;height:21px}
+.act-top>div{min-width:0}
+.act-nm{margin:0;font-size:17px;font-weight:600;letter-spacing:-.2px}
+.act-am{margin:1px 0 0;font-size:13px;color:var(--ink2)}
+/* calories on the left, protein, fat and carbs on the right: the numbers matter most (Surath) */
+.act-mc{display:flex;align-items:baseline;gap:12px;margin:14px 0 0;color:var(--ink2);font-variant-numeric:tabular-nums}
+.act-mc>b{font-size:24px;font-weight:700;letter-spacing:-.4px;color:var(--ink);white-space:nowrap}
+.act-mc>b small{margin-left:3px;font-size:14px;font-weight:600;letter-spacing:0;color:var(--ink2)}
+.act-mc>span{margin-left:auto;display:flex;gap:12px;white-space:nowrap}
+.act-mc i{font-style:normal}
+.act-mc i b{font-size:16px;font-weight:700;color:var(--ink)}
+.act-mc i::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:1px;background:var(--d)}
 .act-sv{margin:10px 0 0;padding-top:10px;border-top:var(--sep-w) solid var(--sep);font-size:12.5px;color:var(--ink2)}
 .act-wn{display:flex;gap:6px;margin:10px 0 0;font-size:13px;color:var(--red-ink)}
 .act-wn svg{width:16px;height:16px;flex:none;margin-top:0}
@@ -766,7 +774,8 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
 .act-ok .tk{width:20px;height:20px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;flex:none}
 .act-ok .tk svg{width:12px;height:12px}
 .act-ok button{margin-left:auto;min-height:44px;margin-block:-12px;padding:0 4px;color:var(--accent);font-weight:600;font-size:15px}
-.act.done .act-nm{font-size:15px;color:var(--ink2);font-weight:600}
+.act.done .act-ic{background:var(--fill2);color:var(--ink2)}
+.act.done .act-nm{font-size:16px;color:var(--ink2)}
 .sugs{margin-top:8px}
 .sugb{display:flex;align-items:flex-start;gap:10px;width:100%;min-height:36px;padding:6px 0;text-align:left;font-size:14px;line-height:1.35;color:var(--ink)}
 .sugb svg{flex:none;width:18px;height:18px;margin-top:1px}
@@ -861,7 +870,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.05';
+const APP_VERSION = '4.06';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3621,23 +3630,25 @@ function chatActPlan(a){
   if (e.cap && qty > e.qty) out.warn = capAfter(x.date, e.cap, e.capQty * (qty / e.qty - 1));
   return out;
 }
-const actMacros = m => m ? `<p class="act-mc"><b>${fmtInt(m.kcal)} kcal</b><span style="--d:var(--pro)">${r0(m.p)} P</span><span style="--d:var(--fat)">${r0(m.f)} F</span><span style="--d:var(--carb)">${r0(m.c)} C</span></p>` : '';
+const actMacros = m => m ? `<p class="act-mc"><b>${fmtInt(m.kcal)}<small>kcal</small></b><span><i style="--d:var(--pro)"><b>${r0(m.p)}</b> P</i><i style="--d:var(--fat)"><b>${r0(m.f)}</b> F</i><i style="--d:var(--carb)"><b>${r0(m.c)}</b> C</i></span></p>` : '';
+const actTop = (name, sub) => `<div class="act-top"><span class="act-ic">${CI.food}</span><div><p class="act-nm">${esc(name)}</p>${sub == null ? '' : `<p class="act-am">${esc(sub)}</p>`}</div></div>`;
+const actGo = p => p.kind === 'log_food' ? (p.warn ? 'Add anyway' : `Add to ${slotName(p.meal).toLowerCase()}`) : p.kind === 'remove_entry' ? 'Remove' : p.warn ? 'Update anyway' : 'Update';
 function chatActHTML(n, a){
-  const p = chatActPlan(a), x = a.input || {}, hd = `<p class="act-hd">${CI.food}${esc(slotName(p.meal || x.meal || ''))} · ${esc(isDate(x.date) ? dayWord(x.date) : '')}</p>`;
+  const p = chatActPlan(a), x = a.input || {}, hd = `<p class="act-hd">${esc(slotName(p.meal || x.meal || ''))} · ${esc(isDate(x.date) ? dayWord(x.date) : '')}</p>`;
   const at = `class="act" data-n="${n}" data-id="${esc(a.id)}"`;
   if (a.done) {
     const word = a.name === 'log_food' ? `Added to ${slotName(x.meal).toLowerCase()}` : a.name === 'remove_entry' ? 'Removed' : 'Updated';
     const undo = a.name === 'log_food' ? !!a.ref : !!chat.actUndo[a.id];
-    return `<div ${at.replace('act"', 'act done"')}>${hd}<p class="act-nm">${esc(a.name === 'log_food' ? (p.name || x.name || '') : (p.e ? p.e.name : (chat.actUndo[a.id] || {}).name || 'Food'))}</p>
+    return `<div ${at.replace('act"', 'act done"')}>${hd}${actTop(a.name === 'log_food' ? (p.name || x.name || '') : (p.e ? p.e.name : (chat.actUndo[a.id] || {}).name || 'Food'), null)}
       <p class="act-ok"><span class="tk">${ICON.check}</span>${esc(word)}${undo ? `<button data-act="chatactundo">Undo</button>` : ''}</p></div>`;
   }
   const editing = !!chat.actEdit[a.id] && p.kind !== 'remove_entry';
   const unit = p.f ? p.f.unit : p.e ? p.e.unit : 'g';
   const edit = editing ? `<div class="act-ed"><input class="field act-in" inputmode="decimal" value="${p.qty != null && !isNaN(p.qty) ? fmtW(p.qty) : ''}" aria-label="Amount"><span class="u">${unit === 'g' ? 'g' : esc(unit)}</span>
-    <select class="pick act-meal" aria-label="Meal">${SLOTS.map(([k, l]) => `<option value="${k}"${k === p.meal ? ' selected' : ''}>${l}</option>`).join('')}</select></div>` : `<p class="act-am">${esc(p.amount || '')}</p>`;
-  const go = p.kind === 'log_food' ? (p.warn ? 'Add anyway' : 'Add') : p.kind === 'remove_entry' ? 'Remove' : p.warn ? 'Update anyway' : 'Update';
+    <select class="pick act-meal" aria-label="Meal">${SLOTS.map(([k, l]) => `<option value="${k}"${k === p.meal ? ' selected' : ''}>${l}</option>`).join('')}</select></div>` : '';
+  const go = actGo(p);
   const btns = p.err && !p.fixable ? '' : `<div class="act-bt">${p.kind !== 'remove_entry' && !editing ? `<button class="chg" data-act="chatactchg">Change</button>` : ''}<button class="go${p.kind === 'remove_entry' ? ' del' : ''}" data-act="chatactgo"${p.err ? ' disabled' : ''}>${go}</button></div>`;
-  return `<div ${at}>${hd}<p class="act-nm">${esc(p.name || x.name || '')}</p>${edit}${actMacros(p.m)}
+  return `<div ${at}>${hd}${actTop(p.name || x.name || '', editing ? null : p.amount || '')}${edit}${actMacros(p.m)}
     ${p.save ? `<p class="act-sv">Also saved to your foods, ${fmtInt(p.f.kcal)} kcal per ${p.f.unit === 'g' ? '100 g' : esc(p.f.unit)}</p>` : ''}
     ${p.err || p.warn ? `<p class="act-wn">${CI.warn}<span>${esc(p.err || p.warn)}</span></p>` : ''}${btns}</div>`;
 }
@@ -3681,9 +3692,10 @@ document.addEventListener('input', e => { if (!e.target.matches('.act-in')) retu
   const v = num(e.target.value); (chat.actEdit[f.a.id] = chat.actEdit[f.a.id] || {}).qty = v === null ? NaN : v;
   const p = chatActPlan(f.a), mc = $('.act-mc', f.c), html = actMacros(p.m); if (mc) mc.outerHTML = html;
   const wn = $('.act-wn', f.c), msg = p.err || p.warn; if (wn && !msg) wn.remove(); else if (msg) { if (wn) $('span', wn).textContent = msg; else $('.act-bt', f.c).insertAdjacentHTML('beforebegin', `<p class="act-wn">${CI.warn}<span>${esc(msg)}</span></p>`); }
-  const go = $('.act-bt .go', f.c); if (go) { go.disabled = !!p.err; go.textContent = p.kind === 'log_food' ? (p.warn ? 'Add anyway' : 'Add') : p.warn ? 'Update anyway' : 'Update'; } });
+  const go = $('.act-bt .go', f.c); if (go) { go.disabled = !!p.err; go.textContent = actGo(p); } });
 document.addEventListener('change', e => { if (!e.target.matches('.act-meal')) return; const f = chatActFind(e.target); if (!f) return;
-  (chat.actEdit[f.a.id] = chat.actEdit[f.a.id] || {}).meal = e.target.value; $('.act-hd', f.c).innerHTML = `${CI.food}${esc(slotName(e.target.value))} · ${esc(dayWord(f.a.input.date))}`; });
+  (chat.actEdit[f.a.id] = chat.actEdit[f.a.id] || {}).meal = e.target.value; $('.act-hd', f.c).textContent = `${slotName(e.target.value)} · ${dayWord(f.a.input.date)}`;
+  const go = $('.act-bt .go', f.c); if (go) go.textContent = actGo(chatActPlan(f.a)); });
 
 /* one message. Yours: a Messages bubble, the tail only on the last of a run. Coach's: plain text, nothing under it (Surath did not want copy or thumbs) */
 const chatSame = (m, r) => !!(m && r && m.role === 'user' && (m.qid && r.qid ? m.qid === r.qid : m.text === r.text));
