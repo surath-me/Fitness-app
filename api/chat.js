@@ -45,7 +45,9 @@ const INSTRUCTIONS = `You are Coach AI, the personal training and nutrition coac
 
 What you have: their profile (goal, body, health notes, rules, preferences), and with every message the app's data: today's targets, meals, macros, water and food limits, the last 7 days, today's training plan with suggested weights and what was logged, this week's split, recent sessions and the latest waist measurement. Base every number on it. When the data doesn't cover something, say so instead of guessing.
 
-What you do: answer questions, explain the plan and the numbers, suggest what to eat next within their targets and rules, help when a day goes off plan, and review progress when asked. The app logs food and sets, plans sessions and sets weights: never log anything in chat and never write a rival plan. You can't change the app yet. When something should change, say exactly what and where (for example "Settings, Daily targets: carbs 235 to 260 g").
+What you do: answer questions, explain the plan and the numbers, suggest what to eat next within their targets and rules, help when a day goes off plan, and review progress when asked. The app plans sessions and sets weights: never write a rival plan. For anything else that should change, say exactly what and where (for example "Settings, Daily targets: carbs 235 to 260 g").
+
+Food log: when they ask you to log, add, change or remove food, use the tools (log_food, edit_entry, remove_entry), one call per food. Each call shows them a card with the numbers and an Add button, so nothing changes until they tap it: never say it is logged or done, and never repeat the card's numbers in your text. Write one short line before the cards (for example where the estimate comes from), or nothing. Use one of their foods (food_id from the list of their foods) whenever it fits, with the amount in that food's unit. Otherwise estimate the macros per 100 g (unit g) or per piece or portion from typical values for that food as eaten, keep kcal close to 4 × protein + 4 × carbs + 9 × fat, and set save_food when it is something they will eat again. Pick the meal they said; if they didn't, the one that fits the time of day. The date is today unless they say otherwise. Only log food when they ask for it, never on your own, and don't log sets, water or anything else: the app does that.
 
 Reviews (when asked, or when the data clearly calls for one):
 - Look at weekly average weight or waist, 3 to 5 key lifts, days on target, sessions done.
@@ -179,26 +181,73 @@ function costUsd(u){
 // The instructions and the profile come first and are cached; the conversation follows as plain text (the model's own
 // thinking is never stored or replayed), cached up to the previous turn; the app data rides on the new message only.
 // It is written once as { system, turns, now } and put into each provider's format when sent.
-function buildRequest(profile, history, text, snapshot){
+function buildRequest(profile, history, text, snapshot, foods){
   const turns = [];
   for (const m of history) {   // the API wants user and assistant turns in turn, starting with the user
-    if (m.refused || !String(m.text || '').trim()) continue;   // a declined question would only be declined again; empty text is refused by the API
+    const said = (String(m.text || '') + actionNotes(m)).trim();   // the cards it showed, and whether they were added, go with its words
+    if (m.refused || !said) continue;   // a declined question would only be declined again; empty text is refused by the API
     if (!turns.length && m.role !== 'user') continue;
     const last = turns[turns.length - 1];
-    if (last && last.role === m.role) last.text += '\n\n' + m.text; else turns.push({ role: m.role, text: m.text });
+    if (last && last.role === m.role) last.text += '\n\n' + said; else turns.push({ role: m.role, text: said });
   }
   if (turns.length && turns[turns.length - 1].role === 'user') turns.pop();   // an earlier message that never got its reply
   const now = [];
   if (snapshot) now.push('App data with this message:\n' + String(snapshot).slice(0, 20000));
   now.push(text);
-  return { system: [INSTRUCTIONS, profile ? 'Their profile, kept by them in the app:\n\n' + profile : NO_PROFILE], turns, now, effort: 'low', max: 4000 };
+  const system = [INSTRUCTIONS, profile ? 'Their profile, kept by them in the app:\n\n' + profile : NO_PROFILE];
+  if (foods) system.push('Their foods (food_id: name, unit; macros per 100 g for g, else per unit):\n' + String(foods).slice(0, 20000));   // changes rarely, so it stays in the cached part
+  return { system, turns, now, effort: 'low', max: 4000, tools: true };
 }
+/* ---------- actions: changes Coach AI proposes, shown as cards the person confirms in the app ---------- */
+// The server only passes them on: the app checks them and makes the change itself when the person taps Add.
+const MEAL = { type: 'string', enum: ['breakfast', 'lunch', 'snack', 'dinner'] };
+const DATE = { type: 'string', description: 'YYYY-MM-DD' };
+const TOOLS = [
+  { name: 'log_food', description: 'Propose logging one food to a meal. The person sees a card and taps Add.',
+    parameters: { type: 'object', additionalProperties: false, required: ['date', 'meal', 'food_id', 'name', 'amount', 'unit', 'per', 'save_food'], properties: {
+      date: DATE, meal: MEAL,
+      food_id: { type: ['string', 'null'], description: 'The id from their foods when it is one of them, otherwise null' },
+      name: { type: 'string', description: 'Short food name, sentence case' },
+      amount: { type: 'number', description: 'Grams for unit g, otherwise the number of pieces or portions' },
+      unit: { type: 'string', enum: ['g', 'piece', 'portion'] },
+      per: { type: 'object', additionalProperties: false, required: ['kcal', 'protein', 'fat', 'carbs'], description: 'Per 100 g for unit g, otherwise per piece or portion. Ignored when food_id is set',
+        properties: { kcal: { type: 'number' }, protein: { type: 'number' }, fat: { type: 'number' }, carbs: { type: 'number' } } },
+      save_food: { type: 'boolean', description: 'Also save it to their foods (new foods only)' } } } },
+  { name: 'edit_entry', description: "Propose changing the amount or meal of a food logged today, by its entry id from today's meals.",
+    parameters: { type: 'object', additionalProperties: false, required: ['date', 'entry_id', 'amount', 'meal'], properties: {
+      date: DATE, entry_id: { type: 'string' },
+      amount: { type: ['number', 'null'], description: 'The new amount in the entry unit, or null to keep it' },
+      meal: { anyOf: [MEAL, { type: 'null' }], description: 'The new meal, or null to keep it' } } } },
+  { name: 'remove_entry', description: "Propose removing a food logged today, by its entry id from today's meals.",
+    parameters: { type: 'object', additionalProperties: false, required: ['date', 'entry_id'], properties: { date: DATE, entry_id: { type: 'string' } } } }
+];
+const TOOL_NAMES = new Set(TOOLS.map(t => t.name));
+const claudeTools = () => TOOLS.map(t => ({ name: t.name, description: t.description, input_schema: t.parameters, strict: true }));
+const openaiTools = () => TOOLS.map(t => ({ type: 'function', name: t.name, description: t.description, parameters: t.parameters, strict: true }));
+/* one finished tool call, kept if it is one of ours and its input parses */
+function toAction(name, input, i){
+  if (!TOOL_NAMES.has(name)) return null;
+  let x = input; if (typeof x === 'string') { try { x = JSON.parse(x || '{}'); } catch (e) { return null; } }
+  return x && typeof x === 'object' ? { id: crypto.randomUUID().slice(0, 8) + i, name, input: x } : null;
+}
+/* what the model is told later about the cards it showed: the text history has no tool calls in it */
+function actionNotes(m){
+  if (!m.actions || !m.actions.length) return '';
+  return '\n\n' + m.actions.map(a => {
+    const x = a.input || {}, st = a.done ? 'added' : 'not added';
+    if (a.name === 'log_food') return `[Card: log ${x.amount} ${x.unit === 'g' ? 'g' : x.unit} ${x.name} to ${x.meal} on ${x.date}: ${st}]`;
+    if (a.name === 'edit_entry') return `[Card: change entry ${x.entry_id} on ${x.date}${x.amount != null ? ' to ' + x.amount : ''}${x.meal ? ', meal ' + x.meal : ''}: ${a.done ? 'changed' : 'not changed'}]`;
+    return `[Card: remove entry ${x.entry_id} on ${x.date}: ${a.done ? 'removed' : 'not removed'}]`;
+  }).join('\n');
+}
+
 /* Claude caches up to the marks: the end of the system blocks and the last earlier turn */
 function claudeBody(q){
   const messages = q.turns.map(m => ({ role: m.role, content: [{ type: 'text', text: m.text }] }));
   if (messages.length) messages[messages.length - 1].content[0].cache_control = { type: 'ephemeral' };
   messages.push({ role: 'user', content: q.now.map(text => ({ type: 'text', text })) });
   const body = { model: model(), max_tokens: q.max, stream: true, output_config: { effort: q.effort }, fallbacks: 'default', messages };
+  if (q.tools) body.tools = claudeTools();
   if (q.system.length) body.system = q.system.map((text, i, all) => i === all.length - 1 ? { type: 'text', text, cache_control: { type: 'ephemeral' } } : { type: 'text', text });
   return body;
 }
@@ -207,6 +256,7 @@ function openaiBody(q){
   const body = { model: model(), max_output_tokens: q.max, stream: true, store: false, reasoning: { effort: q.effort },
     input: [...q.turns.map(m => ({ role: m.role, content: m.text })), { role: 'user', content: q.now.map(text => ({ type: 'input_text', text })) }] };
   if (q.system.length) body.instructions = q.system.join('\n\n');
+  if (q.tools) { body.tools = openaiTools(); body.parallel_tool_calls = true; }
   return body;
 }
 
@@ -242,23 +292,29 @@ const streamAI = (q, on) => provider() === 'openai' ? streamOpenAI(openaiBody(q)
 async function streamClaude(body, on){
   const r = await post('https://api.anthropic.com/v1/messages', { 'x-api-key': process.env.ANTHROPIC_API_KEY,
     'anthropic-version': '2026-10-21', 'anthropic-beta': 'server-side-fallback-2026-07-01' }, body);
-  const usage = {}; let text = '', stop = null;
+  const usage = {}, blocks = {}, actions = []; let text = '', stop = null;
   try { for await (const ev of events(r)) {
     if (ev.type === 'message_start' && ev.message && ev.message.usage) Object.assign(usage, ev.message.usage);
     else if (ev.type === 'content_block_start' && ev.content_block && ev.content_block.type === 'thinking') on('status', 'Thinking…');
+    else if (ev.type === 'content_block_start' && ev.content_block && ev.content_block.type === 'tool_use') { blocks[ev.index] = { name: ev.content_block.name, json: '' }; on('status', 'Preparing a card…'); }
+    else if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'input_json_delta' && blocks[ev.index]) blocks[ev.index].json += ev.delta.partial_json || '';
+    else if (ev.type === 'content_block_stop' && blocks[ev.index]) { const b = blocks[ev.index], a = toAction(b.name, b.json, actions.length); if (a) actions.push(a); delete blocks[ev.index]; }
     else if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta') { text += ev.delta.text; on('delta', ev.delta.text); }
     else if (ev.type === 'message_delta') { if (ev.usage) Object.assign(usage, ev.usage); if (ev.delta && ev.delta.stop_reason) stop = ev.delta.stop_reason; }
     else if (ev.type === 'error') { const err = new Error((ev.error && ev.error.message) || 'stream error'); err.status = 529; throw err; }
   } } catch (e) { throw billed(e, usage, text); }
-  return { text, usage, stop };
+  return { text, usage, stop: stop === 'tool_use' ? 'end_turn' : stop, actions };   // stopping for its tool calls is a finished reply here
 }
 
 async function streamOpenAI(body, on){
   const r = await post('https://api.openai.com/v1/responses', { Authorization: 'Bearer ' + process.env.OPENAI_API_KEY }, body);
   // usage only comes at the end: until then a failure counts the whole request as uncached input
   let usage = { input_tokens: Math.ceil(JSON.stringify(body).length / 3.5) }, text = '', stop = null, refused = false;
+  const actions = [];
   try { for await (const ev of events(r)) {
     if (ev.type === 'response.output_item.added' && ev.item && ev.item.type === 'reasoning') on('status', 'Thinking…');
+    else if (ev.type === 'response.output_item.added' && ev.item && ev.item.type === 'function_call') on('status', 'Preparing a card…');
+    else if (ev.type === 'response.output_item.done' && ev.item && ev.item.type === 'function_call') { const a = toAction(ev.item.name, ev.item.arguments, actions.length); if (a) actions.push(a); }
     else if (ev.type === 'response.output_text.delta' && typeof ev.delta === 'string') { text += ev.delta; on('delta', ev.delta); }
     else if (ev.type === 'response.refusal.delta') refused = true;   // a refusal is its own part, never shown as the reply
     else if (ev.type === 'response.completed' || ev.type === 'response.incomplete' || ev.type === 'response.failed') {
@@ -271,7 +327,7 @@ async function streamOpenAI(body, on){
     }
     else if (ev.type === 'error') { const err = new Error(ev.message || 'stream error'); err.status = 529; err.code = ev.code; throw err; }
   } } catch (e) { throw billed(e, usage, text); }
-  return { text, usage, stop: stop || (refused ? 'refusal' : null) };
+  return { text, usage, stop: stop || (refused ? 'refusal' : null), actions };
 }
 
 /* ---------- pretend replies, for building without an API key ---------- */
@@ -280,6 +336,13 @@ function pretendReply(text, snapshot){
   const t = text.toLowerCase(), snap = String(snapshot || '');
   const grab = re => { const m = snap.match(re); return m ? m[1] : null; };
   if (t.includes('/error')) return { error: true };
+  if (t.includes('/edit')) { const ids = [...snap.matchAll(/\[entry ([^\]]+)\]/g)].map(m => m[1]), d = today();
+    if (!ids.length) return { text: 'This is a pretend reply. Log some food first, then send /edit again.' };
+    return { text: 'This is a pretend reply that offers to change and remove logged food.',
+      actions: [{ name: 'edit_entry', input: { date: d, entry_id: ids[0], amount: 3, meal: 'snack' } }, { name: 'remove_entry', input: { date: d, entry_id: ids[ids.length - 1] } }] }; }
+  if (t.includes('/food')) { const d = today(); return { text: 'This is a pretend reply that offers food to log. Restaurant paneer tikka is roughly 275 kcal per 100 g.',
+    actions: [{ name: 'log_food', input: { date: d, meal: 'lunch', food_id: null, name: 'Paneer tikka', amount: 150, unit: 'g', per: { kcal: 275, protein: 18, fat: 19, carbs: 7 }, save_food: true } },
+      { name: 'log_food', input: { date: d, meal: 'dinner', food_id: 'egg', name: 'Whole egg', amount: 2, unit: 'piece', per: { kcal: 0, protein: 0, fat: 0, carbs: 0 }, save_food: false } }] }; }
   if (t.includes('/remember')) return { text: `This is a pretend reply that offers something for your profile.\n\n⊕ No hammer curls: they hurt your elbow.\n↳ What else do you remember about me?` };
   if (t.includes('/long')) return { text: Array.from({ length: 6 }, (_, i) => `**Part ${i + 1}.** This is a long pretend reply to test scrolling and streaming. It keeps going for a while so the conversation has to scroll, and the newest words should stay in view while they arrive.`).join('\n\n') + '\n\n- One point\n- Another point\n- A third point\n\n↳ Can you shorten that?\n↳ What should I eat next?' };
   if (/protein|eat|food|meal|kcal|calorie/.test(t)) {
@@ -321,6 +384,21 @@ module.exports = async function handler(req, res){
       await redis(env, [['SET', K.profile(), JSON.stringify(profile)]]);
       return res.status(200).json({ profile });
     }
+    if (req.method === 'PUT' && q.act) {   // a card was added or undone: kept on the message, so every device shows it, and Coach AI knows
+      const b = await readBody(req), n = Number(b.n), ts = Number(b.ts), aid = String(b.id || '');
+      if (!n || !ts || !aid) return res.status(400).json({ error: 'bad' });
+      const id = await lock(env); if (!id) return res.status(409).json({ error: 'busy' });
+      try {
+        const m = monthOf(ts), list = await readMonth(env, m), msg = list.find(x => x.n === n), a = msg && (msg.actions || []).find(x => x.id === aid);
+        if (!a) return res.status(404).json({ error: 'gone' });
+        a.done = !!b.done; if (b.ref) a.ref = String(b.ref).slice(0, 40); else delete a.ref;
+        const ed = b.edit || {};   // what was changed on the card before it was added
+        if (Number(ed.amount) > 0) a.input.amount = Number(ed.amount);
+        if (['breakfast', 'lunch', 'snack', 'dinner'].includes(ed.meal)) a.input.meal = ed.meal;
+        await redis(env, [['SET', K.month(m), pack(list)]]);
+        return res.status(200).json({ action: a });
+      } finally { await unlock(env, id).catch(() => {}); }
+    }
     if (req.method === 'DELETE') {
       const id = await lock(env); if (!id) return res.status(409).json({ error: 'busy' });
       try {
@@ -341,17 +419,17 @@ module.exports = async function handler(req, res){
 };
 
 async function chat(env, req, res, live){
-  const b = await readBody(req), text = String(b.text || '').trim().slice(0, 8000), snapshot = b.snapshot ? String(b.snapshot) : '';
+  const b = await readBody(req), text = String(b.text || '').trim().slice(0, 8000), snapshot = b.snapshot ? String(b.snapshot) : '', foods = b.foods ? String(b.foods) : '';
   if (!text) return res.status(400).json({ error: 'empty' });
   const spend = await readSpend(env);
   if (live && spend.usd >= capUsd()) return res.status(429).json({ error: 'cap', spend: spendOut(spend) });
   const id = await lock(env);
   if (!id) return res.status(409).json({ error: 'busy' });
   const release = held(env, id);
-  try { await answer(env, req, res, live, b, text, snapshot, spend, release); }
+  try { await answer(env, req, res, live, b, text, snapshot, spend, release, foods); }
   finally { await release(); }
 }
-async function answer(env, req, res, live, b, text, snapshot, spend, release){
+async function answer(env, req, res, live, b, text, snapshot, spend, release, foods){
   const [meta, profile] = await Promise.all([readMeta(env), readProfile(env)]);
   // Try again: the question is often stored already (the reply failed after it, or the phone lost the answer). It is
   // answered again rather than stored twice; a reply that was cut off makes way, and one that did arrive is simply returned.
@@ -382,22 +460,24 @@ async function answer(env, req, res, live, b, text, snapshot, spend, release){
   let reply = '';
   try {
     if (live) {
-      const out = await streamAI(buildRequest(profile.text, history, text, snapshot), (type, x) => {
+      const out = await streamAI(buildRequest(profile.text, history, text, snapshot, foods), (type, x) => {
         if (type === 'status') send('status', { text: x }); else { reply += x; send('delta', { text: x }); }
       });
       const after = await addSpend(env, costUsd(out.usage));
       // declined, even part way: what was written is dropped (the API says to discard it), and the question is kept out of
       // later requests, where it would only be declined again
       if (out.stop === 'refusal') { await updateMessage(env, userMsg, { refused: true }); return finish('error', { code: 'refusal', message: 'Coach AI could not answer that one.' }); }
-      if (!out.text.trim()) return finish('error', { code: 'empty', message: 'Coach AI could not answer. Try again.' });   // stored, it would be sent back empty with every later request
-      const msg = await appendMessage(env, meta, { role: 'assistant', text: out.text, ts: Date.now(), ...(out.stop !== 'end_turn' ? { cut: true } : {}) });
+      const acts = (out.actions || []).slice(0, 8);
+      if (!out.text.trim() && !acts.length) return finish('error', { code: 'empty', message: 'Coach AI could not answer. Try again.' });   // stored, it would be sent back empty with every later request
+      const msg = await appendMessage(env, meta, { role: 'assistant', text: out.text, ts: Date.now(), ...(acts.length ? { actions: acts } : {}), ...(out.stop !== 'end_turn' ? { cut: true } : {}) });
       return finish('done', { msg, spend: spendOut(after) });
     } else {
       const p = pretendReply(text, snapshot);
       await wait(snapshot ? 700 : 300); send('status', { text: 'Thinking…' }); await wait(900);
       if (p.error) return finish('error', { code: 'pretend', message: 'A pretend error, to test how failures look.' });
       for (const word of p.text.split(/(\s+)/)) { if (!word) continue; reply += word; send('delta', { text: word }); if (!gone && word.trim()) await wait(28); }
-      const msg = await appendMessage(env, meta, { role: 'assistant', text: p.text, ts: Date.now() });
+      const acts = (p.actions || []).map((a, i) => toAction(a.name, a.input, i)).filter(Boolean);
+      const msg = await appendMessage(env, meta, { role: 'assistant', text: p.text, ts: Date.now(), ...(acts.length ? { actions: acts } : {}) });
       return finish('done', { msg, spend: spendOut(spend) });
     }
   } catch (e) {

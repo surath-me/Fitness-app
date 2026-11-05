@@ -738,6 +738,35 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
 .mem span{flex:1;min-width:0}
 .mem b{flex:none;font-weight:600;color:var(--accent)}
 .mem.done{color:var(--ink2)}.mem.done b{color:var(--ink2);font-weight:500}
+/* a change Coach AI proposes (log, change or remove food): a solid card, nothing happens until Add is tapped */
+.act{margin-top:12px;padding:14px 16px 16px;border-radius:22px;background:var(--card);font-size:14px;line-height:1.35}
+.act+.act{margin-top:8px}
+.act-hd{display:flex;align-items:center;gap:6px;margin:0;font-size:12.5px;color:var(--ink2)}
+.act-hd svg{width:15px;height:15px;flex:none}
+.act-nm{margin:6px 0 1px;font-size:17px;font-weight:600;letter-spacing:-.2px}
+.act-am{margin:0;color:var(--ink2)}
+.act-mc{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin:10px 0 0;color:var(--ink2)}
+.act-mc b{font-size:19px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.act-mc span::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;vertical-align:1px;background:var(--d)}
+.act-sv{margin:10px 0 0;padding-top:10px;border-top:var(--sep-w) solid var(--sep);font-size:12.5px;color:var(--ink2)}
+.act-wn{display:flex;gap:6px;margin:10px 0 0;font-size:13px;color:var(--red-ink)}
+.act-wn svg{width:16px;height:16px;flex:none;margin-top:0}
+.act-bt{display:flex;gap:8px;margin-top:14px}
+.act-bt button{flex:1;display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:999px;font-size:16px;font-weight:600;background:var(--fill2);color:var(--ink)}
+.act-bt .chg{font-weight:500}
+.act-bt .go{background:var(--accent-t);color:var(--accent-ink)}
+.act-bt .go.del{background:var(--red-t);color:var(--red-ink)}
+.act-bt button:active{opacity:.6}
+.act-bt button:disabled{opacity:.4}
+.act-ed{display:flex;gap:8px;margin:10px 0 0;align-items:center}
+.act-ed .field{width:96px;flex:none;margin:0}
+.act-ed .u{color:var(--ink2);flex:none}
+.act-ed .pick{margin-left:auto}
+.act-ok{display:flex;align-items:center;gap:8px;margin:12px 0 0;color:var(--ink2)}
+.act-ok .tk{width:20px;height:20px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;flex:none}
+.act-ok .tk svg{width:12px;height:12px}
+.act-ok button{margin-left:auto;min-height:44px;margin-block:-12px;padding:0 4px;color:var(--accent);font-weight:600;font-size:15px}
+.act.done .act-nm{font-size:15px;color:var(--ink2);font-weight:600}
 .sugs{margin-top:8px}
 .sugb{display:flex;align-items:flex-start;gap:10px;width:100%;min-height:36px;padding:6px 0;text-align:left;font-size:14px;line-height:1.35;color:var(--ink)}
 .sugb svg{flex:none;width:18px;height:18px;margin-top:1px}
@@ -832,7 +861,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.04';
+const APP_VERSION = '4.05';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2803,6 +2832,17 @@ const H = {
     m.splice(k, 1); renderChatLog(true); chatSend(q.text, false, q.qid); },   // passed by later messages: asked again at the end
   chatmore(){ chatOlder(); },
   chatsettings(t){ closeChat(); ui.tab = 'setup'; ui.setupPage = t.dataset.p || 'chat'; window.scrollTo(0, 0); render({ transition:true, tab:true }); },
+  chatactchg(b){ const f = chatActFind(b); if (!f) return; const p = chatActPlan(f.a);
+    chat.actEdit[f.a.id] = { qty: p.qty, meal: p.meal }; chatActDraw(f.c, f.m, f.a);
+    const inp = $(`.act[data-id="${f.a.id}"] .act-in`); if (inp) { inp.focus(); inp.select(); } },
+  chatactgo(b){ const f = chatActFind(b); if (!f || f.a.done) return;
+    const said = chatActApply(f.a); if (!said) { chatActDraw(f.c, f.m, f.a); return; }
+    if (chat.actEdit[f.a.id] && f.a.name !== 'remove_entry') { const p = chat.actEdit[f.a.id]; f.a.input = { ...f.a.input, ...(p.qty != null ? { amount: p.qty } : {}), ...(p.meal ? { meal: p.meal } : {}) }; }
+    delete chat.actEdit[f.a.id]; f.a.done = true; chatActDraw(f.c, f.m, f.a); chatActSave(f.m, f.a);
+    if (document.activeElement && document.activeElement.matches('.act-in')) document.activeElement.blur();
+    ui.undo = { fn: () => { const g = chat.msgs.includes(f.m) && f.a; if (g && chatActRevert(g)) { g.done = false; const c = $(`.act[data-id="${g.id}"]`); if (c) chatActDraw(c, f.m, g); chatActSave(f.m, g); render(); } } };
+    render(); toast(said, { undo: true }); },
+  chatactundo(b){ const f = chatActFind(b); if (!f || !chatActRevert(f.a)) return; f.a.done = false; chatActDraw(f.c, f.m, f.a); chatActSave(f.m, f.a); ui.undo = null; hideToast(); render(); toast('Undone'); },
   chatremember(b){ const t = b.dataset.t, cur = ((chat.profile && chat.profile.text) || '').trim(); if (!t || chatInProfile(t)) return;
     chatApi('PUT', '?profile=1', { text: (cur ? cur + '\n' : '') + '- ' + t }).then(j => { chat.profile = j.profile; chatCache();
       $$('#chatlog .mem').forEach(el => { if (el.dataset.t === t) el.outerHTML = chatMemsHTML([t]); }); }, () => toast('Could not save to your profile', { err:true })); },
@@ -3467,7 +3507,7 @@ function chatSnapshot(){
   L.push(`Eaten today: ${fmtInt(m.kcal)} kcal, ${r0(m.p)} g protein, ${r0(m.f)} g fat, ${r0(m.c)} g carbs.`);
   L.push(`Left today: ${fmtInt(Math.max(0, T.kcal - m.kcal))} kcal, ${r0(Math.max(0, T.p - m.p))} g protein, ${r0(Math.max(0, T.f - m.f))} g fat, ${r0(Math.max(0, T.c - m.c))} g carbs.`);
   const meals = SLOTS.map(([k, l]) => { const es = dayEntries(t).filter(e => e.slot === k);
-    return es.length ? `${l}: ${es.map(e => `${e.name} ${fmtW(e.qty)}${e.unit === 'g' ? ' g' : ' ' + e.unit}`).join(', ')}` : null; }).filter(Boolean);
+    return es.length ? `${l}: ${es.map(e => `${e.name} ${fmtW(e.qty)}${e.unit === 'g' ? ' g' : ' ' + e.unit} [entry ${e.id}]`).join(', ')}` : null; }).filter(Boolean);
   L.push(meals.length ? `Meals today: ${meals.join('; ')}.` : 'No meals logged today yet.');
   L.push(`Water today: ${fmtL(waterOf(t).ml)} of 3 L.`);
   const u = capUsage(t), C = S.settings.caps;
@@ -3532,6 +3572,119 @@ const chatMemsHTML = mems => mems.slice(0, 2).map(t => chatInProfile(t)
   ? `<p class="mem done">${CI.mem}<span>${esc(t)}</span><b>Added</b></p>`
   : `<button class="mem" data-act="chatremember" data-t="${esc(t)}">${CI.mem}<span>${esc(t)}</span><b>Remember</b></button>`).join('');
 const chatSugsHTML = sugs => sugs.length ? `<div class="sugs">${sugs.slice(0, 3).map(q => `<button class="sugb" data-act="chatsug" data-q="${esc(q)}">${CI.sug}<span>${esc(q)}</span></button>`).join('')}</div>` : '';
+/* ---------- changes Coach AI proposes ----------
+   The model never changes anything: it sends actions (log_food, edit_entry, remove_entry) that show as cards. The app
+   checks each one (a real date, sensible numbers, kcal that add up, your food limits) and makes the change itself when
+   Add is tapped, with the same code a tap on Eat uses; Undo takes it back. Whether a card was added is kept on the
+   message on the server (PUT ?act), so every device shows it and Coach AI knows later. */
+const chatFoods = () => allFoods().map(f => `${f.id}: ${f.name}, ${f.unit} (${r1(f.kcal)} kcal, ${r1(f.p)} P, ${r1(f.f)} F, ${r1(f.c)} C)`).join('\n');
+CI.food = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8M4.5 3v5.5A2.5 2.5 0 0 0 7 11a2.5 2.5 0 0 0 2.5-2.5V3M7 11v10M17.5 21V3c-2 1-3.5 3.5-3.5 7.5 0 1.4.9 2.5 2.2 2.5h1.3"/></svg>';
+CI.warn = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></svg>';
+chat.actEdit = {}; chat.actUndo = {};
+const dayWord = d => { const t = todayStr(); return d === t ? 'today' : d === addDays(t, -1) ? 'yesterday' : d === addDays(t, 1) ? 'tomorrow' : dateLabel(d); };
+const unitText = (q, u) => u === 'g' ? `${fmtW(q)} g` : `${fmtW(q)} ${u}${q === 1 || /s$/.test(u) ? '' : 's'}`;
+const isDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') && diffDays(addDays(todayStr(), -30), d) >= 0 && diffDays(d, addDays(todayStr(), 1)) >= 0;
+/* how much of a limit a day would use with qty more of a capped food */
+function capAfter(date, cap, add){
+  if (!cap) return '';
+  const total = capUsage(date)[cap] + add, lim = S.settings.caps[cap];
+  return total > lim + 0.001 ? `That brings ${CAP_LABEL[cap].toLowerCase()} to ${fmtW(r1(total))} of your ${lim}${CAP_UNIT[cap]} limit` : '';
+}
+/* everything a card needs, worked out from the action and your data as they are now */
+function chatActPlan(a){
+  const x = a.input || {}, ed = chat.actEdit[a.id] || {}, slots = SLOTS.map(s => s[0]);
+  const P = { a, kind: a.name, date: x.date, meal: ed.meal || x.meal };
+  if (!isDate(x.date)) return { ...P, err: 'Coach AI picked a date that does not work here.' };
+  if (a.name === 'log_food') {
+    let f = x.food_id && foodById(x.food_id), made = false;
+    if (!f) f = allFoods().find(g => g.name.toLowerCase() === String(x.name || '').trim().toLowerCase() && (g.unit === 'g') === (x.unit === 'g'));
+    if (!f) { const k = x.per || {}; made = true;
+      f = { id: 'c_' + a.id, name: String(x.name || 'Food').slice(0, 60), unit: x.unit === 'g' ? 'g' : x.unit === 'piece' ? 'piece' : 'portion', group: 'My foods',
+        kcal: r1(+k.kcal || 0), p: r1(+k.protein || 0), f: r1(+k.fat || 0), c: r1(+k.carbs || 0), step: x.unit === 'g' ? 100 : 1, inc: x.unit === 'g' ? 10 : 0.5 }; }
+    const qty = ed.qty != null ? ed.qty : +x.amount;
+    if (!slots.includes(P.meal)) return { ...P, err: 'Coach AI picked a meal that does not exist.' };
+    const out = { ...P, f, made, save: made && !!x.save_food, qty, m: macrosFor(f, qty || 0), name: f.name, amount: unitText(qty, f.unit) };
+    if (!(qty > 0) || qty > (f.unit === 'g' ? 3000 : 30)) return { ...out, err: 'That amount looks wrong. Change it before adding.', fixable: true };
+    if (made) { const est = 4 * f.p + 4 * f.c + 9 * f.f; if (!(f.kcal > 0) || Math.abs(est - f.kcal) > Math.max(25, f.kcal * .15) || f.kcal > 950)
+      out.warn = `These numbers don't add up: the protein, fat and carbs make ${r0(est)} kcal, not ${r0(f.kcal)}`; }
+    if (!out.warn) out.warn = capAfter(x.date, f.cap, qty * (f.capMul || 1));
+    return out;
+  }
+  const e = dayEntries(x.date).find(y => y.id === x.entry_id);
+  if (!e) return { ...P, gone: true, name: 'Entry not found', err: a.done ? '' : 'This food is not in your log any more.' };
+  if (a.name === 'remove_entry') return { ...P, e, meal: e.slot, name: e.name, amount: `${qtyText(e)} · ${fmtInt(e.kcal)} kcal`, m: null };
+  const qty = ed.qty != null ? ed.qty : x.amount != null ? +x.amount : e.qty, meal = ed.meal || x.meal || e.slot, k = e.k || perUnit({ unit: e.unit, kcal: e.kcal, p: e.p, f: e.f, c: e.c });
+  const out = { ...P, e, meal, qty, name: e.name, m: { kcal: k.kcal * qty, p: k.p * qty, f: k.f * qty, c: k.c * qty },
+    amount: [qty !== e.qty ? `${qtyText(e)} → ${unitText(qty, e.unit)}` : qtyText(e), meal !== e.slot ? `${slotName(e.slot)} → ${slotName(meal)}` : ''].filter(Boolean).join(' · ') };
+  if (e.unit === 'day') return { ...out, err: 'An imported day total cannot be changed, only removed.' };
+  if (!(qty > 0) || qty > (e.unit === 'g' ? 3000 : 30)) return { ...out, err: 'That amount looks wrong. Change it before updating.', fixable: true };
+  if (e.cap && qty > e.qty) out.warn = capAfter(x.date, e.cap, e.capQty * (qty / e.qty - 1));
+  return out;
+}
+const actMacros = m => m ? `<p class="act-mc"><b>${fmtInt(m.kcal)} kcal</b><span style="--d:var(--pro)">${r0(m.p)} P</span><span style="--d:var(--fat)">${r0(m.f)} F</span><span style="--d:var(--carb)">${r0(m.c)} C</span></p>` : '';
+function chatActHTML(n, a){
+  const p = chatActPlan(a), x = a.input || {}, hd = `<p class="act-hd">${CI.food}${esc(slotName(p.meal || x.meal || ''))} · ${esc(isDate(x.date) ? dayWord(x.date) : '')}</p>`;
+  const at = `class="act" data-n="${n}" data-id="${esc(a.id)}"`;
+  if (a.done) {
+    const word = a.name === 'log_food' ? `Added to ${slotName(x.meal).toLowerCase()}` : a.name === 'remove_entry' ? 'Removed' : 'Updated';
+    const undo = a.name === 'log_food' ? !!a.ref : !!chat.actUndo[a.id];
+    return `<div ${at.replace('act"', 'act done"')}>${hd}<p class="act-nm">${esc(a.name === 'log_food' ? (p.name || x.name || '') : (p.e ? p.e.name : (chat.actUndo[a.id] || {}).name || 'Food'))}</p>
+      <p class="act-ok"><span class="tk">${ICON.check}</span>${esc(word)}${undo ? `<button data-act="chatactundo">Undo</button>` : ''}</p></div>`;
+  }
+  const editing = !!chat.actEdit[a.id] && p.kind !== 'remove_entry';
+  const unit = p.f ? p.f.unit : p.e ? p.e.unit : 'g';
+  const edit = editing ? `<div class="act-ed"><input class="field act-in" inputmode="decimal" value="${p.qty != null && !isNaN(p.qty) ? fmtW(p.qty) : ''}" aria-label="Amount"><span class="u">${unit === 'g' ? 'g' : esc(unit)}</span>
+    <select class="pick act-meal" aria-label="Meal">${SLOTS.map(([k, l]) => `<option value="${k}"${k === p.meal ? ' selected' : ''}>${l}</option>`).join('')}</select></div>` : `<p class="act-am">${esc(p.amount || '')}</p>`;
+  const go = p.kind === 'log_food' ? (p.warn ? 'Add anyway' : 'Add') : p.kind === 'remove_entry' ? 'Remove' : p.warn ? 'Update anyway' : 'Update';
+  const btns = p.err && !p.fixable ? '' : `<div class="act-bt">${p.kind !== 'remove_entry' && !editing ? `<button class="chg" data-act="chatactchg">Change</button>` : ''}<button class="go${p.kind === 'remove_entry' ? ' del' : ''}" data-act="chatactgo"${p.err ? ' disabled' : ''}>${go}</button></div>`;
+  return `<div ${at}>${hd}<p class="act-nm">${esc(p.name || x.name || '')}</p>${edit}${actMacros(p.m)}
+    ${p.save ? `<p class="act-sv">Also saved to your foods, ${fmtInt(p.f.kcal)} kcal per ${p.f.unit === 'g' ? '100 g' : esc(p.f.unit)}</p>` : ''}
+    ${p.err || p.warn ? `<p class="act-wn">${CI.warn}<span>${esc(p.err || p.warn)}</span></p>` : ''}${btns}</div>`;
+}
+const chatActsHTML = m => (m.actions || []).map(a => chatActHTML(m.n, a)).join('');
+const chatActFind = el => { const c = el.closest('.act'), m = c && chat.msgs.find(x => String(x.n) === c.dataset.n), a = m && (m.actions || []).find(y => y.id === c.dataset.id); return a ? { c, m, a } : null; };
+const chatActDraw = (c, m, a) => { const t = document.createElement('div'); t.innerHTML = chatActHTML(m.n, a); c.replaceWith(t.firstElementChild); };
+/* kept on the server so other devices and Coach AI see it; one retry if a reply is being written at that moment */
+function chatActSave(m, a){
+  const go = () => chatApi('PUT', '?act=1', { n: m.n, ts: m.ts, id: a.id, done: !!a.done, ref: a.ref || '', edit: { amount: a.input.amount, meal: a.input.meal } });
+  go().catch(() => setTimeout(() => go().catch(() => {}), 1500));
+  chatCache();
+}
+/* make the change, the way a tap on Eat would */
+function chatActApply(a){
+  const p = chatActPlan(a); if (p.err) return null;
+  const day = S.days[p.date] = S.days[p.date] || { entries: [] };
+  if (p.kind === 'log_food') {
+    if (p.save && !foodById(p.f.id)) S.foods.push(p.f);
+    const e = makeEntry(p.f, p.qty, p.meal); if (p.made && !p.save) e.food = null;
+    e.ai = a.id; day.entries.push(e); a.ref = e.id + (p.save ? '|' + p.f.id : '');
+    saveState(); return `Added to ${slotName(p.meal)}`;
+  }
+  const i = day.entries.indexOf(p.e);
+  if (p.kind === 'remove_entry') { chat.actUndo[a.id] = { entry: p.e, idx: i, name: p.e.name }; day.entries.splice(i, 1); saveState(); return `${p.e.name} removed`; }
+  const e = p.e, old = { ...e }; chat.actUndo[a.id] = { entry: old, idx: i, name: e.name };
+  e.capQty = e.cap ? e.capQty * p.qty / (e.qty || 1) : 0; e.qty = p.qty; e.slot = p.meal;
+  e.kcal = p.m.kcal; e.p = p.m.p; e.f = p.m.f; e.c = p.m.c; saveState(); return 'Updated';
+}
+function chatActRevert(a){
+  const x = a.input || {}, day = S.days[x.date];
+  if (a.name === 'log_food') {
+    const [eid, fid] = String(a.ref || '').split('|');
+    if (day) day.entries = day.entries.filter(e => e.id !== eid);
+    if (fid && !Object.values(S.days).some(d => d.entries.some(e => e.food === fid))) S.foods = S.foods.filter(f => f.id !== fid);   // the food it saved goes too, unless something else uses it
+    delete a.ref;
+  } else { const u = chat.actUndo[a.id]; if (!u) return false; const d = S.days[x.date] = day || { entries: [] };
+    d.entries = d.entries.filter(e => e.id !== u.entry.id); d.entries.splice(Math.min(u.idx, d.entries.length), 0, u.entry); delete chat.actUndo[a.id]; }
+  saveState(); return true;
+}
+document.addEventListener('input', e => { if (!e.target.matches('.act-in')) return; const f = chatActFind(e.target); if (!f) return;
+  const v = num(e.target.value); (chat.actEdit[f.a.id] = chat.actEdit[f.a.id] || {}).qty = v === null ? NaN : v;
+  const p = chatActPlan(f.a), mc = $('.act-mc', f.c), html = actMacros(p.m); if (mc) mc.outerHTML = html;
+  const wn = $('.act-wn', f.c), msg = p.err || p.warn; if (wn && !msg) wn.remove(); else if (msg) { if (wn) $('span', wn).textContent = msg; else $('.act-bt', f.c).insertAdjacentHTML('beforebegin', `<p class="act-wn">${CI.warn}<span>${esc(msg)}</span></p>`); }
+  const go = $('.act-bt .go', f.c); if (go) { go.disabled = !!p.err; go.textContent = p.kind === 'log_food' ? (p.warn ? 'Add anyway' : 'Add') : p.warn ? 'Update anyway' : 'Update'; } });
+document.addEventListener('change', e => { if (!e.target.matches('.act-meal')) return; const f = chatActFind(e.target); if (!f) return;
+  (chat.actEdit[f.a.id] = chat.actEdit[f.a.id] || {}).meal = e.target.value; $('.act-hd', f.c).innerHTML = `${CI.food}${esc(slotName(e.target.value))} · ${esc(dayWord(f.a.input.date))}`; });
+
 /* one message. Yours: a Messages bubble, the tail only on the last of a run. Coach's: plain text, nothing under it (Surath did not want copy or thumbs) */
 const chatSame = (m, r) => !!(m && r && m.role === 'user' && (m.qid && r.qid ? m.qid === r.qid : m.text === r.text));
 // under a message that was not sent, unless the error line just below it already offers Try again
@@ -3539,7 +3692,7 @@ const chatUnsentHTML = m => m.failed && !(chat.err && chatSame(m, chat.err.retry
 function chatMsgHTML(m, o = {}){
   if (m.role === 'user') return `<div class="cm u${o.tail ? ' tail' : ''}${m.failed ? ' failed' : ''}" data-n="${m.n}"><div class="bub">${esc(m.text)}</div></div>` + chatUnsentHTML(m);
   const md = chatMD(m.streaming ? m.text.slice(0, m.shown || 0) : m.text);
-  return `<div class="cm a${m.streaming ? ' stream' : ''}" data-n="${m.n}"><div class="md">${md.html}</div>${!m.streaming ? chatMemsHTML(md.mems) + chatSugsHTML(md.sugs) : ''}</div>`;
+  return `<div class="cm a${m.streaming ? ' stream' : ''}" data-n="${m.n}"><div class="md">${md.html}</div>${!m.streaming ? chatActsHTML(m) + chatMemsHTML(md.mems) + chatSugsHTML(md.sugs) : ''}</div>`;
 }
 const chatErrHTML = err => `<div class="cm err" role="alert">${esc(err.message)}${err.retry ? `<button data-act="chatretry">Try again</button>` : ''}</div>`;
 function chatLogHTML(){
@@ -3678,7 +3831,7 @@ function chatFinish(){
   if (el && msg) {
     el.classList.remove('stream'); el.dataset.n = msg.n;
     const md = chatMD(msg.text); $('.md', el).innerHTML = md.html;
-    const t = document.createElement('div'); t.innerHTML = chatMemsHTML(md.mems) + chatSugsHTML(md.sugs);
+    const t = document.createElement('div'); t.innerHTML = chatActsHTML(msg) + chatMemsHTML(md.mems) + chatSugsHTML(md.sugs);
     [...t.children].forEach(n => { n.classList.add('in'); el.appendChild(n); });
     const log = $('#chatlog'); if (chatNearBottom(log)) log.scrollTo({ top: log.scrollHeight, behavior: reduced() ? 'auto' : 'smooth' });
   } else renderChatLog();
@@ -3724,7 +3877,7 @@ async function chatSend(text, again, qid){
   }
   let res;
   try { res = await fetch('/api/chat', { method:'POST', cache:'no-store', headers:{ Authorization:'Bearer ' + cloud.token, 'Content-Type':'application/json' },
-    body: JSON.stringify({ text, snapshot: chatSnapshot(), retry: !!again, qid }) }); }
+    body: JSON.stringify({ text, snapshot: chatSnapshot(), foods: chatFoods(), retry: !!again, qid }) }); }
   catch(e) { await landed; return chatFail(temp || mine, { message:'No connection. Try again when you are back online.', retry:{ text, qid } }); }
   await landed;   // the status line and the reply wait for your bubble to land
   if (!res.ok) {
