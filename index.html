@@ -873,7 +873,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.10';
+const APP_VERSION = '4.11';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1972,11 +1972,19 @@ function capChips(date){
     return `<span class="cap ${cls}">${CAP_LABEL[k]} ${fmtW(cur)}/${cap}${CAP_UNIT[k]}</span>`;
   }).join('');
 }
+/* a food's name and its detail: "Tandoori chicken (edible meat)" is Tandoori chicken with edible meat beside the amount.
+   A detail after a comma counts only when asked (Coach AI's new foods): the app's own foods keep theirs ("Egg, whole") */
+function nameParts(name, comma){
+  const s = String(name || ''), m = s.match(/^(.*?)\s*\(([^)]+)\)\s*(.*)$/) || (comma && s.match(/^([^,]+),\s*(.+?)()$/));
+  return m ? [(m[1] + (m[3] ? ' ' + m[3] : '')).trim(), m[2]] : [s, ''];
+}
+const ownFood = e => FOODS.some(f => f.id === e.food);
 function entryRow(e){
+  const [nm, det] = nameParts(e.name, !ownFood(e));
   return `<div class="swipe ${ui.flash === e.id ? 'flash' : ''}" data-id="${e.id}">
     <button class="swipe-del" data-act="swipedel" data-id="${e.id}" tabindex="-1" aria-label="Delete"><span class="pill">${ICON.trash}</span></button>
     <button class="entry cols swipe-fg" data-act="editentry" data-id="${e.id}">
-      <span><span class="nm">${esc(e.name)}</span><br><span class="q">${esc(qtyText(e))}</span></span>
+      <span><span class="nm">${esc(nm)}</span><br><span class="q">${esc([det, qtyText(e)].filter(Boolean).join(' · '))}</span></span>
       <span class="t">${r0(e.kcal)}</span><span class="t">${r0(e.p)}</span><span class="t">${r0(e.f)}</span><span class="t">${r0(e.c)}</span></button></div>`;
 }
 function slotBlock(key, label, date){
@@ -3646,8 +3654,7 @@ function chatActPlan(a){
 const actMacros = m => m ? `<p class="act-mc"><b>${fmtInt(m.kcal)}<small>kcal</small></b><span><i style="--d:var(--pro)"><b>${r0(m.p)}</b> P</i><i style="--d:var(--fat)"><b>${r0(m.f)}</b> F</i><i style="--d:var(--carb)"><b>${r0(m.c)}</b> C</i></span></p>` : '';
 /* the name alone on the first line; a detail ("edible meat", in brackets or, for a new food, after a comma) goes on the
    second in the amount's style. Your own foods keep their names whole ("Egg, whole") */
-const actTop = (name, sub, hd, comma) => { const m = String(name).match(/^(.*?)\s*\(([^)]+)\)\s*(.*)$/) || (comma && String(name).match(/^([^,]+),\s*(.+?)()$/)), nm = m ? (m[1] + (m[3] ? ' ' + m[3] : '')).trim() : name;
-  const line = [m && m[2], sub].filter(Boolean).join(' · ');
+const actTop = (name, sub, hd, comma) => { const [nm, det] = nameParts(name, comma), line = [det, sub].filter(Boolean).join(' · ');
   return `<div class="act-top"><span class="act-ic">${CI.food}</span><div><p class="act-nm">${esc(nm)}</p>${line ? `<p class="act-am">${esc(line)}</p>` : ''}</div>${hd}</div>`; };
 /* the days a food can go to: tomorrow, today and the 30 days before, as on the pill */
 const actDays = sel => { const t = todayStr(), out = [];
