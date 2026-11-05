@@ -207,7 +207,7 @@ const TOOLS = [
     parameters: { type: 'object', additionalProperties: false, required: ['date', 'meal', 'food_id', 'name', 'amount', 'unit', 'per', 'save_food'], properties: {
       date: DATE, meal: MEAL,
       food_id: { type: ['string', 'null'], description: 'The id from their foods when it is one of them, otherwise null' },
-      name: { type: 'string', description: 'Short food name, sentence case; a detail goes in brackets, like "Tandoori chicken (edible meat)"' },
+      name: { type: 'string', description: 'Short food name, sentence case; a detail always goes in brackets, never after a comma, like "Tandoori chicken (edible meat)"' },
       amount: { type: 'number', description: 'Grams for unit g, otherwise the number of pieces or portions' },
       unit: { type: 'string', enum: ['g', 'piece', 'portion'] },
       per: { type: 'object', additionalProperties: false, required: ['kcal', 'protein', 'fat', 'carbs'], description: 'Per 100 g for unit g, otherwise per piece or portion. Ignored when food_id is set',

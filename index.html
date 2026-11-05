@@ -870,7 +870,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.07';
+const APP_VERSION = '4.08';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3631,8 +3631,9 @@ function chatActPlan(a){
   return out;
 }
 const actMacros = m => m ? `<p class="act-mc"><b>${fmtInt(m.kcal)}<small>kcal</small></b><span><i style="--d:var(--pro)"><b>${r0(m.p)}</b> P</i><i style="--d:var(--fat)"><b>${r0(m.f)}</b> F</i><i style="--d:var(--carb)"><b>${r0(m.c)}</b> C</i></span></p>` : '';
-/* the name alone on the first line; a detail in brackets ("edible meat") goes on the second with the amount */
-const actTop = (name, sub, hd) => { const m = String(name).match(/^(.*?)\s*\(([^)]+)\)\s*(.*)$/), nm = m ? (m[1] + (m[3] ? ' ' + m[3] : '')).trim() : name;
+/* the name alone on the first line; a detail ("edible meat", in brackets or, for a new food, after a comma) goes on the
+   second in the amount's style. Your own foods keep their names whole ("Egg, whole") */
+const actTop = (name, sub, hd, comma) => { const m = String(name).match(/^(.*?)\s*\(([^)]+)\)\s*(.*)$/) || (comma && String(name).match(/^([^,]+),\s*(.+?)()$/)), nm = m ? (m[1] + (m[3] ? ' ' + m[3] : '')).trim() : name;
   const line = [m && m[2], sub].filter(Boolean).join(' · ');
   return `<div class="act-top"><span class="act-ic">${CI.food}</span><div><p class="act-nm">${esc(nm)}</p>${line ? `<p class="act-am">${esc(line)}</p>` : ''}</div>${hd}</div>`; };
 const actGo = p => p.kind === 'log_food' ? (p.warn ? 'Add anyway' : `Add to ${slotName(p.meal).toLowerCase()}`) : p.kind === 'remove_entry' ? 'Remove' : p.warn ? 'Update anyway' : 'Update';
@@ -3642,7 +3643,7 @@ function chatActHTML(n, a){
   if (a.done) {
     const word = a.name === 'log_food' ? `Added to ${slotName(x.meal).toLowerCase()}` : a.name === 'remove_entry' ? 'Removed' : 'Updated';
     const undo = a.name === 'log_food' ? !!a.ref : !!chat.actUndo[a.id];
-    return `<div ${at.replace('act"', 'act done"')}>${actTop(a.name === 'log_food' ? (p.name || x.name || '') : (p.e ? p.e.name : (chat.actUndo[a.id] || {}).name || 'Food'), null, hd)}
+    return `<div ${at.replace('act"', 'act done"')}>${actTop(a.name === 'log_food' ? (p.name || x.name || '') : (p.e ? p.e.name : (chat.actUndo[a.id] || {}).name || 'Food'), null, hd, !!(p.made || (p.f && p.f.id === 'c_' + a.id))}
       <p class="act-ok"><span class="tk">${ICON.check}</span>${esc(word)}${undo ? `<button data-act="chatactundo">Undo</button>` : ''}</p></div>`;
   }
   const editing = !!chat.actEdit[a.id] && p.kind !== 'remove_entry';
@@ -3651,7 +3652,7 @@ function chatActHTML(n, a){
     <select class="pick act-meal" aria-label="Meal">${SLOTS.map(([k, l]) => `<option value="${k}"${k === p.meal ? ' selected' : ''}>${l}</option>`).join('')}</select></div>` : '';
   const go = actGo(p);
   const btns = p.err && !p.fixable ? '' : `<div class="act-bt">${p.kind !== 'remove_entry' && !editing ? `<button class="chg" data-act="chatactchg">Change</button>` : ''}<button class="go${p.kind === 'remove_entry' ? ' del' : ''}" data-act="chatactgo"${p.err ? ' disabled' : ''}>${go}</button></div>`;
-  return `<div ${at}>${actTop(p.name || x.name || '', editing ? null : p.amount || '', hd)}${edit}${actMacros(p.m)}
+  return `<div ${at}>${actTop(p.name || x.name || '', editing ? null : p.amount || '', hd, !!(p.made || (p.f && p.f.id === 'c_' + a.id))}${edit}${actMacros(p.m)}
     ${p.save ? `<p class="act-sv">Also saved to your foods, ${fmtInt(p.f.kcal)} kcal per ${p.f.unit === 'g' ? '100 g' : esc(p.f.unit)}</p>` : ''}
     ${p.err || p.warn ? `<p class="act-wn">${CI.warn}<span>${esc(p.err || p.warn)}</span></p>` : ''}${btns}</div>`;
 }
