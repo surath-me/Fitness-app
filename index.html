@@ -877,7 +877,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.12';
+const APP_VERSION = '4.13';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3639,7 +3639,7 @@ function chatActPlan(a){
     const qty = ed.qty != null ? ed.qty : +x.amount;
     if (!slots.includes(P.meal)) return { ...P, err: 'Coach AI picked a meal that does not exist.' };
     const out = { ...P, f, made, save: made && !!x.save_food, qty, m: macrosFor(f, qty || 0), name: f.name, amount: unitText(qty, f.unit) };
-    if (!(qty > 0) || qty > (f.unit === 'g' ? 3000 : 30)) return { ...out, err: 'That amount looks wrong. Change it before adding.', fixable: true };
+    if (!(qty > 0) || qty > 9999) return { ...out, err: 'That amount looks wrong. Change it before adding.', fixable: true };
     if (made) { const est = 4 * f.p + 4 * f.c + 9 * f.f; if (!(f.kcal > 0) || Math.abs(est - f.kcal) > Math.max(25, f.kcal * .15) || f.kcal > 950)
       out.warn = `These numbers don't add up: the protein, fat and carbs make ${r0(est)} kcal, not ${r0(f.kcal)}`; }
     if (!out.warn) out.warn = capAfter(P.date, f.cap, qty * (f.capMul || 1));
@@ -3652,7 +3652,7 @@ function chatActPlan(a){
   const out = { ...P, e, meal, qty, name: e.name, m: { kcal: k.kcal * qty, p: k.p * qty, f: k.f * qty, c: k.c * qty },
     amount: [qty !== e.qty ? `${qtyText(e)} → ${unitText(qty, e.unit)}` : qtyText(e), meal !== e.slot ? `${slotName(e.slot)} → ${slotName(meal)}` : ''].filter(Boolean).join(' · ') };
   if (e.unit === 'day') return { ...out, err: 'An imported day total cannot be changed, only removed.' };
-  if (!(qty > 0) || qty > (e.unit === 'g' ? 3000 : 30)) return { ...out, err: 'That amount looks wrong. Change it before updating.', fixable: true };
+  if (!(qty > 0) || qty > 9999) return { ...out, err: 'That amount looks wrong. Change it before updating.', fixable: true };
   if (e.cap && qty > e.qty) out.warn = capAfter(x.date, e.cap, e.capQty * (qty / e.qty - 1));
   return out;
 }
@@ -3730,6 +3730,8 @@ function chatActRevert(a){
   saveState(); return true;
 }
 document.addEventListener('input', e => { if (!e.target.matches('.act-in')) return; const f = chatActFind(e.target); if (!f) return;
+  const t = e.target, keep = (t.value.match(/^\d{0,4}(?:[.,]\d?)?/) || [''])[0];   // at most 4 digits (and one decimal): anything more is simply not typed
+  if (keep !== t.value) t.value = keep;
   const v = num(e.target.value); (chat.actEdit[f.a.id] = chat.actEdit[f.a.id] || {}).qty = v === null ? NaN : v; actRefresh(f); });
 document.addEventListener('change', e => { if (!e.target.matches('.act-meal, .act-day')) return; const f = chatActFind(e.target); if (!f) return;
   (chat.actEdit[f.a.id] = chat.actEdit[f.a.id] || {})[e.target.matches('.act-day') ? 'date' : 'meal'] = e.target.value; actRefresh(f); });
