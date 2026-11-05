@@ -456,8 +456,8 @@ body.under .edge.top{opacity:1}
   border-radius:99px;background:var(--red);color:#fff;display:grid;place-items:center;transition:width .4s var(--smooth),height .4s var(--smooth)}
 .swipe-del .pill svg{width:22px;height:22px;scale:var(--ps, 0);opacity:var(--ps, 0);transition:scale .4s var(--spring),opacity .2s var(--out)}
 .swipe.armed .swipe-del .pill svg{scale:1.2}
-.ex .swipe-del .pill{top:36px}
-.extras .ex .swipe-del .pill{top:31px}
+.ex .swipe-del .pill{top:var(--headmid, 36px)}   /* the middle of the lift's head, however many lines its name takes (set when the swipe starts) */
+.extras .ex .swipe-del .pill{top:var(--headmid, 31px)}
 .swipe-fg{position:relative;isolation:isolate;touch-action:pan-y;transition:transform .4s var(--smooth)}
 .swipe.dragging .swipe-fg,.swipe.dragging .swipe-del,.swipe.dragging .pill{transition:none}
 .swipe.dragging .swipe-fg::before,.swipe.opened .swipe-fg::before{background:var(--swipe-row)}   /* grey while swiped, rounded all round */
@@ -832,7 +832,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.03';
+const APP_VERSION = '4.04';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2837,6 +2837,7 @@ document.addEventListener('pointerdown', e => {
   if (fg && !fg.parentElement.querySelector(':scope > .swipe-del')) fg = null;   // planned lifts and a lift's last set have no delete
   if (!fg) { if (!e.target.closest('.swipe-del')) closeSwipes(); return; }
   const row = fg.parentElement; closeSwipes(row);
+  if (row.classList.contains('ex')) { const h = $('.ex-head', row); if (h) row.style.setProperty('--headmid', `${h.offsetTop + h.offsetHeight / 2}px`); }
   sw = { row, x0:e.clientX, y0:e.clientY, base: row.classList.contains('opened') ? -DEL_W : 0, x:0, v:0, lx:e.clientX, lt:performance.now(), t0:performance.now(), w:row.offsetWidth, active:false, id:e.pointerId };
 }, { passive:true });
 document.addEventListener('pointermove', e => {
