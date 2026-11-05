@@ -770,11 +770,11 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
 .act-ed{display:flex;gap:8px;margin:12px 0 0;padding-top:12px;border-top:var(--sep-w) solid var(--sep)}
 /* widths balanced for 375 to 430 pt phones: the amount is fixed (up to 4 digits and a short unit), the meal and the day
    share the rest equally, never narrower than Breakfast and Sat 31 Oct need */
-.act-q{flex:0 0 84px;width:84px;min-width:0;display:flex;align-items:center;height:36px;padding:0 10px 0 0;border-radius:999px;background:var(--fill2);color:var(--ink2);font-size:14px}
-.act-q input{flex:1;width:0;min-width:0;height:36px;border:0;background:none;color:var(--ink);font:inherit;font-size:16px;font-weight:600;text-align:right;padding:0 4px 0 0}
+.act-q{flex:0 0 84px;width:84px;min-width:0;display:flex;align-items:center;height:44px;padding:0 10px 0 0;border-radius:999px;background:var(--fill2);color:var(--ink2);font-size:14px}
+.act-q input{flex:1;width:0;min-width:0;height:44px;border:0;background:none;color:var(--ink);font:inherit;font-size:16px;font-weight:600;text-align:right;padding:0 4px 0 0}
 .act-q input:focus{outline:none}
 .act-q:focus-within{box-shadow:0 0 0 2px var(--accent)}
-.act-ed .pick{min-width:0;height:36px;max-width:none;padding:0 24px 0 11px;border-radius:999px;background-color:var(--fill2);background-position:right 9px center;color:var(--ink);font-size:14px;text-align:left;text-align-last:left;text-overflow:ellipsis}
+.act-ed .pick{min-width:0;height:44px;max-width:none;padding:0 24px 0 11px;border-radius:999px;background-color:var(--fill2);background-position:right 9px center;color:var(--ink);font-size:14px;text-align:left;text-align-last:left;text-overflow:ellipsis}
 .act-ed .act-meal{flex:1 1 0;min-width:96px}
 .act-ed .act-day{flex:1 1 0;min-width:112px}
 .act-ok{display:flex;align-items:center;gap:8px;margin:12px 0 0;color:var(--ink2)}
@@ -877,7 +877,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.13';
+const APP_VERSION = '4.14';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2860,12 +2860,14 @@ const H = {
     chat.actEdit[f.a.id] = { qty: p.qty, meal: p.meal, date: p.date }; chatActDraw(f.c, f.m, f.a);
     const inp = $(`.act[data-id="${f.a.id}"] .act-in`); if (inp) { inp.focus(); inp.select(); } },
   chatactcancel(b){ const f = chatActFind(b); if (!f) return; delete chat.actEdit[f.a.id]; chatActDraw(f.c, f.m, f.a); },
-  chatactgo(b){ const f = chatActFind(b); if (!f || f.a.done) return;
+  chatactgo(b){ const f = chatActFind(b); if (!f || actState(f.a) !== 'open') return;
     const said = chatActApply(f.a); if (!said) { chatActDraw(f.c, f.m, f.a); return; }
     if (chat.actEdit[f.a.id] && f.a.name !== 'remove_entry') { const p = chat.actEdit[f.a.id]; f.a.input = { ...f.a.input, ...(p.qty != null ? { amount: p.qty } : {}), ...(p.meal ? { meal: p.meal } : {}), ...(p.date && f.a.name === 'log_food' ? { date: p.date } : {}) }; }
     delete chat.actEdit[f.a.id]; f.a.done = true; chatActDraw(f.c, f.m, f.a); chatActSave(f.m, f.a);
     if (document.activeElement && document.activeElement.matches('.act-in')) document.activeElement.blur();
-    ui.undo = { fn: () => { const g = chat.msgs.includes(f.m) && f.a; if (g && chatActRevert(g)) { g.done = false; const c = $(`.act[data-id="${g.id}"]`); if (c) chatActDraw(c, f.m, g); chatActSave(f.m, g); render(); } } };
+    const n = f.m.n, id = f.a.id;   // found again when Undo is tapped: the conversation may have been reloaded meanwhile
+    ui.undo = { fn: () => { const m = chat.msgs.find(x => x.n === n), g = m && (m.actions || []).find(y => y.id === id); if (!g || !chatActRevert(g)) return;
+      g.done = false; const c = $(`.act[data-id="${id}"]`); if (c) chatActDraw(c, m, g); chatActSave(m, g); render(); } };
     render(); toast(said, { undo: true }); },
   chatactundo(b){ const f = chatActFind(b); if (!f || !chatActRevert(f.a)) return; f.a.done = false; chatActDraw(f.c, f.m, f.a); chatActSave(f.m, f.a); ui.undo = null; hideToast(); render(); toast('Undone'); },
   chatremember(b){ const t = b.dataset.t, cur = ((chat.profile && chat.profile.text) || '').trim(); if (!t || chatInProfile(t)) return;
@@ -3619,12 +3621,24 @@ const dayWord = d => { const t = todayStr(); return d === t ? 'today' : d === ad
 const unitText = (q, u) => u === 'g' ? `${fmtW(q)} g` : u === 'piece' ? `${fmtW(q)} pcs` : `${fmtW(q)} ${u}${q === 1 || /s$/.test(u) ? '' : 's'}`;
 const unitShort = u => ['g', 'tbsp', 'tsp', 'cup'].includes(u) ? u : 'pcs';   // in the amount pill: measures stay, anything counted is pcs
 const isDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') && diffDays(addDays(todayStr(), -30), d) >= 0 && diffDays(d, addDays(todayStr(), 1)) >= 0;
+/* how much of its limit one unit of a logged entry uses (from the entry itself, or its food when the amount is 0) */
+const capPer = e => e.qty > 0 ? e.capQty / e.qty : ((foodById(e.food) || {}).capMul || 1);
 /* how much of a limit a day would use with qty more of a capped food */
 function capAfter(date, cap, add){
   if (!cap) return '';
   const total = capUsage(date)[cap] + add, lim = S.settings.caps[cap];
   return total > lim + 0.001 ? `That brings ${CAP_LABEL[cap].toLowerCase()} to ${fmtW(r1(total))} of your ${lim}${CAP_UNIT[cap]} limit` : '';
 }
+/* the entry a food card added, found in the log by its tag (e.ai), on whatever day it went to: the log is the truth for
+   whether a card was added, so a save to the server that failed (busy, offline) can never offer Add a second time */
+function actEntry(a){
+  if (a.name !== 'log_food') return null;
+  for (const d of Object.keys(S.days)) { const e = dayEntries(d).find(y => y.ai === a.id); if (e) return { date: d, e }; }
+  return null;
+}
+/* added on this device (its entry is in the log, Undo works), added elsewhere (the server says so but the entry has not
+   synced here yet: no Add and no Undo, so it can never be logged twice), or still open */
+const actState = a => a.name === 'log_food' ? (actEntry(a) ? 'added' : a.done ? 'elsewhere' : 'open') : a.done ? 'added' : 'open';
 /* everything a card needs, worked out from the action and your data as they are now */
 function chatActPlan(a){
   const x = a.input || {}, ed = chat.actEdit[a.id] || {}, slots = SLOTS.map(s => s[0]);
@@ -3646,14 +3660,14 @@ function chatActPlan(a){
     return out;
   }
   const e = dayEntries(x.date).find(y => y.id === x.entry_id);
-  if (!e) return { ...P, gone: true, name: 'Entry not found', err: a.done ? '' : 'This food is not in your log any more.' };
+  if (!e) return { ...P, gone: true, name: x.name || 'Entry not found', err: a.done ? '' : 'This food is not in your log any more.' };
   if (a.name === 'remove_entry') return { ...P, e, meal: e.slot, name: e.name, amount: `${qtyText(e)} · ${fmtInt(e.kcal)} kcal`, m: null };
   const qty = ed.qty != null ? ed.qty : x.amount != null ? +x.amount : e.qty, meal = ed.meal || x.meal || e.slot, k = e.k || perUnit({ unit: e.unit, kcal: e.kcal, p: e.p, f: e.f, c: e.c });
   const out = { ...P, e, meal, qty, name: e.name, m: { kcal: k.kcal * qty, p: k.p * qty, f: k.f * qty, c: k.c * qty },
     amount: [qty !== e.qty ? `${qtyText(e)} → ${unitText(qty, e.unit)}` : qtyText(e), meal !== e.slot ? `${slotName(e.slot)} → ${slotName(meal)}` : ''].filter(Boolean).join(' · ') };
   if (e.unit === 'day') return { ...out, err: 'An imported day total cannot be changed, only removed.' };
   if (!(qty > 0) || qty > 9999) return { ...out, err: 'That amount looks wrong. Change it before updating.', fixable: true };
-  if (e.cap && qty > e.qty) out.warn = capAfter(x.date, e.cap, e.capQty * (qty / e.qty - 1));
+  if (e.cap && qty > e.qty) out.warn = capAfter(x.date, e.cap, capPer(e) * qty - e.capQty);
   return out;
 }
 const actMacros = m => m ? `<p class="act-mc"><b>${fmtInt(m.kcal)}<small>kcal</small></b><span><i style="--d:var(--pro)"><b>${r0(m.p)}</b> P</i><i style="--d:var(--fat)"><b>${r0(m.f)}</b> F</i><i style="--d:var(--carb)"><b>${r0(m.c)}</b> C</i></span></p>` : '';
@@ -3667,12 +3681,13 @@ const actDays = sel => { const t = todayStr(), out = [];
   return out.join(''); };
 const actGo = p => p.kind === 'log_food' ? (p.warn ? 'Add anyway' : `Add to ${slotName(p.meal).toLowerCase()}`) : p.kind === 'remove_entry' ? 'Remove' : p.warn ? 'Update anyway' : 'Update';
 function chatActHTML(n, a){
-  const p = chatActPlan(a), x = a.input || {}, hd = `<span class="act-hd">${esc(slotName(p.meal || x.meal || ''))} · ${esc(isDate(p.date) ? dayWord(p.date) : '')}</span>`;
+  const st = actState(a), hit = st === 'added' && actEntry(a), x = a.input || {};
+  const p = hit ? { ...chatActPlan(a), date: hit.date, meal: hit.e.slot } : chatActPlan(a);   // an added food is shown where it really went
   const at = `class="act" data-n="${n}" data-id="${esc(a.id)}"`;
-  if (a.done) {
-    const word = a.name === 'log_food' ? `Added to ${slotName(x.meal).toLowerCase()}` : a.name === 'remove_entry' ? 'Removed' : 'Updated';
-    const undo = a.name === 'log_food' ? !!a.ref : !!chat.actUndo[a.id];
-    return `<div ${at.replace('act"', 'act done"')}>${actTop(a.name === 'log_food' ? (p.name || x.name || '') : (p.e ? p.e.name : (chat.actUndo[a.id] || {}).name || 'Food'), null, hd, !!(p.made || (p.f && p.f.id === 'c_' + a.id)))}
+  if (st !== 'open') {
+    const word = a.name === 'log_food' ? `Added to ${slotName(p.meal).toLowerCase()}` : a.name === 'remove_entry' ? 'Removed' : 'Updated';
+    const undo = a.name === 'log_food' ? !!hit : !!chat.actUndo[a.id];
+    return `<div ${at.replace('act"', 'act done"')}>${actTopOf(a, p, true)}
       <p class="act-ok"><span class="tk">${ICON.check}</span>${esc(word)}${undo ? `<button data-act="chatactundo">Undo</button>` : ''}</p></div>`;
   }
   const editing = !!chat.actEdit[a.id] && p.kind !== 'remove_entry';
@@ -3687,18 +3702,21 @@ function chatActHTML(n, a){
     ${p.err || p.warn ? `<p class="act-wn">${CI.warn}<span>${esc(p.err || p.warn)}</span></p>` : ''}${btns}</div>`;
 }
 /* the card's top row (name, amount, the meal and day pill), the same in both states and redrawn as the card is changed */
-const actTopOf = (a, p) => actTop(p.name || (a.input || {}).name || '', p.amount || '',
-  `<span class="act-hd">${esc(slotName(p.meal || ''))} · ${esc(isDate(p.date) ? dayWord(p.date) : '')}</span>`, !!(p.made || (p.f && p.f.id === 'c_' + a.id)));
+const actTopOf = (a, p, done) => { const x = a.input || {}, own = a.name !== 'log_food' && done;
+  const name = own ? (p.e ? p.e.name : x.name || (chat.actUndo[a.id] || {}).name || 'Food') : p.name || x.name || '';
+  return actTop(name, done ? null : p.amount || '', `<span class="act-hd">${esc(slotName(p.meal || x.meal || ''))} · ${esc(isDate(p.date) ? dayWord(p.date) : '')}</span>`,
+    !!(p.made || (p.f && p.f.id === 'c_' + a.id))); };
 const actRefresh = f => { const p = chatActPlan(f.a), t = $('.act-top', f.c); if (t) t.outerHTML = actTopOf(f.a, p);
   const mc = $('.act-mc', f.c); if (mc && p.m) mc.outerHTML = actMacros(p.m);
   const wn = $('.act-wn', f.c), msg = p.err || p.warn; if (wn && !msg) wn.remove(); else if (msg) { if (wn) $('span', wn).textContent = msg; else $('.act-bt', f.c).insertAdjacentHTML('beforebegin', `<p class="act-wn">${CI.warn}<span>${esc(msg)}</span></p>`); }
   const go = $('.act-bt .go', f.c); if (go) { go.disabled = !!p.err; go.textContent = actGo(p); } };
-const chatActsHTML = m => (m.actions || []).map(a => chatActHTML(m.n, a)).join('');
+const chatActsHTML = m => (m.actions || []).map(a => { if (a.name === 'log_food' && !a.done && actEntry(a)) { a.done = true; setTimeout(() => chatActSave(m, a)); }   // added here, but the save to the server did not get through
+  return chatActHTML(m.n, a); }).join('');
 const chatActFind = el => { const c = el.closest('.act'), m = c && chat.msgs.find(x => String(x.n) === c.dataset.n), a = m && (m.actions || []).find(y => y.id === c.dataset.id); return a ? { c, m, a } : null; };
 const chatActDraw = (c, m, a) => { const t = document.createElement('div'); t.innerHTML = chatActHTML(m.n, a); c.replaceWith(t.firstElementChild); };
 /* kept on the server so other devices and Coach AI see it; one retry if a reply is being written at that moment */
 function chatActSave(m, a){
-  const go = () => chatApi('PUT', '?act=1', { n: m.n, ts: m.ts, id: a.id, done: !!a.done, ref: a.ref || '', edit: { amount: a.input.amount, meal: a.input.meal, date: a.input.date } });
+  const go = () => chatApi('PUT', '?act=1', { n: m.n, ts: m.ts, id: a.id, done: !!a.done, ref: a.ref || '', edit: { amount: a.input.amount, meal: a.input.meal, date: a.input.date, name: a.name === 'log_food' ? undefined : a.input.name } });
   go().catch(() => setTimeout(() => go().catch(() => {}), 1500));
   chatCache();
 }
@@ -3713,17 +3731,19 @@ function chatActApply(a){
     saveState(); return `Added to ${slotName(p.meal)}`;
   }
   const i = day.entries.indexOf(p.e);
+  a.input = { ...a.input, name: p.e.name, ...(p.kind === 'remove_entry' ? { meal: p.e.slot } : {}) };   // kept with the card (and on the server), so it still reads right once the entry is gone
   if (p.kind === 'remove_entry') { chat.actUndo[a.id] = { entry: p.e, idx: i, name: p.e.name }; day.entries.splice(i, 1); saveState(); return `${p.e.name} removed`; }
   const e = p.e, old = { ...e }; chat.actUndo[a.id] = { entry: old, idx: i, name: e.name };
-  e.capQty = e.cap ? e.capQty * p.qty / (e.qty || 1) : 0; e.qty = p.qty; e.slot = p.meal;
+  e.capQty = e.cap ? capPer(e) * p.qty : 0; e.qty = p.qty; e.slot = p.meal;
   e.kcal = p.m.kcal; e.p = p.m.p; e.f = p.m.f; e.c = p.m.c; saveState(); return 'Updated';
 }
 function chatActRevert(a){
   const x = a.input || {}, day = S.days[x.date];
   if (a.name === 'log_food') {
-    const [eid, fid] = String(a.ref || '').split('|');
-    if (day) day.entries = day.entries.filter(e => e.id !== eid);
-    if (fid && !Object.values(S.days).some(d => d.entries.some(e => e.food === fid))) S.foods = S.foods.filter(f => f.id !== fid);   // the food it saved goes too, unless something else uses it
+    const hit = actEntry(a); if (!hit) return false;
+    const d = S.days[hit.date]; d.entries = d.entries.filter(e => e !== hit.e);
+    const fid = 'c_' + a.id;   // the food it saved goes too, unless something else uses it
+    if (!Object.keys(S.days).some(k => dayEntries(k).some(e => e.food === fid))) S.foods = S.foods.filter(f => f.id !== fid);
     delete a.ref;
   } else { const u = chat.actUndo[a.id]; if (!u) return false; const d = S.days[x.date] = day || { entries: [] };
     d.entries = d.entries.filter(e => e.id !== u.entry.id); d.entries.splice(Math.min(u.idx, d.entries.length), 0, u.entry); delete chat.actUndo[a.id]; }
