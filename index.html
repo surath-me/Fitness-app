@@ -766,10 +766,13 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
 .act-bt .go.del{background:var(--red-t);color:var(--red-ink)}
 .act-bt button:active{opacity:.6}
 .act-bt button:disabled{opacity:.4}
-.act-ed{display:flex;gap:8px;margin:10px 0 0;align-items:center}
-.act-ed .field{width:96px;flex:none;margin:0}
-.act-ed .u{color:var(--ink2);flex:none}
-.act-ed .pick{margin-left:auto}
+/* Change adds one row of small pills under the macros; everything above stays as it was and follows what is typed */
+.act-ed{display:flex;gap:8px;margin:12px 0 0;padding-top:12px;border-top:var(--sep-w) solid var(--sep)}
+.act-q{flex:none;display:flex;align-items:center;height:36px;padding:0 12px 0 4px;border-radius:999px;background:var(--fill2);color:var(--ink2);font-size:15px}
+.act-q input{width:64px;height:36px;border:0;background:none;color:var(--ink);font:inherit;font-size:16px;font-weight:600;text-align:right;padding:0 5px 0 0}
+.act-q input:focus{outline:none}
+.act-q:focus-within{box-shadow:0 0 0 2px var(--accent)}
+.act-ed .pick{flex:1 1 0;min-width:0;height:36px;max-width:none;padding:0 28px 0 12px;border-radius:999px;background-color:var(--fill2);background-position:right 10px center;color:var(--ink);font-size:15px;text-align:left;text-align-last:left}
 .act-ok{display:flex;align-items:center;gap:8px;margin:12px 0 0;color:var(--ink2)}
 .act-ok .tk{width:20px;height:20px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;flex:none}
 .act-ok .tk svg{width:12px;height:12px}
@@ -870,7 +873,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.09';
+const APP_VERSION = '4.10';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2842,11 +2845,12 @@ const H = {
   chatmore(){ chatOlder(); },
   chatsettings(t){ closeChat(); ui.tab = 'setup'; ui.setupPage = t.dataset.p || 'chat'; window.scrollTo(0, 0); render({ transition:true, tab:true }); },
   chatactchg(b){ const f = chatActFind(b); if (!f) return; const p = chatActPlan(f.a);
-    chat.actEdit[f.a.id] = { qty: p.qty, meal: p.meal }; chatActDraw(f.c, f.m, f.a);
+    chat.actEdit[f.a.id] = { qty: p.qty, meal: p.meal, date: p.date }; chatActDraw(f.c, f.m, f.a);
     const inp = $(`.act[data-id="${f.a.id}"] .act-in`); if (inp) { inp.focus(); inp.select(); } },
+  chatactcancel(b){ const f = chatActFind(b); if (!f) return; delete chat.actEdit[f.a.id]; chatActDraw(f.c, f.m, f.a); },
   chatactgo(b){ const f = chatActFind(b); if (!f || f.a.done) return;
     const said = chatActApply(f.a); if (!said) { chatActDraw(f.c, f.m, f.a); return; }
-    if (chat.actEdit[f.a.id] && f.a.name !== 'remove_entry') { const p = chat.actEdit[f.a.id]; f.a.input = { ...f.a.input, ...(p.qty != null ? { amount: p.qty } : {}), ...(p.meal ? { meal: p.meal } : {}) }; }
+    if (chat.actEdit[f.a.id] && f.a.name !== 'remove_entry') { const p = chat.actEdit[f.a.id]; f.a.input = { ...f.a.input, ...(p.qty != null ? { amount: p.qty } : {}), ...(p.meal ? { meal: p.meal } : {}), ...(p.date && f.a.name === 'log_food' ? { date: p.date } : {}) }; }
     delete chat.actEdit[f.a.id]; f.a.done = true; chatActDraw(f.c, f.m, f.a); chatActSave(f.m, f.a);
     if (document.activeElement && document.activeElement.matches('.act-in')) document.activeElement.blur();
     ui.undo = { fn: () => { const g = chat.msgs.includes(f.m) && f.a; if (g && chatActRevert(g)) { g.done = false; const c = $(`.act[data-id="${g.id}"]`); if (c) chatActDraw(c, f.m, g); chatActSave(f.m, g); render(); } } };
@@ -3267,6 +3271,15 @@ if (window.visualViewport) {
     settle(); now();
   };
   visualViewport.addEventListener('resize', kb); visualViewport.addEventListener('scroll', kb);
+  /* a field in a food card: once the keyboard is up, the conversation scrolls the whole card (its buttons included) into
+     the space between the title and the message field (Surath: Change left it under the keyboard) */
+  const cardInView = () => { const el = document.activeElement, card = el && el.matches('#chatlog .act-in') && el.closest('.act'); if (!card || !chat.open) return;
+    const log = $('#chatlog'), box = $('#chat .chat-in'), top = $('#chat .chat-top'), r = card.getBoundingClientRect();
+    const lo = (box ? box.getBoundingClientRect().top : innerHeight) - 12, hi = (top ? top.getBoundingClientRect().bottom : 0) + 8;
+    const by = r.bottom > lo ? Math.min(r.bottom - lo, r.top - hi) : r.top < hi ? r.top - hi : 0;
+    if (by) log.scrollBy({ top: by, behavior: reduced() ? 'auto' : 'smooth' }); };
+  document.addEventListener('focusin', e => { if (e.target.matches('#chatlog .act-in')) [KB_MS + 60, KB_MS + 400].forEach(t => setTimeout(cardInView, t)); });
+  visualViewport.addEventListener('resize', () => setTimeout(cardInView, KB_RISE + 60));
   $('#chatq').addEventListener('blur', () => {   // also when Coach AI closes
     const r = document.documentElement; dropField();
     if (rise) { settle(); return; }   // it had not moved yet
@@ -3602,8 +3615,8 @@ function capAfter(date, cap, add){
 /* everything a card needs, worked out from the action and your data as they are now */
 function chatActPlan(a){
   const x = a.input || {}, ed = chat.actEdit[a.id] || {}, slots = SLOTS.map(s => s[0]);
-  const P = { a, kind: a.name, date: x.date, meal: ed.meal || x.meal };
-  if (!isDate(x.date)) return { ...P, err: 'Coach AI picked a date that does not work here.' };
+  const P = { a, kind: a.name, date: a.name === 'log_food' && ed.date ? ed.date : x.date, meal: ed.meal || x.meal };
+  if (!isDate(P.date)) return { ...P, err: 'Coach AI picked a date that does not work here.' };
   if (a.name === 'log_food') {
     let f = x.food_id && foodById(x.food_id), made = false;
     if (!f) f = allFoods().find(g => g.name.toLowerCase() === String(x.name || '').trim().toLowerCase() && (g.unit === 'g') === (x.unit === 'g'));
@@ -3616,7 +3629,7 @@ function chatActPlan(a){
     if (!(qty > 0) || qty > (f.unit === 'g' ? 3000 : 30)) return { ...out, err: 'That amount looks wrong. Change it before adding.', fixable: true };
     if (made) { const est = 4 * f.p + 4 * f.c + 9 * f.f; if (!(f.kcal > 0) || Math.abs(est - f.kcal) > Math.max(25, f.kcal * .15) || f.kcal > 950)
       out.warn = `These numbers don't add up: the protein, fat and carbs make ${r0(est)} kcal, not ${r0(f.kcal)}`; }
-    if (!out.warn) out.warn = capAfter(x.date, f.cap, qty * (f.capMul || 1));
+    if (!out.warn) out.warn = capAfter(P.date, f.cap, qty * (f.capMul || 1));
     return out;
   }
   const e = dayEntries(x.date).find(y => y.id === x.entry_id);
@@ -3636,9 +3649,13 @@ const actMacros = m => m ? `<p class="act-mc"><b>${fmtInt(m.kcal)}<small>kcal</s
 const actTop = (name, sub, hd, comma) => { const m = String(name).match(/^(.*?)\s*\(([^)]+)\)\s*(.*)$/) || (comma && String(name).match(/^([^,]+),\s*(.+?)()$/)), nm = m ? (m[1] + (m[3] ? ' ' + m[3] : '')).trim() : name;
   const line = [m && m[2], sub].filter(Boolean).join(' · ');
   return `<div class="act-top"><span class="act-ic">${CI.food}</span><div><p class="act-nm">${esc(nm)}</p>${line ? `<p class="act-am">${esc(line)}</p>` : ''}</div>${hd}</div>`; };
+/* the days a food can go to: tomorrow, today and the 30 days before, as on the pill */
+const actDays = sel => { const t = todayStr(), out = [];
+  for (let i = -1; i <= 30; i++) { const d = addDays(t, -i), w = dayWord(d); out.push(`<option value="${d}"${d === sel ? ' selected' : ''}>${i > 1 ? w : w[0].toUpperCase() + w.slice(1)}</option>`); }
+  return out.join(''); };
 const actGo = p => p.kind === 'log_food' ? (p.warn ? 'Add anyway' : `Add to ${slotName(p.meal).toLowerCase()}`) : p.kind === 'remove_entry' ? 'Remove' : p.warn ? 'Update anyway' : 'Update';
 function chatActHTML(n, a){
-  const p = chatActPlan(a), x = a.input || {}, hd = `<span class="act-hd">${esc(slotName(p.meal || x.meal || ''))} · ${esc(isDate(x.date) ? dayWord(x.date) : '')}</span>`;
+  const p = chatActPlan(a), x = a.input || {}, hd = `<span class="act-hd">${esc(slotName(p.meal || x.meal || ''))} · ${esc(isDate(p.date) ? dayWord(p.date) : '')}</span>`;
   const at = `class="act" data-n="${n}" data-id="${esc(a.id)}"`;
   if (a.done) {
     const word = a.name === 'log_food' ? `Added to ${slotName(x.meal).toLowerCase()}` : a.name === 'remove_entry' ? 'Removed' : 'Updated';
@@ -3648,20 +3665,28 @@ function chatActHTML(n, a){
   }
   const editing = !!chat.actEdit[a.id] && p.kind !== 'remove_entry';
   const unit = p.f ? p.f.unit : p.e ? p.e.unit : 'g';
-  const edit = editing ? `<div class="act-ed"><input class="field act-in" inputmode="decimal" value="${p.qty != null && !isNaN(p.qty) ? fmtW(p.qty) : ''}" aria-label="Amount"><span class="u">${unit === 'g' ? 'g' : esc(unit)}</span>
-    <select class="pick act-meal" aria-label="Meal">${SLOTS.map(([k, l]) => `<option value="${k}"${k === p.meal ? ' selected' : ''}>${l}</option>`).join('')}</select></div>` : '';
+  const edit = editing ? `<div class="act-ed"><label class="act-q"><input class="act-in" inputmode="decimal" value="${p.qty != null && !isNaN(p.qty) ? fmtW(p.qty) : ''}" aria-label="Amount">${unit === 'g' ? 'g' : esc(unit)}</label>
+    <select class="pick act-meal" aria-label="Meal">${SLOTS.map(([k, l]) => `<option value="${k}"${k === p.meal ? ' selected' : ''}>${l}</option>`).join('')}</select>
+    ${p.kind === 'log_food' ? `<select class="pick act-day" aria-label="Day">${actDays(p.date)}</select>` : ''}</div>` : '';
   const go = actGo(p);
-  const btns = p.err && !p.fixable ? '' : `<div class="act-bt">${p.kind !== 'remove_entry' && !editing ? `<button class="chg" data-act="chatactchg">Change</button>` : ''}<button class="go${p.kind === 'remove_entry' ? ' del' : ''}" data-act="chatactgo"${p.err ? ' disabled' : ''}>${go}</button></div>`;
-  return `<div ${at}>${actTop(p.name || x.name || '', editing ? null : p.amount || '', hd, !!(p.made || (p.f && p.f.id === 'c_' + a.id)))}${edit}${actMacros(p.m)}
-    ${p.save ? `<p class="act-sv">Also saved to your foods, ${fmtInt(p.f.kcal)} kcal per ${p.f.unit === 'g' ? '100 g' : esc(p.f.unit)}</p>` : ''}
+  const btns = p.err && !p.fixable ? '' : `<div class="act-bt">${p.kind !== 'remove_entry' ? editing ? `<button class="chg" data-act="chatactcancel">Cancel</button>` : `<button class="chg" data-act="chatactchg">Change</button>` : ''}<button class="go${p.kind === 'remove_entry' ? ' del' : ''}" data-act="chatactgo"${p.err ? ' disabled' : ''}>${go}</button></div>`;
+  return `<div ${at}>${actTopOf(a, p)}${actMacros(p.m)}
+    ${p.save ? `<p class="act-sv">Also saved to your foods, ${fmtInt(p.f.kcal)} kcal per ${p.f.unit === 'g' ? '100 g' : esc(p.f.unit)}</p>` : ''}${edit}
     ${p.err || p.warn ? `<p class="act-wn">${CI.warn}<span>${esc(p.err || p.warn)}</span></p>` : ''}${btns}</div>`;
 }
+/* the card's top row (name, amount, the meal and day pill), the same in both states and redrawn as the card is changed */
+const actTopOf = (a, p) => actTop(p.name || (a.input || {}).name || '', p.amount || '',
+  `<span class="act-hd">${esc(slotName(p.meal || ''))} · ${esc(isDate(p.date) ? dayWord(p.date) : '')}</span>`, !!(p.made || (p.f && p.f.id === 'c_' + a.id)));
+const actRefresh = f => { const p = chatActPlan(f.a), t = $('.act-top', f.c); if (t) t.outerHTML = actTopOf(f.a, p);
+  const mc = $('.act-mc', f.c); if (mc && p.m) mc.outerHTML = actMacros(p.m);
+  const wn = $('.act-wn', f.c), msg = p.err || p.warn; if (wn && !msg) wn.remove(); else if (msg) { if (wn) $('span', wn).textContent = msg; else $('.act-bt', f.c).insertAdjacentHTML('beforebegin', `<p class="act-wn">${CI.warn}<span>${esc(msg)}</span></p>`); }
+  const go = $('.act-bt .go', f.c); if (go) { go.disabled = !!p.err; go.textContent = actGo(p); } };
 const chatActsHTML = m => (m.actions || []).map(a => chatActHTML(m.n, a)).join('');
 const chatActFind = el => { const c = el.closest('.act'), m = c && chat.msgs.find(x => String(x.n) === c.dataset.n), a = m && (m.actions || []).find(y => y.id === c.dataset.id); return a ? { c, m, a } : null; };
 const chatActDraw = (c, m, a) => { const t = document.createElement('div'); t.innerHTML = chatActHTML(m.n, a); c.replaceWith(t.firstElementChild); };
 /* kept on the server so other devices and Coach AI see it; one retry if a reply is being written at that moment */
 function chatActSave(m, a){
-  const go = () => chatApi('PUT', '?act=1', { n: m.n, ts: m.ts, id: a.id, done: !!a.done, ref: a.ref || '', edit: { amount: a.input.amount, meal: a.input.meal } });
+  const go = () => chatApi('PUT', '?act=1', { n: m.n, ts: m.ts, id: a.id, done: !!a.done, ref: a.ref || '', edit: { amount: a.input.amount, meal: a.input.meal, date: a.input.date } });
   go().catch(() => setTimeout(() => go().catch(() => {}), 1500));
   chatCache();
 }
@@ -3693,13 +3718,9 @@ function chatActRevert(a){
   saveState(); return true;
 }
 document.addEventListener('input', e => { if (!e.target.matches('.act-in')) return; const f = chatActFind(e.target); if (!f) return;
-  const v = num(e.target.value); (chat.actEdit[f.a.id] = chat.actEdit[f.a.id] || {}).qty = v === null ? NaN : v;
-  const p = chatActPlan(f.a), mc = $('.act-mc', f.c), html = actMacros(p.m); if (mc) mc.outerHTML = html;
-  const wn = $('.act-wn', f.c), msg = p.err || p.warn; if (wn && !msg) wn.remove(); else if (msg) { if (wn) $('span', wn).textContent = msg; else $('.act-bt', f.c).insertAdjacentHTML('beforebegin', `<p class="act-wn">${CI.warn}<span>${esc(msg)}</span></p>`); }
-  const go = $('.act-bt .go', f.c); if (go) { go.disabled = !!p.err; go.textContent = actGo(p); } });
-document.addEventListener('change', e => { if (!e.target.matches('.act-meal')) return; const f = chatActFind(e.target); if (!f) return;
-  (chat.actEdit[f.a.id] = chat.actEdit[f.a.id] || {}).meal = e.target.value; $('.act-hd', f.c).textContent = `${slotName(e.target.value)} · ${dayWord(f.a.input.date)}`;
-  const go = $('.act-bt .go', f.c); if (go) go.textContent = actGo(chatActPlan(f.a)); });
+  const v = num(e.target.value); (chat.actEdit[f.a.id] = chat.actEdit[f.a.id] || {}).qty = v === null ? NaN : v; actRefresh(f); });
+document.addEventListener('change', e => { if (!e.target.matches('.act-meal, .act-day')) return; const f = chatActFind(e.target); if (!f) return;
+  (chat.actEdit[f.a.id] = chat.actEdit[f.a.id] || {})[e.target.matches('.act-day') ? 'date' : 'meal'] = e.target.value; actRefresh(f); });
 
 /* one message. Yours: a Messages bubble, the tail only on the last of a run. Coach's: plain text, nothing under it (Surath did not want copy or thumbs) */
 const chatSame = (m, r) => !!(m && r && m.role === 'user' && (m.qid && r.qid ? m.qid === r.qid : m.text === r.text));

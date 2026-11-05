@@ -395,6 +395,7 @@ module.exports = async function handler(req, res){
         const ed = b.edit || {};   // what was changed on the card before it was added
         if (Number(ed.amount) > 0) a.input.amount = Number(ed.amount);
         if (['breakfast', 'lunch', 'snack', 'dinner'].includes(ed.meal)) a.input.meal = ed.meal;
+        if (a.name === 'log_food' && /^\d{4}-\d{2}-\d{2}$/.test(ed.date || '')) a.input.date = ed.date;
         await redis(env, [['SET', K.month(m), pack(list)]]);
         return res.status(200).json({ action: a });
       } finally { await unlock(env, id).catch(() => {}); }
