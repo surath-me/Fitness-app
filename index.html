@@ -450,7 +450,7 @@ body.under .edge.top{opacity:1}
 @media (hover:hover){.entry.swipe-fg:hover::before,.ex-head:hover::before{background:var(--fill2)}}
 /* swipe to delete as in iOS 26: the row turns grey and rounds its trailing corners as it slides, and the action is a red
    capsule inset from the row and the edge. It starts as a circle, stretches into a capsule as the swipe goes on, and its
-   trash icon springs in with it; past 60% the icon bumps to say letting go deletes. The whole uncovered area is the button. */
+   trash icon springs in with it; past 40% the icon bumps to say letting go deletes. The whole uncovered area is the button. */
 .swipe-del{position:absolute;top:0;right:0;bottom:0;width:var(--rev, 0px);background:none;transition:width .4s var(--smooth)}
 .swipe-del .pill{position:absolute;right:10px;top:50%;translate:0 -50%;width:max(0px, calc(var(--rev, 0px) - 18px));height:min(52px, max(0px, calc(var(--rev, 0px) - 18px)));
   border-radius:99px;background:var(--red);color:#fff;display:grid;place-items:center;transition:width .4s var(--smooth),height .4s var(--smooth)}
@@ -832,7 +832,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.02';
+const APP_VERSION = '4.03';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2819,7 +2819,7 @@ const H = {
    ===================================================================== */
 /* swipe to delete, as in iOS lists: drag a row left and the red Delete grows from the trailing edge, attached to the row.
    Let go short of halfway to close it, past halfway or with a flick to leave Delete open at its natural width, or past
-   60% of the row to delete straight away. Swiping right does nothing (there is no leading action). */
+   40% of the row to delete straight away. Swiping right does nothing (there is no leading action). */
 const DEL_W = 82;
 let sw = null, sd = null;
 function setSwipe(row, x, dragging){
@@ -2849,7 +2849,7 @@ document.addEventListener('pointermove', e => {
   }
   const now = performance.now(); sw.v = (e.clientX - sw.lx) / Math.max(8, now - sw.lt); sw.lx = e.clientX; sw.lt = now;
   sw.x = Math.min(0, Math.max(-sw.w, sw.base + dx));
-  sw.row.classList.toggle('armed', -sw.x >= sw.w * .6);
+  sw.row.classList.toggle('armed', -sw.x >= sw.w * .4);
   setSwipe(sw.row, sw.x, true);
 }, { passive:true });
 function endGesture(){
