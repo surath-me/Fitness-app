@@ -384,7 +384,13 @@ body.under .edge.top{opacity:1}
 .rings.anim .arc{animation:ringIn 1.1s var(--out) both}
 .rings.anim .arc:nth-of-type(4){animation-delay:.08s}
 .rings.anim .arc:nth-of-type(6){animation-delay:.16s}
+.hero{display:flex;align-items:center}
 .hero .num{font-size:44px;line-height:1}
+/* over the calorie target: a plus before the number and a small red exclamation mark beside it, nothing else turns red
+   (Surath found red rings and bars too loud) */
+.hero .sign{margin-right:1px}
+.overmark{display:grid;place-items:center;width:24px;height:24px;margin-left:8px;border-radius:50%;background:var(--red-t);color:var(--red-ink);font-size:16px;font-weight:800;line-height:1;flex:none}
+.mbar .tick{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--card)}   /* where the target is, on a bar that went past it */
 .hl{font-size:13px;font-weight:600;color:var(--ink2);margin-top:2px}
 .hp{font-size:12px;font-weight:600;margin-top:6px}
 /* macro bars in the style of Health's comparison bars: a big number, then a thick bar with its name inside.
@@ -877,7 +883,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.14';
+const APP_VERSION = '4.15';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1965,7 +1971,7 @@ function macroRow(label, cssVar, val, target, kind, on){
             : (val > target ? `${fmtInt(val - target)}${g} over` : `${fmtInt(target - val)}${g} left`);
   return `<div class="macro" style="--c:var(${cssVar})${on ? `;--on:${on}` : ''}">
     <div class="mtop"><span class="num">${fmtInt(val)}</span><span class="u">/ ${fmtInt(target)}${g}</span><span class="st">${sub}</span></div>
-    <div class="mbar ${over ? 'over' : ''}" role="img" aria-label="${label} ${r0(val)} of ${target}${g}"><span class="ml" aria-hidden="true">${label}</span><i style="width:${pct}%"><span class="ml" aria-hidden="true">${label}</span></i></div>
+    <div class="mbar ${over ? 'over' : ''}" role="img" aria-label="${label} ${r0(val)} of ${target}${g}"><span class="ml" aria-hidden="true">${label}</span><i style="width:${pct}%"><span class="ml" aria-hidden="true">${label}</span></i>${kind === 'target' && target && val > target ? `<b class="tick" style="left:${(target / val * 100).toFixed(1)}%"></b>` : ''}</div>
   </div>`;
 }
 function capChips(date){
@@ -2010,7 +2016,7 @@ function viewEat(){
   h += `<div class="group pad summary"><div class="sum-top">
       ${ringSVG([{ pct:cur.kcal/T.kcal, color:'var(--kcal)' }, { pct:cur.p/T.p, color:'var(--pro)' }, { pct:cur.f/T.f, color: fLeft < 0 ? 'var(--red)' : 'var(--fat)', w:8 }], 124, 14, ui.anim)}
       <div class="grow">
-        <div class="hero"><span class="num" id="heroLeft" data-v="${r0(Math.abs(left))}">${fmtInt(Math.abs(left))}</span></div>
+        <div class="hero">${left < 0 ? '<span class="num sign" aria-hidden="true">+</span>' : ''}<span class="num" id="heroLeft" data-v="${r0(Math.abs(left))}">${fmtInt(Math.abs(left))}</span>${left < 0 ? '<span class="overmark" aria-hidden="true">!</span>' : ''}</div>
         <div class="hl">${left >= 0 ? (date === todayStr() ? 'kcal left today' : 'kcal left') : 'kcal over target'}</div>
         <div class="hp" style="color:var(--pro-t)">${pLeft > 0 ? `${r0(pLeft)} g protein to go` : 'Protein floor reached'}</div>
       </div></div>
