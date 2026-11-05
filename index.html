@@ -741,18 +741,18 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
 /* a change Coach AI proposes (log, change or remove food): a solid card, nothing happens until Add is tapped */
 .act{margin-top:12px;padding:14px 16px 16px;border-radius:22px;background:var(--card);font-size:14px;line-height:1.35}
 .act+.act{margin-top:8px}
-.act-hd{margin:0 0 10px;font-size:12.5px;color:var(--ink2)}
 .act-top{display:flex;align-items:center;gap:10px}
+.act-hd{margin:0 0 0 auto;align-self:flex-start;padding:4px 10px;border-radius:999px;background:var(--fill2);font-size:12.5px;color:var(--ink2);white-space:nowrap;flex:none}   /* the meal and day, a pill on the right */
 .act-ic{width:38px;height:38px;border-radius:11px;background:var(--accent-t);color:var(--accent-ink);display:grid;place-items:center;flex:none}
 .act-ic svg{width:21px;height:21px}
 .act-top>div{min-width:0}
 .act-nm{margin:0;font-size:17px;font-weight:600;letter-spacing:-.2px}
 .act-am{margin:1px 0 0;font-size:13px;color:var(--ink2)}
-/* calories on the left, protein, fat and carbs on the right: the numbers matter most (Surath) */
+/* the macros matter most (Surath): big kcal, then protein, fat and carbs beside it, all from the left */
 .act-mc{display:flex;align-items:baseline;gap:12px;margin:14px 0 0;color:var(--ink2);font-variant-numeric:tabular-nums}
 .act-mc>b{font-size:24px;font-weight:700;letter-spacing:-.4px;color:var(--ink);white-space:nowrap}
 .act-mc>b small{margin-left:3px;font-size:14px;font-weight:600;letter-spacing:0;color:var(--ink2)}
-.act-mc>span{margin-left:auto;display:flex;gap:12px;white-space:nowrap}
+.act-mc>span{display:flex;gap:12px;white-space:nowrap;margin-left:4px}
 .act-mc i{font-style:normal}
 .act-mc i b{font-size:16px;font-weight:700;color:var(--ink)}
 .act-mc i::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:1px;background:var(--d)}
@@ -870,7 +870,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.06';
+const APP_VERSION = '4.07';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3631,15 +3631,18 @@ function chatActPlan(a){
   return out;
 }
 const actMacros = m => m ? `<p class="act-mc"><b>${fmtInt(m.kcal)}<small>kcal</small></b><span><i style="--d:var(--pro)"><b>${r0(m.p)}</b> P</i><i style="--d:var(--fat)"><b>${r0(m.f)}</b> F</i><i style="--d:var(--carb)"><b>${r0(m.c)}</b> C</i></span></p>` : '';
-const actTop = (name, sub) => `<div class="act-top"><span class="act-ic">${CI.food}</span><div><p class="act-nm">${esc(name)}</p>${sub == null ? '' : `<p class="act-am">${esc(sub)}</p>`}</div></div>`;
+/* the name alone on the first line; a detail in brackets ("edible meat") goes on the second with the amount */
+const actTop = (name, sub, hd) => { const m = String(name).match(/^(.*?)\s*\(([^)]+)\)\s*(.*)$/), nm = m ? (m[1] + (m[3] ? ' ' + m[3] : '')).trim() : name;
+  const line = [m && m[2], sub].filter(Boolean).join(' · ');
+  return `<div class="act-top"><span class="act-ic">${CI.food}</span><div><p class="act-nm">${esc(nm)}</p>${line ? `<p class="act-am">${esc(line)}</p>` : ''}</div>${hd}</div>`; };
 const actGo = p => p.kind === 'log_food' ? (p.warn ? 'Add anyway' : `Add to ${slotName(p.meal).toLowerCase()}`) : p.kind === 'remove_entry' ? 'Remove' : p.warn ? 'Update anyway' : 'Update';
 function chatActHTML(n, a){
-  const p = chatActPlan(a), x = a.input || {}, hd = `<p class="act-hd">${esc(slotName(p.meal || x.meal || ''))} · ${esc(isDate(x.date) ? dayWord(x.date) : '')}</p>`;
+  const p = chatActPlan(a), x = a.input || {}, hd = `<span class="act-hd">${esc(slotName(p.meal || x.meal || ''))} · ${esc(isDate(x.date) ? dayWord(x.date) : '')}</span>`;
   const at = `class="act" data-n="${n}" data-id="${esc(a.id)}"`;
   if (a.done) {
     const word = a.name === 'log_food' ? `Added to ${slotName(x.meal).toLowerCase()}` : a.name === 'remove_entry' ? 'Removed' : 'Updated';
     const undo = a.name === 'log_food' ? !!a.ref : !!chat.actUndo[a.id];
-    return `<div ${at.replace('act"', 'act done"')}>${hd}${actTop(a.name === 'log_food' ? (p.name || x.name || '') : (p.e ? p.e.name : (chat.actUndo[a.id] || {}).name || 'Food'), null)}
+    return `<div ${at.replace('act"', 'act done"')}>${actTop(a.name === 'log_food' ? (p.name || x.name || '') : (p.e ? p.e.name : (chat.actUndo[a.id] || {}).name || 'Food'), null, hd)}
       <p class="act-ok"><span class="tk">${ICON.check}</span>${esc(word)}${undo ? `<button data-act="chatactundo">Undo</button>` : ''}</p></div>`;
   }
   const editing = !!chat.actEdit[a.id] && p.kind !== 'remove_entry';
@@ -3648,7 +3651,7 @@ function chatActHTML(n, a){
     <select class="pick act-meal" aria-label="Meal">${SLOTS.map(([k, l]) => `<option value="${k}"${k === p.meal ? ' selected' : ''}>${l}</option>`).join('')}</select></div>` : '';
   const go = actGo(p);
   const btns = p.err && !p.fixable ? '' : `<div class="act-bt">${p.kind !== 'remove_entry' && !editing ? `<button class="chg" data-act="chatactchg">Change</button>` : ''}<button class="go${p.kind === 'remove_entry' ? ' del' : ''}" data-act="chatactgo"${p.err ? ' disabled' : ''}>${go}</button></div>`;
-  return `<div ${at}>${hd}${actTop(p.name || x.name || '', editing ? null : p.amount || '')}${edit}${actMacros(p.m)}
+  return `<div ${at}>${actTop(p.name || x.name || '', editing ? null : p.amount || '', hd)}${edit}${actMacros(p.m)}
     ${p.save ? `<p class="act-sv">Also saved to your foods, ${fmtInt(p.f.kcal)} kcal per ${p.f.unit === 'g' ? '100 g' : esc(p.f.unit)}</p>` : ''}
     ${p.err || p.warn ? `<p class="act-wn">${CI.warn}<span>${esc(p.err || p.warn)}</span></p>` : ''}${btns}</div>`;
 }

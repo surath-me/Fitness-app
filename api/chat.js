@@ -207,7 +207,7 @@ const TOOLS = [
     parameters: { type: 'object', additionalProperties: false, required: ['date', 'meal', 'food_id', 'name', 'amount', 'unit', 'per', 'save_food'], properties: {
       date: DATE, meal: MEAL,
       food_id: { type: ['string', 'null'], description: 'The id from their foods when it is one of them, otherwise null' },
-      name: { type: 'string', description: 'Short food name, sentence case' },
+      name: { type: 'string', description: 'Short food name, sentence case; a detail goes in brackets, like "Tandoori chicken (edible meat)"' },
       amount: { type: 'number', description: 'Grams for unit g, otherwise the number of pieces or portions' },
       unit: { type: 'string', enum: ['g', 'piece', 'portion'] },
       per: { type: 'object', additionalProperties: false, required: ['kcal', 'protein', 'fat', 'carbs'], description: 'Per 100 g for unit g, otherwise per piece or portion. Ignored when food_id is set',
@@ -340,8 +340,8 @@ function pretendReply(text, snapshot){
     if (!ids.length) return { text: 'This is a pretend reply. Log some food first, then send /edit again.' };
     return { text: 'This is a pretend reply that offers to change and remove logged food.',
       actions: [{ name: 'edit_entry', input: { date: d, entry_id: ids[0], amount: 3, meal: 'snack' } }, { name: 'remove_entry', input: { date: d, entry_id: ids[ids.length - 1] } }] }; }
-  if (t.includes('/food')) { const d = today(); return { text: 'This is a pretend reply that offers food to log. Restaurant paneer tikka is roughly 275 kcal per 100 g.',
-    actions: [{ name: 'log_food', input: { date: d, meal: 'lunch', food_id: null, name: 'Paneer tikka', amount: 150, unit: 'g', per: { kcal: 275, protein: 18, fat: 19, carbs: 7 }, save_food: true } },
+  if (t.includes('/food')) { const d = today(); return { text: 'This is a pretend reply that offers food to log. Restaurant tandoori chicken is roughly 275 kcal per 100 g of meat.',
+    actions: [{ name: 'log_food', input: { date: d, meal: 'lunch', food_id: null, name: 'Tandoori chicken (edible meat)', amount: 150, unit: 'g', per: { kcal: 275, protein: 18, fat: 19, carbs: 7 }, save_food: true } },
       { name: 'log_food', input: { date: d, meal: 'dinner', food_id: 'egg', name: 'Whole egg', amount: 2, unit: 'piece', per: { kcal: 0, protein: 0, fat: 0, carbs: 0 }, save_food: false } }] }; }
   if (t.includes('/remember')) return { text: `This is a pretend reply that offers something for your profile.\n\n⊕ No hammer curls: they hurt your elbow.\n↳ What else do you remember about me?` };
   if (t.includes('/long')) return { text: Array.from({ length: 6 }, (_, i) => `**Part ${i + 1}.** This is a long pretend reply to test scrolling and streaming. It keeps going for a while so the conversation has to scroll, and the newest words should stay in view while they arrive.`).join('\n\n') + '\n\n- One point\n- Another point\n- A third point\n\n↳ Can you shorten that?\n↳ What should I eat next?' };
