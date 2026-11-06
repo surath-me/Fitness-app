@@ -393,6 +393,7 @@ body.under .edge.top{opacity:1}
 .overmark::after{content:"";position:absolute;inset:-10px}   /* a 44 pt tap target around the small mark */
 .overmark:active{opacity:.6}
 .mbar>i .extra{position:absolute;top:0;bottom:0;right:0;background:var(--c);filter:brightness(.72)}   /* past the target: a darker shade of the macro's own colour, no cut (Surath); inside the fill, so it grows with it, and under the name */
+.menu[data-kind="over"]{max-width:250px}   /* the over-target note: narrower, so it reads as a small popover (Surath) */
 .menu .mnote{padding:2px 20px 10px;font-size:13px;line-height:1.4;color:var(--ink)}
 .menu .mnote.sub{color:var(--ink2);font-size:12px}
 
@@ -888,7 +889,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.18';
+const APP_VERSION = '4.19';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2539,7 +2540,7 @@ const menuHTML = items => items.map(it => it.head ? `<div class="mh">${esc(it.he
 function openMenu(btn, kind){
   const m = $('#menu'), r = btn.getBoundingClientRect();
   ui.menu = { src:btn, host:btn };   // the button's glass becomes the menu
-  m.innerHTML = `<div class="menu-in">${menuHTML(menuSpec(kind))}</div>`;
+  m.innerHTML = `<div class="menu-in">${menuHTML(menuSpec(kind))}</div>`; m.dataset.kind = kind;
   m.classList.remove('ghost'); m.hidden = false; $('#menuscrim').hidden = false;
   const W = m.offsetWidth, Hh = m.offsetHeight, vw = innerWidth, vh = innerHeight;
   let left = r.left + r.width / 2 > vw / 2 ? r.right - W : r.left;
@@ -3733,7 +3734,21 @@ const chatActsHTML = m => (m.actions || []).map(a => { const found = actEntry(a)
   if (found && !a.done) { a.done = true; setTimeout(() => chatActSave(m, a)); }   // added here, but the save to the server did not get through
   return chatActHTML(m.n, a, found); }).join('');
 const chatActFind = el => { const c = el.closest('.act'), m = c && chat.msgs.find(x => String(x.n) === c.dataset.n), a = m && (m.actions || []).find(y => y.id === c.dataset.id); return a ? { c, m, a } : null; };
-const chatActDraw = (c, m, a) => { const t = document.createElement('div'); t.innerHTML = chatActHTML(m.n, a); c.replaceWith(t.firstElementChild); };
+/* a card redrawn (added, undone, changed, cancelled) changes height smoothly; a card that shrinks at the end of the
+   conversation lets it slide down with it, and one that grows is scrolled fully into view (Surath) */
+const chatActDraw = (c, m, a) => { const t = document.createElement('div'); t.innerHTML = chatActHTML(m.n, a); const el = t.firstElementChild, h0 = c.offsetHeight;
+  c.replaceWith(el); const h1 = el.offsetHeight;
+  if (reduced() || Math.abs(h1 - h0) < 2) { chatKeepInView(el); return el; }
+  el.animate([{ height: h0 + 'px', overflow:'hidden' }, { height: h1 + 'px', overflow:'hidden' }], { duration:320, easing:EASE.smooth }).finished.then(() => chatKeepInView(el), () => {});
+  return el; };
+/* scroll the conversation so all of el sits between the title bar and the message field, never pushing its top out of sight */
+function chatKeepInView(el, smooth = true){
+  const log = $('#chatlog'); if (!el || !log || !el.isConnected || !chat.open) return;
+  const box = $('#chat .chat-in'), top = $('#chat .chat-top'), r = el.getBoundingClientRect();
+  const lo = (box ? box.getBoundingClientRect().top : innerHeight) - 12, hi = (top ? top.getBoundingClientRect().bottom : 0) + 8;
+  const by = r.bottom > lo ? Math.min(r.bottom - lo, r.top - hi) : 0;
+  if (by > 0) log.scrollBy({ top: by, behavior: smooth && !reduced() ? 'smooth' : 'auto' });
+}
 /* kept on the server so other devices and Coach AI see it; one retry if a reply is being written at that moment */
 function chatActSave(m, a){
   const go = () => chatApi('PUT', '?act=1', { n: m.n, ts: m.ts, id: a.id, done: !!a.done, ref: a.ref || '', edit: { amount: a.input.amount, meal: a.input.meal, date: a.input.date, name: a.name === 'log_food' ? undefined : a.input.name } });
@@ -3922,9 +3937,10 @@ function chatFinish(){
   if (el && msg) {
     el.classList.remove('stream'); el.dataset.n = msg.n;
     const md = chatMD(msg.text); $('.md', el).innerHTML = md.html;
+    const log = $('#chatlog'), near = chatNearBottom(log);   // measured before the cards go in: they are tall, and after them the end looked far away
     const t = document.createElement('div'); t.innerHTML = chatActsHTML(msg) + chatMemsHTML(md.mems) + chatSugsHTML(md.sugs);
     [...t.children].forEach(n => { n.classList.add('in'); el.appendChild(n); });
-    const log = $('#chatlog'); if (chatNearBottom(log)) log.scrollTo({ top: log.scrollHeight, behavior: reduced() ? 'auto' : 'smooth' });
+    if (near) chatKeepInView(el);   // the reply with its cards, as far as fits without pushing the start of the reply out of sight
   } else renderChatLog();
   chatCache();
 }
