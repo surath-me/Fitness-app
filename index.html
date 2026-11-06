@@ -793,8 +793,7 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
 .act-ok .tk{width:20px;height:20px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;flex:none}
 .act-ok .tk svg{width:12px;height:12px}
 .act-ok button{margin-left:auto;min-height:44px;margin-block:-12px;padding:0 4px;color:var(--accent);font-weight:600;font-size:15px}
-.act.done .act-ic{background:var(--fill2);color:var(--ink2)}
-.act.done .act-nm{font-size:16px;color:var(--ink2)}
+/* an added card keeps its blue icon and its bold name: it is done, not disabled (Surath) */
 .sugs{margin-top:8px}
 .sugb{display:flex;align-items:flex-start;gap:10px;width:100%;min-height:36px;padding:6px 0;text-align:left;font-size:14px;line-height:1.35;color:var(--ink)}
 .sugb svg{flex:none;width:18px;height:18px;margin-top:1px}
@@ -889,7 +888,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.20';
+const APP_VERSION = '4.21';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
