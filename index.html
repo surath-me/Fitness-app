@@ -392,7 +392,7 @@ body.under .edge.top{opacity:1}
 .overmark{position:relative;display:grid;place-items:center;width:24px;height:24px;margin-left:8px;border-radius:50%;background:var(--red-t);color:var(--red-ink);font-size:16px;font-weight:800;line-height:1;flex:none}
 .overmark::after{content:"";position:absolute;inset:-10px}   /* a 44 pt tap target around the small mark */
 .overmark:active{opacity:.6}
-.mbar .extra{position:absolute;top:0;bottom:0;right:0;background:var(--c);filter:brightness(.72)}   /* past the target: a darker shade of the macro's own colour, no cut (Surath) */
+.mbar>i .extra{position:absolute;top:0;bottom:0;right:0;background:var(--c);filter:brightness(.72)}   /* past the target: a darker shade of the macro's own colour, no cut (Surath); inside the fill, so it grows with it, and under the name */
 .menu .mnote{padding:2px 20px 10px;font-size:13px;line-height:1.4;color:var(--ink)}
 .menu .mnote.sub{color:var(--ink2);font-size:12px}
 
@@ -888,7 +888,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.17';
+const APP_VERSION = '4.18';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1973,10 +1973,10 @@ function macroRow(label, cssVar, val, target, kind, on){
   const g = label === 'Calories' ? ' kcal' : ' g';
   const sub = kind === 'floor' ? (val >= target ? 'floor reached' : `${r0(target - val)}${g} to go`)
             : kind === 'ceiling' ? (val > target ? `${r0(val - target)}${g} over` : `${r0(target - val)}${g} room`)
-            : (val > target ? `${fmtInt(val - target)}${g} over` : `${fmtInt(target - val)}${g} left`);
+            : (Math.round(val) > target ? `${fmtInt(val - target)}${g} over` : `${fmtInt(Math.max(0, target - val))}${g} left`);
   return `<div class="macro" style="--c:var(${cssVar})${on ? `;--on:${on}` : ''}">
     <div class="mtop"><span class="num">${fmtInt(val)}</span><span class="u">/ ${fmtInt(target)}${g}</span><span class="st">${sub}</span></div>
-    <div class="mbar ${over ? 'over' : ''}" role="img" aria-label="${label} ${r0(val)} of ${target}${g}"><span class="ml" aria-hidden="true">${label}</span><i style="width:${pct}%"><span class="ml" aria-hidden="true">${label}</span></i>${kind === 'target' && target && val > target ? `<b class="extra" style="left:${(target / val * 100).toFixed(1)}%"></b>` : ''}</div>
+    <div class="mbar ${over ? 'over' : ''}" role="img" aria-label="${label} ${r0(val)} of ${target}${g}"><span class="ml" aria-hidden="true">${label}</span><i style="width:${pct}%">${kind === 'target' && target && Math.round(val) > target ? `<b class="extra" style="width:${((val - target) / val * 100).toFixed(1)}%"></b>` : ''}<span class="ml" aria-hidden="true">${label}</span></i></div>
   </div>`;
 }
 function capChips(date){
@@ -2014,14 +2014,14 @@ function slotBlock(key, label, date){
 }
 function viewEat(){
   const date = ui.date, entries = dayEntries(date), cur = sumMacros(entries), T = dayTarget(date);
-  const left = T.kcal - cur.kcal, w = waterOf(date), pLeft = T.p - cur.p;
+  const left = Math.round(T.kcal - cur.kcal), w = waterOf(date), pLeft = T.p - cur.p;   // rounded first, so a fraction of a kcal over never reads +0
   let h = `<h1 class="lt">Eat</h1>` + weekStrip() + `<div class="daybody">`;
   // the rings sit at the top of the card, the numbers beside them: calories outside, protein, then fat (a ceiling, red once over)
   const fLeft = T.f - cur.f;
   h += `<div class="group pad summary"><div class="sum-top">
       ${ringSVG([{ pct:cur.kcal/T.kcal, color:'var(--kcal)' }, { pct:cur.p/T.p, color:'var(--pro)' }, { pct:cur.f/T.f, color: fLeft < 0 ? 'var(--red)' : 'var(--fat)', w:8 }], 124, 14, ui.anim)}
       <div class="grow">
-        <div class="hero">${left < 0 ? '<span class="num sign" aria-hidden="true">+</span>' : ''}<span class="num" id="heroLeft" data-v="${r0(Math.abs(left))}">${fmtInt(Math.abs(left))}</span>${left < 0 ? '<button class="overmark" data-act="menu" data-menu="over" aria-label="Over the calorie target, what it means" aria-haspopup="menu">!</button>' : ''}</div>
+        <div class="hero">${left < 0 ? '<span class="num sign" aria-hidden="true">+</span>' : ''}<span class="num" id="heroLeft" data-v="${r0(Math.abs(left))}" data-s="${left < 0 ? '-' : '+'}">${fmtInt(Math.abs(left))}</span>${left < 0 ? '<button class="overmark" data-act="menu" data-menu="over" aria-label="Over the calorie target, what it means" aria-haspopup="menu">!</button>' : ''}</div>
         <div class="hl">${left >= 0 ? (date === todayStr() ? 'kcal left today' : 'kcal left') : 'kcal over target'}</div>
         <div class="hp" style="color:var(--pro-t)">${pLeft > 0 ? `${r0(pLeft)} g protein to go` : 'Protein floor reached'}</div>
       </div></div>
@@ -2524,7 +2524,7 @@ function menuSpec(kind){
       ...[45, 60, 75, 90].map(m => ({ act:'budget', v:m, label:`${m} min`, sub: m === DAY_MINUTES ? 'Default' : '', on: b === m })),
       { sep:true }, { act:'returning', label:'Back after a break or illness', sub:'Set 1 one step lighter', on: !!S.settings.returning, check:true });
   } else if (kind === 'over') {   // the exclamation mark beside calories over target: what it means, and nothing to fix
-    const T = dayTarget(date), cur = sumMacros(dayEntries(date)), over = Math.round(cur.kcal - T.kcal), today = date === todayStr();
+    const T = dayTarget(date), cur = sumMacros(dayEntries(date)), over = Math.round(cur.kcal) - T.kcal, today = date === todayStr();
     out.push({ head:'Over your calorie target' },
       { note:`${fmtInt(over)} kcal over ${today ? "today's" : 'this day\'s'} ${fmtInt(T.kcal)} kcal for a ${dayType(date)} day (${Math.round(over / T.kcal * 100)}% more).` },
       { note:'One day over hardly changes anything. Eat as normal at your next meal: no skipping and no extra cardio to make up for it.', sub:true });
@@ -2534,7 +2534,7 @@ function menuSpec(kind){
   }
   return out;
 }
-const menuHTML = items => items.map(it => it.head ? `<div class="mh">${esc(it.head)}</div>` : it.note ? `<p class="mnote${it.sub ? ' sub' : ''}">${esc(it.note)}</p>` : it.sep ? '<div class="msep" role="separator"></div>' :
+const menuHTML = items => items.map(it => it.head ? `<div class="mh">${esc(it.head)}</div>` : it.note ? `<p class="mnote${it.sub ? ' sub' : ''}" role="menuitem" aria-disabled="true" tabindex="-1">${esc(it.note)}</p>` : it.sep ? '<div class="msep" role="separator"></div>' :
   `<button class="mi" role="${it.on === undefined ? 'menuitem' : it.check ? 'menuitemcheckbox' : 'menuitemradio'}"${it.on === undefined ? '' : ` aria-checked="${it.on}"`} data-act="${it.act}"${it.t === undefined ? '' : ` data-t="${it.t}"`}${it.v === undefined ? '' : ` data-v="${it.v}"`}${Object.entries(it.data || {}).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('')}><span class="mic">${it.on ? ICON.check : it.icon ? ICON[it.icon] : ''}</span><span class="mt">${esc(it.label)}${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span></button>`).join('');
 function openMenu(btn, kind){
   const m = $('#menu'), r = btn.getBoundingClientRect();
@@ -2594,9 +2594,9 @@ function initSegs(root = document){
 }
 function tweenHero(){
   const el = $('#heroLeft'); if (!el) return;
-  const to = +el.dataset.v, from = ui.lastLeft, sameDay = ui.lastLeftDate === ui.date || ui.dayMorph;
-  ui.lastLeft = to; ui.lastLeftDate = ui.date;
-  if (from === null || !sameDay || from === to || reduced()) return;
+  const to = +el.dataset.v, from = ui.lastLeft, sameDay = ui.lastLeftDate === ui.date || ui.dayMorph, flip = ui.lastLeftSign !== undefined && ui.lastLeftSign !== el.dataset.s;
+  ui.lastLeft = to; ui.lastLeftDate = ui.date; ui.lastLeftSign = el.dataset.s;
+  if (from === null || !sameDay || flip || from === to || reduced()) return;   // crossing the target shows the new number at once: counting from 50 left up to 180 over read as 50 over
   const t0 = performance.now(), dur = 550;
   const step = now => { const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3);
     el.textContent = fmtInt(from + (to - from) * e); if (p < 1) requestAnimationFrame(step); };
@@ -3657,12 +3657,12 @@ function actEntry(a){
 }
 /* added on this device (its entry is in the log, Undo works), added elsewhere (the server says so but the entry has not
    synced here yet: no Add and no Undo, so it can never be logged twice), or still open */
-const actState = a => a.name === 'log_food' ? (actEntry(a) ? 'added' : a.done ? 'elsewhere' : 'open') : a.done ? 'added' : 'open';
+const actState = (a, hit = actEntry(a)) => a.name === 'log_food' ? (hit ? 'added' : a.done ? 'elsewhere' : 'open') : a.done ? 'added' : 'open';
 /* everything a card needs, worked out from the action and your data as they are now */
 function chatActPlan(a){
   const x = a.input || {}, ed = chat.actEdit[a.id] || {}, slots = SLOTS.map(s => s[0]);
   const P = { a, kind: a.name, date: a.name === 'log_food' && ed.date ? ed.date : x.date, meal: ed.meal || x.meal };
-  if (!isDate(P.date)) return { ...P, err: 'Coach AI picked a date that does not work here.' };
+  if (!isDate(P.date)) return { ...P, err: /^\d{4}-\d{2}-\d{2}$/.test(P.date || '') && P.date < addDays(todayStr(), -30) ? 'Too long ago to add from here.' : 'Coach AI picked a date that does not work here.' };
   if (a.name === 'log_food') {
     let f = x.food_id && foodById(x.food_id), made = false;
     if (!f) f = allFoods().find(g => g.name.toLowerCase() === String(x.name || '').trim().toLowerCase() && (g.unit === 'g') === (x.unit === 'g'));
@@ -3699,8 +3699,8 @@ const actDays = sel => { const t = todayStr(), out = [];
   for (let i = -1; i <= 30; i++) { const d = addDays(t, -i), w = dayWord(d); out.push(`<option value="${d}"${d === sel ? ' selected' : ''}>${i > 1 ? w : w[0].toUpperCase() + w.slice(1)}</option>`); }
   return out.join(''); };
 const actGo = p => p.kind === 'log_food' ? (p.warn ? 'Add anyway' : `Add to ${slotName(p.meal).toLowerCase()}`) : p.kind === 'remove_entry' ? 'Remove' : p.warn ? 'Update anyway' : 'Update';
-function chatActHTML(n, a){
-  const st = actState(a), hit = st === 'added' && actEntry(a), x = a.input || {};
+function chatActHTML(n, a, found = actEntry(a)){   // the log is scanned once per card
+  const st = actState(a, found), hit = st === 'added' && found, x = a.input || {};
   const p = hit ? { ...chatActPlan(a), date: hit.date, meal: hit.e.slot } : chatActPlan(a);   // an added food is shown where it really went
   const at = `class="act" data-n="${n}" data-id="${esc(a.id)}"`;
   if (st !== 'open') {
@@ -3729,8 +3729,9 @@ const actRefresh = f => { const p = chatActPlan(f.a), t = $('.act-top', f.c); if
   const mc = $('.act-mc', f.c); if (mc && p.m) mc.outerHTML = actMacros(p.m);
   const wn = $('.act-wn', f.c), msg = p.err || p.warn; if (wn && !msg) wn.remove(); else if (msg) { if (wn) $('span', wn).textContent = msg; else $('.act-bt', f.c).insertAdjacentHTML('beforebegin', `<p class="act-wn">${CI.warn}<span>${esc(msg)}</span></p>`); }
   const go = $('.act-bt .go', f.c); if (go) { go.disabled = !!p.err; go.textContent = actGo(p); } };
-const chatActsHTML = m => (m.actions || []).map(a => { if (a.name === 'log_food' && !a.done && actEntry(a)) { a.done = true; setTimeout(() => chatActSave(m, a)); }   // added here, but the save to the server did not get through
-  return chatActHTML(m.n, a); }).join('');
+const chatActsHTML = m => (m.actions || []).map(a => { const found = actEntry(a);
+  if (found && !a.done) { a.done = true; setTimeout(() => chatActSave(m, a)); }   // added here, but the save to the server did not get through
+  return chatActHTML(m.n, a, found); }).join('');
 const chatActFind = el => { const c = el.closest('.act'), m = c && chat.msgs.find(x => String(x.n) === c.dataset.n), a = m && (m.actions || []).find(y => y.id === c.dataset.id); return a ? { c, m, a } : null; };
 const chatActDraw = (c, m, a) => { const t = document.createElement('div'); t.innerHTML = chatActHTML(m.n, a); c.replaceWith(t.firstElementChild); };
 /* kept on the server so other devices and Coach AI see it; one retry if a reply is being written at that moment */
