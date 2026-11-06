@@ -888,7 +888,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.21';
+const APP_VERSION = '4.22';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -3736,8 +3736,9 @@ const chatActFind = el => { const c = el.closest('.act'), m = c && chat.msgs.fin
 /* a card redrawn (added, undone, changed, cancelled) changes height smoothly; a card that shrinks at the end of the
    conversation lets it slide down with it, and one that grows is scrolled fully into view (Surath) */
 /* Add (and Remove, Update) settles the card: what goes (macros, note, buttons) fades up and away first, then the card
-   shrinks to its Added line, which fades in as the tick pops and the icon greys (Surath: Add was instant). Undo, Change
-   and Cancel fade in only the parts that are new while the card grows. */
+   shrinks to its Added line, which fades in as the tick pops (Surath: Add was instant). Undo, Change and Cancel fade in
+   only the parts that are new while the card grows. The conversation follows only a card that was on screen, so an Undo
+   from the toast after scrolling away does not pull you back to it. */
 const actPart = x => x.className.split(' ')[0];
 function chatActDraw(c, m, a, settle){
   if (settle && !reduced() && c.isConnected) {
@@ -3752,25 +3753,30 @@ function chatActDraw(c, m, a, settle){
 function actSwap(c, m, a, settle){
   if (!c.isConnected) return;
   const t = document.createElement('div'); t.innerHTML = chatActHTML(m.n, a); const el = t.firstElementChild, h0 = c.offsetHeight;
-  const had = new Set([...c.children].map(actPart)), ic0 = $('.act-ic', c), from = ic0 && getComputedStyle(ic0), bg0 = from && from.backgroundColor, fg0 = from && from.color;
+  const had = new Set([...c.children].map(actPart)), [hi, lo] = chatSeenBand(), cr = c.getBoundingClientRect();
+  const seen = Math.min(cr.bottom, lo) - Math.max(cr.top, hi) >= 44, follow = () => { if (seen) chatKeepInView(el); };   // on screen: at least 44 pt of it between the title bar and the field
   c.replaceWith(el); const h1 = el.offsetHeight;
-  if (reduced()) { chatKeepInView(el); return el; }
-  if (Math.abs(h1 - h0) >= 2) el.animate([{ height: h0 + 'px', overflow:'hidden' }, { height: h1 + 'px', overflow:'hidden' }], { duration: settle ? 380 : 320, easing:EASE.smooth }).finished.then(() => chatKeepInView(el), () => {});
-  else chatKeepInView(el);
+  if (reduced()) { follow(); return el; }
+  if (Math.abs(h1 - h0) >= 2) el.animate([{ height: h0 + 'px', overflow:'hidden' }, { height: h1 + 'px', overflow:'hidden' }], { duration: settle ? 380 : 320, easing:EASE.smooth }).finished.then(follow, () => {});
+  else follow();
   [...el.children].filter(x => !had.has(actPart(x))).forEach((x, i) => x.animate([{ opacity:0, transform:'translateY(6px)' }, { opacity:1, transform:'none' }],
     { duration:260, delay:(settle ? 140 : 90) + i * 40, easing:'cubic-bezier(0,0,.2,1)', fill:'backwards' }));
-  const ic = $('.act-ic', el), to = ic && getComputedStyle(ic);
-  if (ic && bg0 && (to.backgroundColor !== bg0 || to.color !== fg0)) ic.animate([{ backgroundColor:bg0, color:fg0 }, { backgroundColor:to.backgroundColor, color:to.color }], { duration:360, easing:'ease-out' });
   const tk = settle && $('.act-ok .tk', el);
   if (tk) tk.animate([{ transform:'scale(.2)', opacity:0 }, { transform:'scale(1)', opacity:1 }], { duration:560, delay:160, easing:EASE.spring, fill:'backwards' });
   return el;
 }
-/* scroll the conversation so all of el sits between the title bar and the message field, never pushing its top out of sight */
-function chatKeepInView(el, smooth = true){
+/* scroll the conversation so all of el sits between the title bar and the message field, never pushing a top that is
+   still in sight out of it; when its top has already scrolled away (a long reply), its end comes into view all the same.
+   For a finished reply the top that must stay is its first card's, so the cards always come fully into view */
+/* the part of the conversation you can see: below the title bar and above the message field */
+function chatSeenBand(){ const box = $('#chat .chat-in'), top = $('#chat .chat-top');
+  return [(top ? top.getBoundingClientRect().bottom : 0) + 8, (box ? box.getBoundingClientRect().top : innerHeight) - 12]; }
+function chatKeepInView(el, smooth = true, atEnd = false, keep = el){   // keep: whose top must stay in sight
   const log = $('#chatlog'); if (!el || !log || !el.isConnected || !chat.open) return;
-  const box = $('#chat .chat-in'), top = $('#chat .chat-top'), r = el.getBoundingClientRect();
-  const lo = (box ? box.getBoundingClientRect().top : innerHeight) - 12, hi = (top ? top.getBoundingClientRect().bottom : 0) + 8;
-  const by = r.bottom > lo ? Math.min(r.bottom - lo, r.top - hi) : 0;
+  const [hi, lo] = chatSeenBand(), r = keep.getBoundingClientRect();
+  // the last message is measured by the layout (what is left to scroll), not its box: its new parts are still sliding in
+  const under = atEnd ? log.scrollHeight - log.scrollTop - log.clientHeight : r.bottom - lo;
+  const by = under > 0 ? (r.top > hi ? Math.min(under, r.top - hi) : under) : 0;
   if (by > 0) log.scrollBy({ top: by, behavior: smooth && !reduced() ? 'smooth' : 'auto' });
 }
 /* kept on the server so other devices and Coach AI see it; one retry if a reply is being written at that moment */
@@ -3964,7 +3970,7 @@ function chatFinish(){
     const log = $('#chatlog'), near = chatNearBottom(log);   // measured before the cards go in: they are tall, and after them the end looked far away
     const t = document.createElement('div'); t.innerHTML = chatActsHTML(msg) + chatMemsHTML(md.mems) + chatSugsHTML(md.sugs);
     [...t.children].forEach(n => { n.classList.add('in'); el.appendChild(n); });
-    if (near) chatKeepInView(el);   // the reply with its cards, as far as fits without pushing the start of the reply out of sight
+    if (near) chatKeepInView(el, true, true, $('.act', el) || el);   // a reply too tall to fit with its cards gives way to the cards   // the reply with its cards, as far as fits without pushing the start of the reply out of sight
   } else renderChatLog();
   chatCache();
 }

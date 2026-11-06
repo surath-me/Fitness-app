@@ -340,7 +340,8 @@ function pretendReply(text, snapshot){
     if (!ids.length) return { text: 'This is a pretend reply. Log some food first, then send /edit again.' };
     return { text: 'This is a pretend reply that offers to change and remove logged food.',
       actions: [{ name: 'edit_entry', input: { date: d, entry_id: ids[0], amount: 3, meal: 'snack' } }, { name: 'remove_entry', input: { date: d, entry_id: ids[ids.length - 1] } }] }; }
-  if (t.includes('/food')) { const d = today(); return { text: 'This is a pretend reply that offers food to log. Restaurant tandoori chicken is roughly 275 kcal per 100 g of meat.',
+  if (t.includes('/food')) { const d = today(), long = t.includes('/foodlong') ? '\n\n' + Array.from({ length: 6 }, (_, i) => `**Part ${i + 1}.** A long pretend reply, so the start of it scrolls out of sight before the cards arrive.`).join('\n\n') : '';
+    return { text: 'This is a pretend reply that offers food to log. Restaurant tandoori chicken is roughly 275 kcal per 100 g of meat.' + long,
     actions: [{ name: 'log_food', input: { date: d, meal: 'lunch', food_id: null, name: 'Tandoori chicken (edible meat)', amount: 150, unit: 'g', per: { kcal: 275, protein: 18, fat: 19, carbs: 7 }, save_food: true } },
       { name: 'log_food', input: { date: d, meal: 'dinner', food_id: 'egg', name: 'Whole egg', amount: 2, unit: 'piece', per: { kcal: 0, protein: 0, fat: 0, carbs: 0 }, save_food: false } }] }; }
   if (t.includes('/remember')) return { text: `This is a pretend reply that offers something for your profile.\n\n⊕ No hammer curls: they hurt your elbow.\n↳ What else do you remember about me?` };
