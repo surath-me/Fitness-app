@@ -889,7 +889,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.19';
+const APP_VERSION = '4.20';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2883,7 +2883,7 @@ const H = {
   chatactgo(b){ const f = chatActFind(b); if (!f || actState(f.a) !== 'open') return;
     const said = chatActApply(f.a); if (!said) { chatActDraw(f.c, f.m, f.a); return; }
     if (chat.actEdit[f.a.id] && f.a.name !== 'remove_entry') { const p = chat.actEdit[f.a.id]; f.a.input = { ...f.a.input, ...(p.qty != null ? { amount: p.qty } : {}), ...(p.meal ? { meal: p.meal } : {}), ...(p.date && f.a.name === 'log_food' ? { date: p.date } : {}) }; }
-    delete chat.actEdit[f.a.id]; f.a.done = true; chatActDraw(f.c, f.m, f.a); chatActSave(f.m, f.a);
+    delete chat.actEdit[f.a.id]; f.a.done = true; chatActDraw(f.c, f.m, f.a, true); chatActSave(f.m, f.a);
     if (document.activeElement && document.activeElement.matches('.act-in')) document.activeElement.blur();
     const n = f.m.n, id = f.a.id;   // found again when Undo is tapped: the conversation may have been reloaded meanwhile
     ui.undo = { fn: () => { const m = chat.msgs.find(x => x.n === n), g = m && (m.actions || []).find(y => y.id === id); if (!g || !chatActRevert(g)) return;
@@ -3736,11 +3736,36 @@ const chatActsHTML = m => (m.actions || []).map(a => { const found = actEntry(a)
 const chatActFind = el => { const c = el.closest('.act'), m = c && chat.msgs.find(x => String(x.n) === c.dataset.n), a = m && (m.actions || []).find(y => y.id === c.dataset.id); return a ? { c, m, a } : null; };
 /* a card redrawn (added, undone, changed, cancelled) changes height smoothly; a card that shrinks at the end of the
    conversation lets it slide down with it, and one that grows is scrolled fully into view (Surath) */
-const chatActDraw = (c, m, a) => { const t = document.createElement('div'); t.innerHTML = chatActHTML(m.n, a); const el = t.firstElementChild, h0 = c.offsetHeight;
+/* Add (and Remove, Update) settles the card: what goes (macros, note, buttons) fades up and away first, then the card
+   shrinks to its Added line, which fades in as the tick pops and the icon greys (Surath: Add was instant). Undo, Change
+   and Cancel fade in only the parts that are new while the card grows. */
+const actPart = x => x.className.split(' ')[0];
+function chatActDraw(c, m, a, settle){
+  if (settle && !reduced() && c.isConnected) {
+    const going = [...c.children].filter(x => !x.classList.contains('act-top'));
+    c.style.pointerEvents = 'none';
+    Promise.all(going.map((x, i) => x.animate([{ opacity:1, transform:'none' }, { opacity:0, transform:'translateY(-6px)' }],
+      { duration:170, delay: i * 25, easing:'cubic-bezier(.4,0,1,1)', fill:'forwards' }).finished)).then(() => actSwap(c, m, a, true), () => actSwap(c, m, a, true));
+    return;
+  }
+  return actSwap(c, m, a, settle);
+}
+function actSwap(c, m, a, settle){
+  if (!c.isConnected) return;
+  const t = document.createElement('div'); t.innerHTML = chatActHTML(m.n, a); const el = t.firstElementChild, h0 = c.offsetHeight;
+  const had = new Set([...c.children].map(actPart)), ic0 = $('.act-ic', c), from = ic0 && getComputedStyle(ic0), bg0 = from && from.backgroundColor, fg0 = from && from.color;
   c.replaceWith(el); const h1 = el.offsetHeight;
-  if (reduced() || Math.abs(h1 - h0) < 2) { chatKeepInView(el); return el; }
-  el.animate([{ height: h0 + 'px', overflow:'hidden' }, { height: h1 + 'px', overflow:'hidden' }], { duration:320, easing:EASE.smooth }).finished.then(() => chatKeepInView(el), () => {});
-  return el; };
+  if (reduced()) { chatKeepInView(el); return el; }
+  if (Math.abs(h1 - h0) >= 2) el.animate([{ height: h0 + 'px', overflow:'hidden' }, { height: h1 + 'px', overflow:'hidden' }], { duration: settle ? 380 : 320, easing:EASE.smooth }).finished.then(() => chatKeepInView(el), () => {});
+  else chatKeepInView(el);
+  [...el.children].filter(x => !had.has(actPart(x))).forEach((x, i) => x.animate([{ opacity:0, transform:'translateY(6px)' }, { opacity:1, transform:'none' }],
+    { duration:260, delay:(settle ? 140 : 90) + i * 40, easing:'cubic-bezier(0,0,.2,1)', fill:'backwards' }));
+  const ic = $('.act-ic', el), to = ic && getComputedStyle(ic);
+  if (ic && bg0 && (to.backgroundColor !== bg0 || to.color !== fg0)) ic.animate([{ backgroundColor:bg0, color:fg0 }, { backgroundColor:to.backgroundColor, color:to.color }], { duration:360, easing:'ease-out' });
+  const tk = settle && $('.act-ok .tk', el);
+  if (tk) tk.animate([{ transform:'scale(.2)', opacity:0 }, { transform:'scale(1)', opacity:1 }], { duration:560, delay:160, easing:EASE.spring, fill:'backwards' });
+  return el;
+}
 /* scroll the conversation so all of el sits between the title bar and the message field, never pushing its top out of sight */
 function chatKeepInView(el, smooth = true){
   const log = $('#chatlog'); if (!el || !log || !el.isConnected || !chat.open) return;
