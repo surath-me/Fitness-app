@@ -839,6 +839,98 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
 }
+
+/* ---------- onboarding: Set up your coach (full screen, solid like a page; the back button is glass) ---------- */
+.onb{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);overflow:hidden}
+.onb[hidden]{display:none}
+.ob-top{display:flex;align-items:flex-start;gap:12px;padding:calc(env(safe-area-inset-top) + 8px) 16px 4px}
+.ob-prog{flex:1;display:flex;flex-direction:column;gap:6px;padding-top:19px}
+.ob-segs{display:flex;gap:5px}.ob-segs i{flex:1;height:5px;border-radius:3px;background:var(--fill);overflow:hidden}
+.ob-segs b{display:block;height:100%;border-radius:3px;background:var(--accent);transition:width .5s var(--smooth)}
+.ob-left{font-size:12px;font-weight:500;text-align:center;color:var(--ink2)}
+.ob-skip{min-width:44px;height:44px;font-size:15px;font-weight:500;color:var(--ink2)}
+.ob-main{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.ob-scr{max-width:560px;margin:0 auto;padding:12px 20px 24px;display:flex;flex-direction:column;gap:16px;animation:obIn .45s var(--smooth) both}
+.ob-scr.back{animation-name:obBack}.ob-scr.still{animation:none}
+.ob-scr.center{min-height:100%;box-sizing:border-box;justify-content:center}
+@keyframes obIn{from{opacity:0;transform:translateX(28px)}}@keyframes obBack{from{opacity:0;transform:translateX(-28px)}}
+.ob-rise{animation:obRise .55s var(--smooth) both}.ob-rise.d1{animation-delay:.25s}.ob-rise.d2{animation-delay:.4s}.ob-rise.d3{animation-delay:.55s}
+.ob-scr.still .ob-rise{animation:none}
+@keyframes obRise{from{opacity:0;transform:translateY(14px)}}
+.ob-hd{display:flex;flex-direction:column;gap:6px}
+.ob-eb{font-size:13px;font-weight:600;color:var(--accent-ink)}
+.ob-h{margin:0;font-size:30px;line-height:1.15;font-weight:700;letter-spacing:-.02em}.ob-h.big{font-size:34px;text-align:center}
+.ob-p{margin:0;font-size:16px;line-height:1.4;color:var(--ink2)}.ob-p.small{font-size:13px}
+.ob-card{background:var(--card);border-radius:22px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.ob-lbl{display:block;font-size:15px;font-weight:600}.ob-lbl span{font-weight:400;color:var(--ink2)}.ob-lbl.small{font-size:14px;font-weight:400;color:var(--ink2)}
+.ob-list{display:flex;flex-direction:column;gap:10px}
+.ob-opt{display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border-radius:22px;background:var(--card);border:2px solid transparent;text-align:left;color:var(--ink);transition:transform .35s var(--spring),border-color .2s,background-color .2s}
+.ob-opt:active{transform:scale(.97)}
+.ob-opt[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-t)}
+.ob-opt.col{flex-direction:column;justify-content:center;gap:6px;padding:16px 6px 12px;text-align:center}.ob-opt.col.sm{padding:12px 4px 10px;gap:8px}.ob-opt.col.short{min-height:64px;padding:8px 4px;gap:2px}
+.ob-opt b{font-size:17px;font-weight:600}.ob-opt small{font-size:13px;color:var(--ink2)}.ob-opt.col b{font-size:15px}.ob-opt.col.sm b{font-size:12px;line-height:1.2}
+.ob-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.ob-tx small{font-size:14px;color:var(--ink2)}
+.ob-ic{width:50px;height:50px;border-radius:16px;flex:none;display:grid;place-items:center;color:var(--c);background:color-mix(in srgb,var(--c) 16%,transparent)}.ob-ic svg{width:28px;height:28px}
+.ob-tk{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;background:var(--accent);scale:0;transition:scale .35s var(--spring)}.ob-tk svg{width:14px;height:14px}
+.ob-opt[aria-pressed="true"] .ob-tk{scale:1}
+.ob-big{color:var(--ink2)}.ob-big svg{width:56px;height:56px}.ob-opt[aria-pressed="true"] .ob-big{color:var(--accent)}
+.ob-grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.ob-grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.ob-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.ob-chip{min-height:36px;padding:0 14px;border-radius:18px;font-size:14px;font-weight:500;background:var(--card);color:var(--ink);transition:transform .3s var(--spring),background-color .2s}
+.ob-card .ob-chip{background:var(--fill2)}
+.ob-chip:active{transform:scale(.95)}.ob-chip[aria-pressed="true"]{background:var(--accent);color:#fff}
+.ob-seg{display:flex;padding:3px;border-radius:12px;background:var(--fill)}
+.ob-sb{flex:1;min-height:38px;border-radius:9px;font-size:14px;font-weight:600;color:var(--ink);transition:background-color .2s}
+.ob-sb[aria-pressed="true"]{background:var(--card);box-shadow:var(--raise)}
+.ob-in{width:100%;height:44px;box-sizing:border-box;border:0;border-radius:12px;padding:0 14px;font:inherit;font-size:16px;color:var(--ink);background:var(--fill2)}
+.ob-in.area{height:auto;padding:12px 14px;border-radius:16px;resize:none;background:var(--card);margin-top:8px}
+.ob-in.flat{background:none;padding:0;height:36px}
+.ob-in::placeholder{color:var(--ink3)}
+.ob-body{display:flex;gap:12px}
+.ob-fig{width:112px;flex:none;border-radius:22px;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:14px 0 12px}
+.ob-fig>div{height:168px;display:flex;align-items:flex-end}.ob-fig svg{fill:var(--accent);transition:height .45s var(--spring),width .45s var(--spring)}.ob-fig small{margin-top:8px;font-size:12px;color:var(--ink2)}
+.ob-sliders{flex:1;display:flex;flex-direction:column;gap:12px}.ob-sl{gap:0;padding-bottom:6px}
+.ob-slh{display:flex;justify-content:space-between;align-items:baseline}.ob-slh label{font-size:14px;color:var(--ink2)}.ob-slh b{font-size:26px;font-weight:700;letter-spacing:-.02em}.ob-slh b small{font-size:15px;font-weight:500;color:var(--ink2)}
+.ob-acc{font-size:15px!important;letter-spacing:0!important;color:var(--accent-ink)}
+.onb input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:40px;margin:0;background:none}
+.onb input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:4px;background:var(--fill)}
+.onb input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:30px;height:30px;margin-top:-11px;border-radius:50%;background:#fff;box-shadow:var(--raise)}
+.ob-row2{display:flex;gap:12px}.ob-row2>.ob-card{flex:1}
+.ob-age{flex-direction:row!important;align-items:center;justify-content:space-between}.ob-age>span:first-child{display:flex;flex-direction:column}.ob-age small{font-size:14px;color:var(--ink2)}.ob-age b{font-size:26px}
+.ob-steps{display:flex;gap:6px}
+.ob-round{width:44px;height:44px;border-radius:22px;flex:none;display:grid;place-items:center;background:var(--fill);color:var(--ink);transition:transform .3s var(--spring)}.ob-round:active{transform:scale(.9)}.ob-round svg{width:18px;height:18px}
+.ob-waist{display:flex;align-items:baseline;gap:4px}.ob-waist input{width:70px;border:0;padding:0;font:inherit;font-size:26px;font-weight:700;background:none;color:var(--ink)}.ob-waist small{font-size:15px;color:var(--ink2)}
+.ob-burn{flex-direction:row!important;align-items:center;gap:14px}.ob-burn>span:last-child{display:flex;flex-direction:column}.ob-burn small{font-size:14px;color:var(--ink2)}.ob-burn b{font-size:24px;letter-spacing:-.02em}
+.ob-bolt{width:48px;height:48px;border-radius:24px;display:grid;place-items:center;flex:none;color:var(--accent);background:var(--accent-t)}.ob-bolt svg{width:24px;height:24px}
+.ob-warn{display:flex;gap:12px;padding:14px 16px;border-radius:18px;font-size:14px;line-height:1.4;background:var(--red-t)}.ob-warn svg{width:20px;height:20px;flex:none;color:var(--red-ink)}
+.ob-bars{display:flex;align-items:flex-end;gap:3px;height:22px}.ob-bars i{width:5px;border-radius:2px;background:var(--fill)}.ob-bars i.on{background:var(--accent)}
+.ob-days{display:flex;justify-content:space-between}
+.ob-day{width:44px;height:44px;border-radius:22px;font-size:15px;font-weight:600;background:var(--fill);color:var(--ink);transition:transform .3s var(--spring),background-color .2s}.ob-day:active{transform:scale(.9)}.ob-day[aria-pressed="true"]{background:var(--accent);color:#fff}
+.ob-lift{gap:12px}.ob-lr{display:flex;align-items:center;gap:10px}.ob-lr.reps small{font-size:14px;color:var(--ink2)}.ob-lr .ob-seg{flex:1}
+.ob-w{width:84px;text-align:center;font-size:22px;font-weight:700;letter-spacing:-.02em}.ob-w.none{font-size:15px;font-weight:600;color:var(--ink2)}
+.ob-diets{display:flex;gap:10px;overflow-x:auto;margin:0 -20px;padding:2px 20px 6px;scrollbar-width:none}
+.ob-opt.tile{flex:none;width:92px;height:92px;flex-direction:column;justify-content:center;gap:8px;padding:0}.ob-opt.tile b{font-size:13px}
+.ob-dot{width:34px;height:34px;border-radius:17px;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 18%,transparent)}.ob-dot i{width:12px;height:12px;border-radius:6px;background:var(--c)}
+.ob-fields .ob-fl{display:block;padding:10px 16px 2px;border-top:var(--sep-w) solid var(--sep)}.ob-fields .ob-fl:first-child{border-top:0}.ob-fl small{display:block;font-size:13px;color:var(--ink2)}
+.ob-chat{border-radius:26px;padding:18px 16px;display:flex;flex-direction:column;gap:14px;background:var(--chat-bg)}
+.ob-q{align-self:flex-end;max-width:78%;padding:8px 14px;border-radius:19px;font-size:15px;background:var(--chat-bub)}.ob-a{font-size:15px;line-height:1.45}
+.ob-welcome{display:flex;flex-direction:column;align-items:center;gap:22px;text-align:center}
+.ob-hero{position:relative;width:240px;height:240px;display:grid;place-items:center}
+.ob-glow{position:absolute;width:220px;height:220px;border-radius:50%;background:radial-gradient(closest-side,var(--accent-glow),transparent);animation:obGlow 3.2s ease-in-out infinite}
+.ob-icon{position:relative;width:160px;height:160px;border-radius:36px;box-shadow:0 24px 50px var(--accent-glow);animation:obPop .6s var(--spring) both,obFloat 4s ease-in-out .6s infinite}
+@keyframes obGlow{50%{transform:scale(1.18);opacity:.6}}@keyframes obPop{from{opacity:0;transform:scale(.5)}}@keyframes obFloat{50%{transform:translateY(-8px)}}
+.ob-plan{flex-direction:row!important;align-items:center;gap:16px}.ob-plan>div{flex:1;display:flex;flex-direction:column;gap:4px}
+.ob-kcal{font-size:34px;letter-spacing:-.02em}.ob-plan small{font-size:13px;color:var(--ink2)}.ob-pro{font-size:15px;font-weight:600;color:var(--pro-t)}
+.ob-week{display:flex;justify-content:space-between}.ob-week span{display:flex;flex-direction:column;align-items:center;gap:6px;width:42px}.ob-week small{font-size:12px;font-weight:600;color:var(--ink2)}
+.ob-week i{width:38px;height:38px;border-radius:19px;display:grid;place-items:center;font-style:normal;font-size:13px;font-weight:700;background:var(--fill)}.ob-week i.on{background:var(--accent);color:#fff}
+.ob-first{display:flex;align-items:center;gap:12px;padding:12px;border-radius:16px;font-size:15px;line-height:1.35;background:var(--accent-t)}.ob-first svg{width:22px;height:22px;flex:none;color:var(--accent)}
+.ob-foot{max-width:560px;width:100%;margin:0 auto;box-sizing:border-box;padding:10px 20px max(16px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px}
+.ob-coach{display:flex;align-items:center;gap:10px;padding:10px 14px 10px 10px;border-radius:18px;background:var(--card)}
+.ob-coach img{width:30px;height:30px;border-radius:9px;flex:none}.ob-coach p{margin:0;flex:1;font-size:14px;line-height:1.4}
+.ob-foot .btn{min-height:54px;font-size:17px}.ob-foot .btn[disabled]{opacity:.4}
+.ob-later{align-self:center;min-height:44px;padding:0 16px;font-size:15px;font-weight:500;color:var(--accent-ink)}
+.ob-sb,.ob-day,.ob-chip,.ob-round{display:inline-grid;place-items:center;text-align:center}
+@media (prefers-reduced-motion:reduce){.ob-scr,.ob-rise,.ob-glow,.ob-icon{animation:none}.ob-opt,.ob-chip,.ob-day,.ob-round,.ob-tk,.ob-fig svg,.ob-segs b{transition:none}}
 </style>
 </head>
 <body>
@@ -874,6 +966,7 @@ body:has(#timer:not(.ghost)) .toast.low{bottom:calc(max(12px, env(safe-area-inse
 <div id="toast" class="toast glass ghost" role="status" hidden></div>
 <div id="pullhint" class="pullhint" aria-hidden="true">Ask Coach AI</div>
 <div id="chatfx" class="chatfx" hidden aria-hidden="true"><i class="fxb"></i><i class="fxt"></i></div>
+<div id="onb" class="onb" role="dialog" aria-modal="true" aria-label="Set up your coach" hidden></div>
 <div id="chat" class="chat" role="dialog" aria-modal="true" aria-label="Coach AI" tabindex="-1" hidden>
   <div class="chat-top"><button class="tbtn glass" data-act="chatclose" aria-label="Close"></button><h2>Coach AI</h2><span aria-hidden="true"></span></div>
   <div id="chatlog" class="chat-log"></div>
@@ -888,7 +981,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.22';
+const APP_VERSION = '4.23';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1170,7 +1263,8 @@ function saveLocal(){
   try { localStorage.setItem(LS_KEY, JSON.stringify(S)); storageOk = true; } catch(e) { storageOk = false; }
 }
 function saveState(){ saveLocal(); scheduleSync(); }   // every change lands on the device first, then goes to the cloud a few seconds later
-let S = loadState() || freshState();
+const LOADED = loadState(), FIRST_RUN = !LOADED;   // a new install: onboarding opens by itself
+let S = LOADED || freshState();
 saveLocal();
 
 /* ---------- exercise config (base + your overrides) ---------- */
@@ -2151,7 +2245,7 @@ function viewSetup(){
     <p>${cloud.token ? `${cloudLine()} • <button class="link" data-act="cloudsync">Sync now</button>`
       : `Last backup: ${st.lastExport ? dateLabel(st.lastExport) : 'never'} • <button class="link" data-act="export">Back up now</button>`}</p></div>`;
   if (!storageOk) h += `<p class="why" style="color:var(--red-ink)">This browser is blocking storage, so changes are lost when you close the tab. Turn off private browsing.</p>`;
-  h += `<div class="group">${srow('chat', chatOn() ? 'On' : 'Off', 'Beta')}</div>`;   // a feature still in testing carries a Beta tag, as in iOS Settings
+  h += `<div class="group">${srow('chat', chatOn() ? 'On' : 'Off', 'Beta')}<button class="srow" data-act="obopen"><span class="grow">Set up your coach</span>${st.setup && st.setup.at ? `<span class="v">${dateLabel(st.setup.at)}</span>` : ''}${ICON.chevR}</button></div>`;   // a feature still in testing carries a Beta tag, as in iOS Settings
   h += `<div class="group">${srow('targets', `${fmtInt(st.targets.training.kcal)} kcal`)}${srow('caps')}</div>`;
   h += `<h2>Training</h2><div class="group">${srow('split', `${sessions} session${sessions === 1 ? '' : 's'}`)}${srow('lifts')}</div>`;
   h += `<h2>Food</h2><div class="group">${srow('foods', (S.foods||[]).length ? String(S.foods.length) : '')}</div>`;
@@ -3542,6 +3636,7 @@ async function chatLoad(){
       if (chat.err && chat.err.kind === 'cut' && t && t.role === 'assistant' && !t.cut && p && chatSame(p, chat.err.retry)) chat.err = null;
     }
     chat.mode = j.mode; chat.ai = j.ai || null; chat.profile = j.profile; chat.spend = j.spend; chat.loadErr = null; chatCache();
+    if (S.settings.setup && S.settings.setup.pending) obWriteProfile();   // answers from setup waiting for Cloud backup
     if (chat.open && !chat.sending) renderChatLog(true);
     const pe = $('#chatprofile');   // never redraw the page under someone typing their profile
     if (ui.tab === 'setup' && ui.setupPage === 'chat' && !(pe && document.activeElement === pe)) refreshSetup();
@@ -4372,11 +4467,285 @@ async function chatImport(force){
       : err === 'refusal' ? 'Coach AI could not write a profile from these chats.' : 'Could not write the profile', { err:true });
   }
 }
+/* =====================================================================
+   ONBOARDING: "Set up your coach"
+   A full-screen run of short questions (goal, body, everyday activity, health, training, your lifts for people who
+   already train, food, food habits, how Coach AI answers) ending in the plan it builds. Coach answers every answer in
+   a strip above the button, so each tap shows what it changes. It opens by itself on a new install and from
+   Settings on an existing one. On finish the answers become: a "From setup" block in the Coach AI profile (written once
+   Cloud backup is connected), the targets and training days when their switches are on (on for a new install, off for
+   an existing one, so set targets are never overwritten by surprise), starting weights for lifts with no history, and
+   today's waist. The answers are kept in settings.setup so a second run starts from them.
+   ===================================================================== */
+const OB_STEPS = ['welcome', 'goal', 'body', 'activity', 'health', 'training', 'numbers', 'food', 'habits', 'style', 'done'];
+const OB_GOALS = {
+  fat:      { label:'Lose fat', sub:'Leaner, keeping the muscle you have', eb:'For a leaner you', color:'--accent', hint:'Waist down to 85 cm', adj:-450,
+              coach:'Lose fat: a steady deficit, with enough protein to keep your muscle.' },
+  muscle:   { label:'Build muscle', sub:'More size, a small surplus', eb:'For more muscle', color:'--accent', hint:'+4 kg of muscle', adj:250,
+              coach:'Build muscle: a small surplus, so most of what you gain is muscle.' },
+  recomp:   { label:'Both: lose fat, gain muscle', sub:'Recomposition: slow on the scale', eb:'For leaner and stronger', color:'--accent', hint:'Waist −6 cm, bench 80 kg', adj:-250,
+              coach:'Both at once: the scale moves slowly, your waist and your lifts tell the story.' },
+  strength: { label:'Get stronger', sub:'Heavier lifts, a number to beat', eb:'For heavier lifts', color:'--accent', hint:'Chest press 80 kg', adj:150,
+              coach:'Get stronger: your lifts lead, and food keeps up with them.' },
+  health:   { label:'Feel fit and healthy', sub:'Energy, habits, no big number', eb:'For feeling fit', color:'--green', hint:'Train 3 times a week', adj:0,
+              coach:'Feel fit: no strict numbers, just a plan you can keep.' }
+};
+const OB_ACT = { sit:['Sitting', 'Desk, car', 1.4, 'Desk days burn less than most people think.'], feet:['On my feet', 'Walking a lot', 1.6, 'All that walking counts: more room to eat.'],
+  phys:['Physical job', 'Lifting, carrying', 1.8, 'A physical job is a workout every day.'] };
+const OB_HEALTH = [['heart', 'Heart or blood pressure problems'], ['faint', 'Chest pain or fainting during exercise'], ['diab', 'Diabetes'], ['preg', 'Pregnant or recently gave birth'],
+  ['surg', 'Surgery in the last months'], ['ed', 'A history of disordered eating'], ['meds', 'Medication that affects heart rate, blood sugar or appetite']];
+const OB_EXP = ['New', 'Under a year', '1 to 3 years', 'Longer'];
+const OB_WHERE = { gym:['Gym', 'Machines, weights'], home:['Home', 'What I have'], both:['Both', 'Mixed'] };
+const OB_EQUIP = ['Dumbbells', 'Bands', 'Bench', 'Pull-up bar', 'Kettlebell', 'Nothing yet'];
+const OB_DIETS = [['all', 'Everything', '--accent'], ['veg', 'Vegetarian', '--green'], ['vegan', 'Vegan', '--green'], ['pesc', 'Pescatarian', '--accent'], ['halal', 'Halal', '--accent'], ['kosher', 'Kosher', '--accent']];
+const OB_ALLERGY = ['Lactose', 'Gluten', 'Nuts', 'Eggs', 'Soy', 'Shellfish'];
+const OB_EATS = [['cook', 'Cook at home'], ['canteen', 'Eat at a canteen'], ['out', 'Eat out'], ['prep', 'Meal prep']];
+// the lifts asked for (gym): the app's own lifts, so a number becomes that lift's starting weight
+const OB_LIFTS = { gym: [['chest_press', 40], ['lat_pulldown', 45], ['shoulder_press', 30], ['leg_press', 100]],
+  home: [['Dumbbell bench press', 16, 'kg/hand'], ['One-arm row', 16, 'kg/hand'], ['Goblet squat', 20, 'kg'], ['Dumbbell shoulder press', 10, 'kg/hand']] };
+// sessions for the number of training days, in weekday order from Monday; the app has five sessions, so five days at most
+const OB_SPLIT = { 1:['upper'], 2:['upper', 'lower'], 3:['push', 'pull', 'lower'], 4:['upper', 'lower', 'push', 'pull'], 5:['upper', 'arms', 'push', 'pull', 'lower'] };
+const OB_SPLIT_TEXT = { 1:'one session covering the whole body', 2:'upper body and lower body', 3:'push, pull and lower body', 4:'upper, lower, push and pull', 5:'upper, arms, push, pull and lower' };
+const OB_MON = [1, 2, 3, 4, 5, 6, 0];   // the week drawn from Monday; the app counts from Sunday
+let ob = null;
+
+function obDefaults(){
+  const st = S.settings, prev = st.setup && st.setup.answers;
+  if (prev) return { ...deepClone(prev), at:'welcome', dir:1, useTargets:false, useDays:false };
+  const days = {}; Object.keys(st.schedule).forEach(d => { if (st.schedule[d]) days[d] = 1; });
+  return { at:'welcome', dir:1, goal:null, target:'', when:'none', sex:'m', height:175, weight:75, age:30, waist:'', act:'sit', health:{}, pain:'',
+    exp:0, days, minutes:60, where:'gym', equip:{}, nums:{}, diet:'all', allergies:{}, eats:{ cook:1 }, avoid:'', limits:'', style:'short',
+    useTargets: FIRST_RUN, useDays: FIRST_RUN };
+}
+const obSteps = () => OB_STEPS.filter(s => s !== 'numbers' || ob.exp >= 1);
+const obKeys = o => Object.keys(o || {});
+/* everything the plan needs, worked out from the answers so far */
+function obPlan(){
+  const bmr = 10 * ob.weight + 6.25 * ob.height - 5 * ob.age + (ob.sex === 'm' ? 5 : -161);
+  const burn = Math.round(bmr * OB_ACT[ob.act][2] / 10) * 10;
+  const days = OB_MON.filter(d => ob.days[d]), n = days.length, session = ob.minutes * 6;
+  const adj = ob.goal ? OB_GOALS[ob.goal].adj : 0;
+  const kcal = burn + session * n / 7 + adj;   // an average day
+  const p = Math.round(ob.weight * (ob.goal === 'fat' || ob.goal === 'recomp' ? 2.0 : 1.8)), f = Math.round(ob.weight * 0.8 / 5) * 5;
+  const carbs = k => Math.max(0, Math.round((k - p * 4 - f * 9) / 4));
+  const tKcal = Math.round((kcal + session * (7 - n) / 7) / 10) * 10;   // a training day carries its session, a rest day does not
+  const rKcal = Math.round((tKcal - session) / 10) * 10;
+  const sessions = OB_SPLIT[n] || [], week = {}; days.forEach((d, i) => { week[d] = sessions[i]; });
+  return { burn, n, days, week, sessions, training:{ kcal:tKcal, p, f, c:carbs(tKcal) }, rest:{ kcal:rKcal, p, f:Math.max(30, f - 5), c:carbs(rKcal) } };
+}
+function obLifts(){
+  if (ob.where === 'home') return OB_LIFTS.home.map(([name, start, unit]) => ({ key:name, name, unit, start }));
+  return OB_LIFTS.gym.map(([id, start]) => ({ key:id, id, name:cfg(id).name, unit:cfg(id).unit, start }));
+}
+function obCoach(){
+  const P = obPlan(), nk = obKeys(ob.nums).filter(k => ob.nums[k].w != null).length, L = obLifts().length;
+  switch (ob.at) {
+    case 'goal': return ob.goal ? OB_GOALS[ob.goal].coach : 'Pick the one that matters most right now. The rest still counts.';
+    case 'body': return `About ${P.training.p} g protein a day fits ${fmtW(ob.weight)} kg` + (ob.goal === 'fat' || ob.goal === 'recomp' ? ' and keeps your muscle while you lose fat.' : '.');
+    case 'activity': return `About ${fmtInt(P.burn)} kcal a day before any training. ${OB_ACT[ob.act][3]}`;
+    case 'health': return obKeys(ob.health).length ? 'Thanks. Your first week starts lighter, and Coach AI keeps it gentle.' : ob.pain ? 'Noted. Coach AI plans around it and suggests swaps.' : 'Nothing flagged, so your plan starts at full pace.';
+    case 'training': return ob.capHit ? 'Five days is the most this plan uses: the other days rest.' : P.n ? `${P.n === 1 ? 'One day' : P.n + ' days'} of ${ob.minutes} min: ${OB_SPLIT_TEXT[P.n]}.` : 'Pick at least one day to train.';
+    case 'numbers': return nk ? `${nk} of ${L} set. Your first sessions start from ${nk === 1 ? 'that' : 'those'}` + (nk < L ? ' and find the rest.' : '.') : 'Leave them blank if you like: your first session finds your weights.';
+    case 'food': { const d = OB_DIETS.find(x => x[0] === ob.diet), a = obKeys(ob.allergies);
+      return (ob.diet === 'all' ? 'Everything is on the menu.' : `${d[1]}: every suggestion fits.`) + (a.length ? ` No ${a.join(', ').toLowerCase()}, ever.` : ''); }
+    case 'habits': return ob.eats.canteen ? 'Canteen days get canteen ideas: what to pick, and how much.' : ob.eats.prep ? 'Meal prep: ideas that keep for a few days.'
+      : ob.eats.out ? 'Eating out: Coach AI helps you pick from the menu.' : ob.eats.cook ? 'Cooking at home: simple meals with what you have.' : 'Tap what fits your week.';
+    case 'style': return ob.style === 'short' ? 'Short it is: the answer first, details when you ask.' : 'With the reasons: you see why, not just what.';
+  }
+  return '';
+}
+const obOpt = (act, v, on, inner, cls = 'ob-opt') => `<button class="${cls}" data-act="${act}" data-v="${esc(String(v))}" aria-pressed="${!!on}">${inner}</button>`;
+const obChips = (act, list, isOn) => `<div class="ob-chips">${list.map(([v, l]) => obOpt(act, v, isOn(v), esc(l), 'ob-chip')).join('')}</div>`;
+const obSeg = (act, list, cur, label) => `<div class="ob-seg" role="group" aria-label="${label}">${list.map(([v, l]) => obOpt(act, v, String(cur) === String(v), esc(l), 'ob-sb')).join('')}</div>`;
+const obHead = (title, sub) => `<div class="ob-hd">${ob.goal && ob.at !== 'goal' ? `<span class="ob-eb">${OB_GOALS[ob.goal].eb}</span>` : ''}<h2 class="ob-h">${title}</h2>${sub ? `<p class="ob-p">${sub}</p>` : ''}</div>`;
+const OB_TICK = '<span class="ob-tk" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>';
+const OB_ICON = {
+  fat:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3.5 5 5.5 5 10.5A5 5 0 0 1 7 13c0-2 1-3.5 2-4.5.2 1.6 1 2.7 2 3-.5-3.5 0-6.5 1-9.5z"/></svg>',
+  muscle:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="10.5" width="10" height="3" rx="1"/><rect x="5" y="7" width="3" height="10" rx="1.2"/><rect x="16" y="7" width="3" height="10" rx="1.2"/><rect x="2.5" y="9" width="2.5" height="6" rx="1"/><rect x="19" y="9" width="2.5" height="6" rx="1"/></svg>',
+  recomp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7h14M3 14l2-7 2 7a2 2 0 0 1-4 0zM17 14l2-7 2 7a2 2 0 0 1-4 0zM8 21h8"/></svg>',
+  strength:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19l5-6 4 3 7-9"/><path d="M15 7h5v5"/></svg>',
+  health:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.5s-7.5-4.4-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7C19.5 16.1 12 20.5 12 20.5z"/></svg>',
+  sit:'<svg viewBox="0 0 56 56" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="10" r="5"/><path d="M24 17v14h12l4 14M24 31l-8 14M12 24h24"/><path d="M8 48h40"/></svg>',
+  feet:'<svg viewBox="0 0 56 56" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="30" cy="9" r="5"/><path d="M28 17l-6 14 8 6 2 13M22 31l-8 15M28 17l10 8 8-2M24 22l-10 4"/></svg>',
+  phys:'<svg viewBox="0 0 56 56" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="20" cy="10" r="5"/><path d="M20 17v15l-8 15M20 32l8 15M20 22l14-6"/><rect x="32" y="8" width="16" height="10" rx="2"/><path d="M40 18v30"/></svg>'
+};
+function obScreen(){
+  const P = obPlan();
+  switch (ob.at) {
+  case 'welcome': return `<div class="ob-welcome"><div class="ob-hero" aria-hidden="true"><i class="ob-glow"></i><img class="ob-icon" src="apple-touch-icon.png" alt="" width="160" height="160"></div>
+    <h1 class="ob-h big">Let's set up your coach</h1><p class="ob-p">A few taps about your goal, your body and how you train and eat. Your plan and Coach AI's answers are built from them.</p>
+    <p class="ob-p small">About two minutes. Skip anything you like.</p></div>`;
+  case 'goal': return obHead('What do you want most?', 'Pick one. You can change it any time.') + `<div class="ob-list">${Object.entries(OB_GOALS).map(([k, g]) =>
+      obOpt('obgoal', k, ob.goal === k, `<span class="ob-ic" style="--c:var(${g.color})">${OB_ICON[k]}</span><span class="ob-tx"><b>${g.label}</b><small>${g.sub}</small></span>${OB_TICK}`)).join('')}</div>`
+    + (ob.goal ? `<div class="ob-card ob-rise"><label class="ob-lbl" for="obtarget">Something specific? <span>Optional</span></label>
+      <input id="obtarget" class="ob-in" data-ob="target" type="text" placeholder="${esc(OB_GOALS[ob.goal].hint)}" value="${esc(ob.target)}" autocomplete="off">
+      ${obChips('obwhen', [['none', 'No rush'], ['3m', '3 months'], ['6m', '6 months'], ['1y', 'A year']], v => ob.when === v)}</div>` : '');
+  case 'body': { const bmi = ob.weight / Math.pow(ob.height / 100, 2), fh = Math.round(96 + (ob.height - 140) / 70 * 72), fw = Math.round(fh * .4 * Math.max(.75, Math.min(1.6, bmi / 22)));
+    return obHead('A bit about you', 'For your calories and protein. Stays on your device and your backup.') + obSeg('obsex', [['m', 'Male'], ['f', 'Female']], ob.sex, 'Sex')
+    + `<div class="ob-body"><div class="ob-fig"><div><svg id="obfig" style="height:${fh}px;width:${fw}px" viewBox="0 0 60 150" preserveAspectRatio="none" role="img" aria-label="A figure that grows with your height and weight">
+        <circle cx="30" cy="13" r="11"/><path d="M14 30h32a6 6 0 0 1 6 6v44a5 5 0 0 1-10 0V45v101a5 5 0 0 1-10 0V96h-4v50a5 5 0 0 1-10 0V45v35a5 5 0 0 1-10 0V36a6 6 0 0 1 6-6z" opacity=".85"/></svg></div>
+        <small id="obbmi">BMI ${bmi.toFixed(1)}</small></div>
+      <div class="ob-sliders"><div class="ob-card ob-sl"><div class="ob-slh"><label for="obh">Height</label><b><span id="obhv">${ob.height}</span><small> cm</small></b></div><input id="obh" data-ob="height" type="range" min="140" max="210" step="1" value="${ob.height}"></div>
+        <div class="ob-card ob-sl"><div class="ob-slh"><label for="obw">Weight</label><b><span id="obwv">${fmtW(ob.weight)}</span><small> kg</small></b></div><input id="obw" data-ob="weight" type="range" min="40" max="160" step="0.5" value="${ob.weight}"></div></div></div>
+    <div class="ob-row2"><div class="ob-card ob-age"><span><small>Age</small><b>${ob.age}</b></span><span class="ob-steps"><button class="ob-round" data-act="obage" data-v="-1" aria-label="Younger">${ICON.minus}</button><button class="ob-round" data-act="obage" data-v="1" aria-label="Older">${ICON.plus}</button></span></div>
+      <div class="ob-card"><label class="ob-lbl small" for="obwaist">Waist <span>optional</span></label><span class="ob-waist"><input id="obwaist" data-ob="waist" inputmode="decimal" placeholder="–" value="${esc(ob.waist)}" autocomplete="off"><small>cm</small></span></div></div>`; }
+  case 'activity': return obHead('Outside the gym, your day is mostly…', 'This changes your calories more than training does.')
+    + `<div class="ob-grid3">${Object.entries(OB_ACT).map(([k, a]) => obOpt('obact', k, ob.act === k, `<span class="ob-big" aria-hidden="true">${OB_ICON[k]}</span><b>${a[0]}</b><small>${a[1]}</small>`, 'ob-opt col')).join('')}</div>
+    <div class="ob-card ob-burn"><span class="ob-bolt" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></span><span><small>Your rough daily burn</small><b>${fmtInt(P.burn)} kcal</b></span></div>`;
+  case 'health': return obHead('Anything to be careful with?', 'Tap what applies. Coach AI is a coach, not a doctor, and plans around it.')
+    + `<div class="group">${OB_HEALTH.map(([k, l]) => `<label class="switch"><input type="checkbox" data-ob="health" value="${k}"${ob.health[k] ? ' checked' : ''}>${l}</label>`).join('')}</div>`
+    + (obKeys(ob.health).length ? `<div class="ob-warn ob-rise">${CI.warn}<span>Good to know. Coach AI keeps things gentle and suggests checking with your doctor before hard training or eating less.</span></div>` : '')
+    + `<div><label class="ob-lbl" for="obpain">Any pain or injuries? <span>Optional</span></label><textarea id="obpain" class="ob-in area" data-ob="pain" rows="2" placeholder="For example: left elbow hurts on curls">${esc(ob.pain)}</textarea></div>`;
+  case 'training': return obHead('How do you train?', 'Your plan fits the days and time you really have.')
+    + `<div class="ob-card"><span class="ob-lbl">Experience</span><div class="ob-grid4">${OB_EXP.map((l, i) => obOpt('obexp', i, ob.exp === i,
+        `<span class="ob-bars" aria-hidden="true">${[8, 13, 18, 22].map((h, j) => `<i style="height:${h}px" class="${j <= i ? 'on' : ''}"></i>`).join('')}</span><b>${l}</b>`, 'ob-opt col sm')).join('')}</div></div>
+    <div class="ob-card"><div class="ob-slh"><span class="ob-lbl">Training days</span><b class="ob-acc">${P.n === 1 ? '1 day' : P.n + ' days'}</b></div>
+      <div class="ob-days">${OB_MON.map(d => obOpt('obday', d, !!ob.days[d], ['S', 'M', 'T', 'W', 'T', 'F', 'S'][d], 'ob-day')).join('')}</div>
+      <div class="ob-slh"><span class="ob-lbl">Time per session</span><b class="ob-acc">${ob.minutes} min</b></div>${obSeg('obmin', [30, 45, 60, 75, 90].map(m => [m, String(m)]), ob.minutes, 'Minutes per session')}</div>
+    <div class="ob-grid3">${Object.entries(OB_WHERE).map(([k, w]) => obOpt('obwhere', k, ob.where === k, `<b>${w[0]}</b><small>${w[1]}</small>`, 'ob-opt col short')).join('')}</div>`
+    + (ob.where !== 'gym' ? `<div class="ob-rise"><span class="ob-lbl">At home I have</span>${obChips('obequip', OB_EQUIP.map(e => [e, e]), v => !!ob.equip[v])}</div>` : '');
+  case 'numbers': return obHead('Know your numbers?', "What you lift for 8 to 12 reps today. Leave any you're not sure of: your first session finds it.")
+    + `<div class="ob-list">${obLifts().map(l => { const n = ob.nums[l.key] || {}, known = n.w != null;
+        return `<div class="ob-card ob-lift"><div class="ob-lr"><span class="ob-tx"><b>${esc(l.name)}</b><small>${esc(l.unit)}</small></span>
+          <button class="ob-round" data-act="obnum" data-k="${esc(l.key)}" data-v="-1" aria-label="Less for ${esc(l.name)}">${ICON.minus}</button>
+          <span class="ob-w${known ? '' : ' none'}">${known ? fmtW(n.w) + ' kg' : 'Not sure'}</span>
+          <button class="ob-round" data-act="obnum" data-k="${esc(l.key)}" data-v="1" aria-label="More for ${esc(l.name)}">${ICON.plus}</button></div>
+          ${known ? `<div class="ob-lr reps"><small>For</small>${obSeg('obreps', [6, 8, 10, 12].map(r => [l.key + '|' + r, String(r)]), l.key + '|' + (n.r || 8), 'Reps for ' + esc(l.name))}<small>reps</small></div>` : ''}</div>`; }).join('')}</div>
+    <p class="ob-p small">Machines differ between gyms. If a weight feels off, change it in your first session.</p>`;
+  case 'food': return obHead('How do you eat?', 'Firm rules: Coach AI never suggests what you rule out.')
+    + `<div class="ob-diets">${OB_DIETS.map(([k, l, c]) => obOpt('obdiet', k, ob.diet === k, `<span class="ob-dot" style="--c:var(${c})"><i></i></span><b>${l}</b>`, 'ob-opt tile')).join('')}</div>
+    <div><span class="ob-lbl">Allergies or intolerances</span>${obChips('oballergy', OB_ALLERGY.map(a => [a, a]), v => !!ob.allergies[v])}</div>`;
+  case 'habits': return obHead('Your food habits', 'So suggestions fit your days, not a meal plan from a book.')
+    + `<div><span class="ob-lbl">I usually</span>${obChips('obeats', OB_EATS, v => !!ob.eats[v])}</div>
+    <div class="group ob-fields"><label class="ob-fl"><small>Foods I won't eat</small><input class="ob-in flat" data-ob="avoid" placeholder="Harzer Käse, apples" value="${esc(ob.avoid)}" autocomplete="off"></label>
+      <label class="ob-fl"><small>Daily limits I keep</small><input class="ob-in flat" data-ob="limits" placeholder="Max 3 eggs, 1 scoop of whey" value="${esc(ob.limits)}" autocomplete="off"></label></div>`;
+  case 'style': return obHead('How should Coach AI talk to you?', 'Try both and see.') + obSeg('obstyle', [['short', 'Short and direct'], ['detailed', 'With the reasons']], ob.style, 'Answer style')
+    + `<div class="ob-chat"><div class="ob-q">What should I eat tonight?</div>${ob.style === 'short'
+      ? '<div class="ob-a">You have 640 kcal and 48 g protein left. <strong>200 g chicken, 180 g rice and veg.</strong> That lands you on target.</div>'
+      : '<div class="ob-a">You have 640 kcal and 48 g protein left, and fat is at 52 of 70 g, so there is room for a normal dinner.<br><br><strong>200 g chicken, 180 g rice and veg</strong> covers the protein and adds the carbs you were short on yesterday.<br><br>For something lighter, 250 g quark with berries gets you most of the protein for 300 kcal.</div>'}</div>`;
+  case 'done': { const T = P.training, first = OB_MON.find(d => P.week[d]);
+    return `<div class="ob-hd ob-rise"><h2 class="ob-h">Your plan is ready</h2><p class="ob-p">Built from your answers. Change anything later in Settings.</p></div>
+    <div class="ob-card ob-plan">${ringSVG([{ pct:1, color:'var(--kcal)' }, { pct:1, color:'var(--pro)' }, { pct:1, color:'var(--fat)', w:8 }], 124, 14, true)}
+      <div class="ob-rise d1"><div><b class="ob-kcal">${fmtInt(T.kcal)}</b><small> kcal</small></div><small>on training days, ${fmtInt(P.rest.kcal)} on rest days</small><span class="ob-pro">${T.p} g protein</span><small>${T.f} g fat · ${T.c} g carbs</small></div></div>
+    <div class="ob-card ob-rise d2"><span class="ob-lbl">Your first week</span><div class="ob-week">${OB_MON.map(d => `<span><small>${['S', 'M', 'T', 'W', 'T', 'F', 'S'][d]}</small><i class="${P.week[d] ? 'on' : ''}">${P.week[d] ? esc(TEMPLATES[P.week[d]].name[0]) : ''}</i></span>`).join('')}</div>
+      ${first !== undefined ? `<div class="ob-first">${OB_ICON.muscle}<span>First up: ${esc(TEMPLATES[P.week[first]].name)} on ${WD[first]}, ${ob.minutes} min.</span></div>` : ''}</div>
+    <div class="group ob-rise d3"><label class="switch"><input type="checkbox" data-ob="useTargets"${ob.useTargets ? ' checked' : ''}>Use these targets</label>
+      ${P.n ? `<label class="switch"><input type="checkbox" data-ob="useDays"${ob.useDays ? ' checked' : ''}>Use these training days</label>` : ''}</div>
+    <p class="ob-p small ob-rise d3">${ob.useTargets || ob.useDays ? 'Switched on, they replace what is set now.' : 'Your current targets and week stay as they are. Coach AI still learns everything here.'}</p>`; }
+  }
+  return '';
+}
+function obRender(anim){
+  const el = $('#onb'); if (!el || !ob) return;
+  const steps = obSteps(), idx = steps.indexOf(ob.at), n = steps.length - 2, ahead = n - idx;
+  const left = ahead <= 0 ? 'Last step' : ahead * 12 < 60 ? 'Under a minute left' : `About ${Math.round(ahead * 12 / 60)} min left`;
+  const top = ob.at === 'welcome' || ob.at === 'done' ? '' : `<div class="ob-top"><button class="tbtn glass" data-act="obback" aria-label="Back">${ICON.chevL}</button>
+    <div class="ob-prog"><div class="ob-segs" role="img" aria-label="Step ${idx} of ${n}">${steps.slice(1, -1).map((_, i) => `<i><b style="width:${i + 1 < idx ? 100 : i + 1 === idx ? 50 : 0}%"></b></i>`).join('')}</div><span class="ob-left">${left}</span></div>
+    <button class="ob-skip" data-act="obnext" data-skip="1"${ob.at === 'goal' ? ' hidden' : ''}>Skip</button></div>`;
+  const coach = obCoach(), blocked = ob.at === 'goal' && !ob.goal;
+  const label = { welcome:'Get started', style:'Build my plan', done:'Start my first week' }[ob.at] || 'Continue';
+  const body = $('.ob-main', el), keep = body && !anim ? body.scrollTop : 0;
+  el.innerHTML = `${top}<div class="ob-main"><div class="ob-scr${anim ? (ob.dir < 0 ? ' back' : '') : ' still'}${ob.at === 'welcome' ? ' center' : ''}">${obScreen()}</div></div>
+    <div class="ob-foot">${coach ? `<div class="ob-coach" role="status" aria-live="polite"><img src="apple-touch-icon.png" alt="" width="30" height="30"><p id="obcoach">${esc(coach)}</p></div>` : ''}
+    <button class="btn block" data-act="obnext"${blocked ? ' disabled' : ''}>${label}</button>${ob.at === 'welcome' ? '<button class="ob-later" data-act="oblater">Not now</button>' : ''}</div>`;
+  if (keep) $('.ob-main', el).scrollTop = keep;
+}
+function openOnb(){
+  ob = obDefaults(); const el = $('#onb'); el.hidden = false; document.body.classList.add('lock');
+  obRender(true);
+  if (!reduced()) el.animate([{ opacity:0, transform:'translateY(24px)' }, { opacity:1, transform:'none' }], { duration:420, easing:EASE.smooth });
+}
+function closeOnb(){
+  const el = $('#onb'); ob = null; document.body.classList.remove('lock');
+  const fin = () => { el.hidden = true; el.innerHTML = ''; };
+  if (reduced()) fin(); else el.animate([{ opacity:1, transform:'none' }, { opacity:0, transform:'translateY(24px)' }], { duration:300, easing:'ease-in', fill:'forwards' }).finished.then(fin, fin);
+}
+function obGo(d){
+  const steps = obSteps(), i = steps.indexOf(ob.at), j = Math.max(0, Math.min(steps.length - 1, i + d));
+  ob.dir = d; ob.at = steps[j]; ob.capHit = false; obRender(true);
+}
+/* the profile block Coach AI reads, in its own words */
+function obProfileText(){
+  const P = obPlan(), a = obKeys, W = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const lifts = obLifts().filter(l => ob.nums[l.key] && ob.nums[l.key].w != null).map(l => `${l.name} ${fmtW(ob.nums[l.key].w)} ${l.unit} × ${ob.nums[l.key].r || 8}`);
+  const when = { none:'', '3m':' in about 3 months', '6m':' in about 6 months', '1y':' within a year' }[ob.when];
+  const out = [`From setup (${dateLabel(todayStr())}):`,
+    `- Goal: ${ob.goal ? ({ recomp:'lose fat and gain muscle' })[ob.goal] || OB_GOALS[ob.goal].label.toLowerCase() : 'not set'}${ob.target ? ` (${ob.target})` : ''}${when}.`,
+    `- Body: ${ob.sex === 'm' ? 'male' : 'female'}, ${ob.age}, ${ob.height} cm, ${fmtW(ob.weight)} kg${ob.waist ? `, waist ${ob.waist} cm` : ''}.`,
+    `- Everyday activity: ${OB_ACT[ob.act][0].toLowerCase()} (${OB_ACT[ob.act][1].toLowerCase()}), about ${fmtInt(P.burn)} kcal a day before training.`,
+    `- Health: ${a(ob.health).length ? OB_HEALTH.filter(([k]) => ob.health[k]).map(([, l]) => l.toLowerCase()).join('; ') : 'nothing flagged'}.${ob.pain ? ` Pain or injuries: ${ob.pain}.` : ''}`,
+    `- Training: ${OB_EXP[ob.exp].toLowerCase()} of experience, ${P.n} day${P.n === 1 ? '' : 's'} a week (${P.days.map(d => W[d]).join(', ') || 'none picked'}), ${ob.minutes} min, ${{ gym:'at a gym', home:'at home', both:'at a gym and at home' }[ob.where]}${ob.where !== 'gym' && a(ob.equip).length ? ` (has ${a(ob.equip).join(', ').toLowerCase()})` : ''}.`,
+    lifts.length ? `- Lifts today: ${lifts.join(', ')}.` : '',
+    `- Food: ${OB_DIETS.find(d => d[0] === ob.diet)[1].toLowerCase()}${a(ob.allergies).length ? `, no ${a(ob.allergies).join(', ').toLowerCase()}` : ''}; usually ${OB_EATS.filter(([k]) => ob.eats[k]).map(([, l]) => l.toLowerCase()).join(', ') || 'no habit given'}.${ob.avoid ? ` Won't eat: ${ob.avoid}.` : ''}${ob.limits ? ` Limits: ${ob.limits}.` : ''}`,
+    `- Answers: ${ob.style === 'short' ? 'short and direct, the answer first' : 'with the reasons'}.`];
+  return out.filter(Boolean).join('\n');
+}
+/* the setup block replaces an earlier one in the profile, or goes on top of it */
+function obWriteProfile(){
+  const st = S.settings.setup; if (!st || !st.pending || !cloud.token) return;
+  const put = cur => { const block = st.profile, re = /^From setup \([^)]*\):\n(?:- .*\n?)*/m;
+    const text = re.test(cur) ? cur.replace(re, block + '\n') : (cur.trim() ? block + '\n\n' + cur.trim() : block);
+    return chatApi('PUT', '?profile=1', { text: text.trim() }).then(j => { chat.profile = j.profile; st.pending = false; saveState(); chatCache(); }); };
+  (chat.profile ? Promise.resolve(chat.profile) : chatApi('GET').then(j => j.profile)).then(p => put((p && p.text) || '')).catch(() => {});
+}
+function obFinish(){
+  const P = obPlan(), st = S.settings;
+  if (ob.useTargets) { st.targets.training = { ...P.training }; st.targets.rest = { ...P.rest }; }
+  if (ob.useDays && P.n) { const sch = {}; for (let d = 0; d < 7; d++) sch[d] = P.week[d] || null; st.schedule = sch; }
+  if (ob.where !== 'home') obLifts().forEach(l => { const n = ob.nums[l.key]; if (l.id && n && n.w != null && !liftHistory(l.id, todayStr()).length) st.exCfg[l.id] = { ...(st.exCfg[l.id] || {}), start: n.w }; });
+  const w = num(ob.waist); if (w && w > 40 && w < 200) { S.waist = (S.waist || []).filter(x => x.date !== todayStr()); S.waist.push({ date: todayStr(), cm: w }); }
+  const answers = { ...ob }; delete answers.at; delete answers.dir; delete answers.capHit;
+  st.setup = { at: todayStr(), answers, profile: obProfileText(), pending: true };
+  saveState(); obWriteProfile(); closeOnb(); ui.anim = true; render();
+  toast('Your plan is set');
+}
+/* taps */
+Object.assign(H, {
+  obopen(){ openOnb(); },
+  oblater(){ S.settings.setup = Object.assign({}, S.settings.setup, { seen: true }); saveState(); closeOnb(); },
+  obback(){ if (ob.at === 'welcome') return closeOnb(); obGo(-1); },
+  obnext(t){ if (ob.at === 'done') return obFinish(); if (ob.at === 'goal' && !ob.goal) return; obGo(1); },
+  obgoal(t){ ob.goal = t.dataset.v; obRender(); },
+  obwhen(t){ ob.when = t.dataset.v; obRender(); },
+  obsex(t){ ob.sex = t.dataset.v; obRender(); },
+  obage(t){ ob.age = Math.max(16, Math.min(90, ob.age + +t.dataset.v)); obRender(); },
+  obact(t){ ob.act = t.dataset.v; obRender(); },
+  obexp(t){ ob.exp = +t.dataset.v; obRender(); },
+  obday(t){ const d = t.dataset.v; if (ob.days[d]) { delete ob.days[d]; ob.capHit = false; } else if (obKeys(ob.days).length >= 5) ob.capHit = true; else ob.days[d] = 1; obRender(); },
+  obmin(t){ ob.minutes = +t.dataset.v; obRender(); },
+  obwhere(t){ ob.where = t.dataset.v; ob.nums = {}; obRender(); },
+  obequip(t){ const v = t.dataset.v; if (ob.equip[v]) delete ob.equip[v]; else ob.equip[v] = 1; obRender(); },
+  obnum(t){ const k = t.dataset.k, l = obLifts().find(x => x.key === k), n = ob.nums[k] || { r: 8 }, step = /hand/.test(l.unit) ? 1 : 2.5;
+    if (n.w == null) { if (+t.dataset.v > 0) n.w = l.start; } else { n.w = r1(n.w + step * t.dataset.v); if (n.w < step) n.w = null; }
+    ob.nums[k] = n; obRender(); },
+  obreps(t){ const [k, r] = t.dataset.v.split('|'); ob.nums[k] = { ...(ob.nums[k] || {}), r: +r }; obRender(); },
+  obdiet(t){ ob.diet = t.dataset.v; obRender(); },
+  oballergy(t){ const v = t.dataset.v; if (ob.allergies[v]) delete ob.allergies[v]; else ob.allergies[v] = 1; obRender(); },
+  obeats(t){ const v = t.dataset.v; if (ob.eats[v]) delete ob.eats[v]; else ob.eats[v] = 1; obRender(); },
+  obstyle(t){ ob.style = t.dataset.v; obRender(); }
+});
+/* typing and sliding update the numbers in place, so a field keeps its focus and a slider its finger */
+function obInput(t){
+  if (!ob) return; const k = t.dataset.ob;
+  if (k === 'height' || k === 'weight') {
+    ob[k] = +t.value; $(k === 'height' ? '#obhv' : '#obwv').textContent = k === 'height' ? ob.height : fmtW(ob.weight);
+    const bmi = ob.weight / Math.pow(ob.height / 100, 2), fh = Math.round(96 + (ob.height - 140) / 70 * 72), fw = Math.round(fh * .4 * Math.max(.75, Math.min(1.6, bmi / 22)));
+    const f = $('#obfig'); if (f) { f.style.height = fh + 'px'; f.style.width = fw + 'px'; } $('#obbmi').textContent = `BMI ${bmi.toFixed(1)}`;
+  } else if (k === 'health') { if (t.checked) ob.health[t.value] = 1; else delete ob.health[t.value]; obRender(); return; }
+  else if (k === 'useTargets' || k === 'useDays') { ob[k] = t.checked; obRender(); return; }
+  else if (k === 'waist') { ob.waist = t.value.replace(/[^0-9.,]/g, '').slice(0, 5); if (t.value !== ob.waist) t.value = ob.waist; }
+  else ob[k] = t.value.slice(0, 200);
+  const c = $('#obcoach'); if (c) c.textContent = obCoach();
+}
+document.addEventListener('input', e => { if (e.target.closest && e.target.closest('#onb') && e.target.dataset.ob && e.target.type !== 'checkbox') obInput(e.target); });
+document.addEventListener('change', e => { if (e.target.closest && e.target.closest('#onb') && e.target.dataset.ob && e.target.type === 'checkbox') obInput(e.target); });
+
 $('#chat .chat-top .tbtn').innerHTML = ICON.close;
 $('#chat .send').innerHTML = CI.send;
 
 if (typeof window !== 'undefined') window.__coach = { chat: () => chat, openChat, closeChat, chatSnapshot, chatMD, S: () => S, setS: v => { S = v; }, ui, render, getPlan, sessionOn, isRestDay, RT, suggest, suggestGap, H, dayType, sumMacros, addEntry, foodById, mergeHistory, saveState: () => saveState(), cloud, syncNow, merge3, planDay };
 render(); launch();
+if (FIRST_RUN) setTimeout(openOnb, reduced() ? 0 : 900);   // after the launch has played
 if (cloud.token) syncNow();
 </script>
 </body>
