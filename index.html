@@ -518,7 +518,7 @@ h2.first{margin-top:6px}
 .frow .field{width:96px;height:40px;font-size:16px;flex:none}
 .srow .sub{display:block;margin-top:2px;font-size:13px;color:var(--ink2)}.srow.two{padding-top:10px;padding-bottom:10px}
 .frow .field.name{flex:1;width:auto;text-align:left;font-family:var(--font);font-weight:400}
-.frow .u{width:34px;flex:none;color:var(--ink2)}.frow .seg{flex:1}
+.frow .u{width:34px;flex:none;color:var(--ink2)}.frow .mf-pick{width:64px;flex:none;max-width:none;padding-left:0}
 /* the iOS menu picker look; tapping it opens Safari's own picker */
 .pick{appearance:none;-webkit-appearance:none;border:0;background:transparent;color:var(--ink2);font-size:16px;text-align:right;text-align-last:right;padding:8px 22px 8px 8px;max-width:62%;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='16' viewBox='0 0 10 16' fill='none' stroke='%238E8E93' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M2 6l3-3 3 3M2 10l3 3 3-3'/></svg>");background-repeat:no-repeat;background-position:right 2px center}
@@ -1017,7 +1017,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.25';
+const APP_VERSION = '4.26';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -2372,15 +2372,14 @@ const mfIsG = u => u === 'g';
 function myFoodSheet(){
   const sh = ui.sheet, f = sh.id ? (S.foods || []).find(x => x.id === sh.id) : null;
   if (sh.id && !f) return sheetHead('Food') + '<p class="empty">This food no longer exists.</p>';
-  const g = mfIsG(sh.unit), per = g ? 100 : 1, m = k => f && mfIsG(f.unit) === g ? r1(f[k]) : '', us = g ? 'g' : 'pcs';
-  const row = (label, id, val, unit, ph) => `<label class="frow"><span class="grow">${label}</span><input id="${id}" class="field" inputmode="decimal" value="${val}" placeholder="${ph || ''}" aria-label="${label}"><span class="u">${unit}</span></label>`;
+  const g = mfIsG(sh.unit), m = k => f ? r1(f[k]) : '', us = g ? 'g' : 'pcs';
+  const row = (label, id, val, unit, ph) => `<label class="frow"><span class="grow">${label}</span><input id="${id}" class="field" inputmode="decimal" value="${val}" placeholder="${ph || ''}" aria-label="${label}">${unit}</label>`;
   return sheetHead(f ? 'Edit food' : 'New food') + `
     <div class="group"><label class="frow"><input id="mf-name" class="field name" value="${f ? esc(f.name) : ''}" placeholder="Name" aria-label="Name" autocomplete="off" maxlength="60"></label>
-      <div class="frow"><span class="grow">Measured in</span><div class="seg" role="group" aria-label="Measured in" style="max-width:190px"><button data-act="mfunit" data-v="g" aria-pressed="${g}">Grams</button><button data-act="mfunit" data-v="pc" aria-pressed="${!g}">Pieces</button></div></div></div>
-    <h2>Nutrition</h2><div class="group">${row('For', 'mf-amt', per, `<span class="mf-u">${us}</span>`)}
-      ${row('Calories', 'mf-k', m('kcal'), 'kcal', '0')}${row('Protein', 'mf-p', m('p'), 'g', '0')}${row('Fat', 'mf-f', m('f'), 'g', '0')}${row('Carbs', 'mf-c', m('c'), 'g', '0')}</div>
-    <p class="note">${g ? 'Use the amount on the label, like 30 g or a 250 g pack.' : 'For one piece, or for a few, like 2 slices.'}</p>
-    <div class="group">${row('Usual amount', 'mf-step', f && mfIsG(f.unit) === g ? fmtW(f.step) : (g ? 100 : 1), `<span class="mf-u">${us}</span>`)}</div>
+      ${row('Quantity', 'mf-amt', g ? 100 : 1, `<select id="mf-unit" class="pick mf-pick" aria-label="Unit"><option value="g"${g ? ' selected' : ''}>g</option><option value="pc"${g ? '' : ' selected'}>pcs</option></select>`)}</div>
+    <p class="note">The quantity the macros are for, like on the label: 30 g, a 250 g pack or 2 slices.</p>
+    <h2>Macros</h2><div class="group">${row('Calories', 'mf-k', m('kcal'), '<span class="u">kcal</span>', '0')}${row('Protein', 'mf-p', m('p'), '<span class="u">g</span>', '0')}${row('Fat', 'mf-f', m('f'), '<span class="u">g</span>', '0')}${row('Carbs', 'mf-c', m('c'), '<span class="u">g</span>', '0')}</div>
+    <div class="group">${row('Usual amount', 'mf-step', f ? fmtW(f.step) : (g ? 100 : 1), `<span class="u mf-u">${us}</span>`)}</div>
     <p class="note">Where a new entry starts. ${f ? 'What you logged before keeps its numbers.' : ''}</p>
     <button class="btn block gap8" data-act="mfsave">${f ? 'Save' : 'Add food'}</button>
     ${f ? '<button class="btn danger block gap8" data-act="mfdelete">Delete</button>' : ''}`;
@@ -2984,10 +2983,6 @@ const H = {
     const d = todayStr(); S.waist = S.waist.filter(x => x.date !== d); S.waist.push({ date:d, cm:v }); saveState(); render(); toast('Waist saved'); },
   delwaist(t){ S.waist = S.waist.filter(x => x.date !== t.dataset.date); saveState(); render(); },
   mfedit(t){ const f = t.dataset.id && (S.foods || []).find(x => x.id === t.dataset.id); openSheet({ type:'myfood', id: f ? f.id : null, unit: f ? (mfIsG(f.unit) ? 'g' : f.unit) : 'g' }); },
-  mfunit(t){ const sh = ui.sheet, g = t.dataset.v === 'g'; if (mfIsG(sh.unit) === g) return;
-    const keep = ['mf-name', 'mf-k', 'mf-p', 'mf-f', 'mf-c'].map(id => $('#' + id).value);   // the name and numbers stay, the amounts start over for the new unit
-    const f = sh.id && S.foods.find(x => x.id === sh.id); sh.unit = g ? 'g' : f && !mfIsG(f.unit) ? f.unit : 'piece'; drawSheet();
-    ['mf-name', 'mf-k', 'mf-p', 'mf-f', 'mf-c'].forEach((id, i) => { $('#' + id).value = keep[i]; }); },
   mfsave(){ const sh = ui.sheet, g = mfIsG(sh.unit), v = id => num($('#' + id).value);
     const name = $('#mf-name').value.trim().slice(0, 60), amt = v('mf-amt'), k = v('mf-k');
     if (!name) { toast('Give the food a name', { err:true }); $('#mf-name').focus(); return; }
@@ -3980,6 +3975,11 @@ document.addEventListener('input', e => { if (!e.target.matches('.act-in')) retu
   const t = e.target, keep = (t.value.match(/^\d{0,4}(?:[.,]\d?)?/) || [''])[0];   // at most 4 digits (and one decimal): anything more is simply not typed
   if (keep !== t.value) t.value = keep;
   const v = num(e.target.value); (chat.actEdit[f.a.id] = chat.actEdit[f.a.id] || {}).qty = v === null ? NaN : v; actRefresh(f); });
+document.addEventListener('change', e => { if (e.target.id !== 'mf-unit' || !ui.sheet || ui.sheet.type !== 'myfood') return;
+  const sh = ui.sheet, g = e.target.value === 'g', f = sh.id && S.foods.find(x => x.id === sh.id);
+  sh.unit = g ? 'g' : f && !mfIsG(f.unit) ? f.unit : 'piece';
+  [['#mf-amt', 100, 1], ['#mf-step', 100, 1]].forEach(([sel, dg, dp]) => { const i = $(sel); if (num(i.value) === (g ? dp : dg)) i.value = g ? dg : dp; });
+  $$('#sheet .mf-u').forEach(u => { u.textContent = g ? 'g' : 'pcs'; }); });
 document.addEventListener('change', e => { if (!e.target.matches('.act-meal, .act-day')) return; const f = chatActFind(e.target); if (!f) return;
   (chat.actEdit[f.a.id] = chat.actEdit[f.a.id] || {})[e.target.matches('.act-day') ? 'date' : 'meal'] = e.target.value; actRefresh(f); });
 

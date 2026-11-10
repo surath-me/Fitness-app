@@ -84,7 +84,7 @@ Do not name top-level functions or variables after browser globals (`history`, `
 - Foods, lifts and sessions come from code, so edits to `FOODS`, `EX` and `TEMPLATES` apply immediately. Per-lift overrides saved in `exCfg` still win.
 - Seed data is only written on first run, never to an existing install.
 - Food entries store their own macros, so editing a food never rewrites history.
-- **My foods** (Settings, My foods): each food opens an editor sheet (`myFoodSheet`, `mfedit`, `mfsave`, `mfdelete` with Undo), and New food opens the same sheet empty. A food is measured in grams or pieces, and its nutrition is typed for any amount on the label (For 30 g, For 2 pieces); it is stored per 100 g or per piece. Usual amount is where a new entry starts (`step`). Cloud merge matches My foods by id first, so an edit on one device replaces the old copy instead of adding a second.
+- **My foods** (Settings, My foods): each food opens an editor sheet (`myFoodSheet`, `mfedit`, `mfsave`, `mfdelete` with Undo), and New food opens the same sheet empty. Only the quantity has a unit: a picker beside it says g or pcs (`#mf-unit`, Surath wants it there, not as a separate switch); the macros are always kcal and grams, typed for that quantity as on the label (30 g, a 250 g pack, 2 slices), and stored per 100 g or per piece. Usual amount is where a new entry starts (`step`). Cloud merge matches My foods by id first, so an edit on one device replaces the old copy instead of adding a second.
 
 ## Planner rules (`buildPlan`)
 
