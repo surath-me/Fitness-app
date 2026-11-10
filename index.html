@@ -516,6 +516,9 @@ h2.first{margin-top:6px}
 .srow.danger{color:var(--red)}
 .frow{position:relative;display:flex;align-items:center;gap:12px;min-height:56px;padding:6px 16px;font-size:15px}
 .frow .field{width:96px;height:40px;font-size:16px;flex:none}
+.srow .sub{display:block;margin-top:2px;font-size:13px;color:var(--ink2)}.srow.two{padding-top:10px;padding-bottom:10px}
+.frow .field.name{flex:1;width:auto;text-align:left;font-family:var(--font);font-weight:400}
+.frow .u{width:34px;flex:none;color:var(--ink2)}.frow .seg{flex:1}
 /* the iOS menu picker look; tapping it opens Safari's own picker */
 .pick{appearance:none;-webkit-appearance:none;border:0;background:transparent;color:var(--ink2);font-size:16px;text-align:right;text-align-last:right;padding:8px 22px 8px 8px;max-width:62%;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='16' viewBox='0 0 10 16' fill='none' stroke='%238E8E93' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M2 6l3-3 3 3M2 10l3 3 3-3'/></svg>");background-repeat:no-repeat;background-position:right 2px center}
@@ -1014,7 +1017,7 @@ const LIVE = /^fitness-app(-chi-gilt|-surath-me|-git-main-surath-me)\.vercel\.ap
    sessions and defaults. Your logs live in the browser and are not
    touched when this changes.
    ===================================================================== */
-const APP_VERSION = '4.24';
+const APP_VERSION = '4.25';
 const LS_KEY = 'coach-v1';
 
 const DEFAULT_TARGETS = {
@@ -1799,7 +1802,7 @@ function waterCard(ml){   // the amount like a macro, then twelve drops of 250 m
    ===================================================================== */
 function defaultSlot(){ const h = new Date().getHours(); return h < 10 ? 'breakfast' : h < 15 ? 'lunch' : h < 18 ? 'snack' : 'dinner'; }
 const ui = { tab:'train', date:todayStr(), slot:defaultSlot(), open:{}, sheet:null, gap:[], plan:null, planAlt:{},
-             anim:true, flash:null, flashEx:null, justOpen:null, popKey:null, lastLeft:null, nfUnit:'g', swipeAt:0 };
+             anim:true, flash:null, flashEx:null, justOpen:null, popKey:null, lastLeft:null, swipeAt:0 };
 const fmtInt = n => Math.round(n).toLocaleString('en-US');
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const TAB_TITLES = { train:'Train', eat:'Eat', progress:'Progress', setup:'Settings' };   // the setup tab is called Settings
@@ -2262,13 +2265,9 @@ function setupPage(p){
         <button class="btn" data-act="cloudconnect">Connect</button></div>
       <p class="note">You enter the passphrase once on each device. If this device already has data, it is combined with the cloud copy, nothing is replaced.${LIVE ? '' : ` This is a test copy (${esc(location.hostname)}): it takes the test passphrase, not the live one.`}</p>`;
   if (p === 'chat') return chatSettings();
-  if (p === 'foods') return ((S.foods||[]).length ? `<div class="group">` + S.foods.map(f => `<div class="lift"><div><strong>${esc(f.name)}</strong><div class="small muted">${f.unit==='g' ? 'per 100 g' : 'per '+esc(f.unit)}: ${f.kcal} kcal, ${f.p} P, ${f.f} F, ${f.c} C</div></div><span></span><button class="link" data-act="delfood" data-id="${f.id}">Remove</button></div>`).join('') + `</div>`
-      : `<p class="note" style="margin-top:0">Foods you save while logging appear here. The built-in list has ${FOODS.length} items.</p>`) +
-    `<h2>Add a food</h2><div class="group pad stack">
-      <input id="nf-name" class="field" style="text-align:left;font-family:var(--font);font-weight:400" placeholder="Name" aria-label="Food name">
-      <div class="seg" role="group" aria-label="Per"><button data-act="nfunit" data-v="g" aria-pressed="${ui.nfUnit!=='pc'}">Per 100 g</button><button data-act="nfunit" data-v="pc" aria-pressed="${ui.nfUnit==='pc'}">Per piece</button></div>
-      <div class="row"><input id="nf-k" class="field" inputmode="decimal" placeholder="kcal" aria-label="kcal"><input id="nf-p" class="field" inputmode="decimal" placeholder="P" aria-label="Protein"><input id="nf-f" class="field" inputmode="decimal" placeholder="F" aria-label="Fat"><input id="nf-c" class="field" inputmode="decimal" placeholder="C" aria-label="Carbs"></div>
-      <button class="btn" data-act="addfoodcustom">Save food</button></div>`;
+  if (p === 'foods') return `<div class="group">${(S.foods || []).map(f => `<button class="srow two" data-act="mfedit" data-id="${esc(f.id)}"><span class="grow">${esc(f.name)}<span class="sub">${f.unit === 'g' ? '100 g' : '1 ' + esc(f.unit)}: ${fmtInt(Math.round(f.kcal))} kcal · ${r1(f.p)} g protein</span></span>${ICON.chevR}</button>`).join('')}
+      <button class="srow" data-act="mfedit"><span class="grow" style="color:var(--accent-ink)">New food</span>${ICON.chevR}</button></div>
+    <p class="note">${(S.foods || []).length ? 'Tap a food to change it.' : `Foods you add here or save while logging show up in the food list. The built-in list has ${FOODS.length} items.`}</p>`;
   return '';
 }
 function viewSetup(){
@@ -2368,6 +2367,24 @@ function exListHTML(){
 function exerciseSheet(){
   return sheetHead('Add an exercise') + `<input id="exq" class="search" style="margin-top:4px" type="search" placeholder="Search exercises" autocomplete="off" aria-label="Search exercises" value="${esc((ui.sheet && ui.sheet.q) || '')}"><div id="exlist">${exListHTML()}</div>`;
 }
+/* a food of your own: grams or pieces, with the nutrition for whatever amount the label gives */
+const mfIsG = u => u === 'g';
+function myFoodSheet(){
+  const sh = ui.sheet, f = sh.id ? (S.foods || []).find(x => x.id === sh.id) : null;
+  if (sh.id && !f) return sheetHead('Food') + '<p class="empty">This food no longer exists.</p>';
+  const g = mfIsG(sh.unit), per = g ? 100 : 1, m = k => f && mfIsG(f.unit) === g ? r1(f[k]) : '', us = g ? 'g' : 'pcs';
+  const row = (label, id, val, unit, ph) => `<label class="frow"><span class="grow">${label}</span><input id="${id}" class="field" inputmode="decimal" value="${val}" placeholder="${ph || ''}" aria-label="${label}"><span class="u">${unit}</span></label>`;
+  return sheetHead(f ? 'Edit food' : 'New food') + `
+    <div class="group"><label class="frow"><input id="mf-name" class="field name" value="${f ? esc(f.name) : ''}" placeholder="Name" aria-label="Name" autocomplete="off" maxlength="60"></label>
+      <div class="frow"><span class="grow">Measured in</span><div class="seg" role="group" aria-label="Measured in" style="max-width:190px"><button data-act="mfunit" data-v="g" aria-pressed="${g}">Grams</button><button data-act="mfunit" data-v="pc" aria-pressed="${!g}">Pieces</button></div></div></div>
+    <h2>Nutrition</h2><div class="group">${row('For', 'mf-amt', per, `<span class="mf-u">${us}</span>`)}
+      ${row('Calories', 'mf-k', m('kcal'), 'kcal', '0')}${row('Protein', 'mf-p', m('p'), 'g', '0')}${row('Fat', 'mf-f', m('f'), 'g', '0')}${row('Carbs', 'mf-c', m('c'), 'g', '0')}</div>
+    <p class="note">${g ? 'Use the amount on the label, like 30 g or a 250 g pack.' : 'For one piece, or for a few, like 2 slices.'}</p>
+    <div class="group">${row('Usual amount', 'mf-step', f && mfIsG(f.unit) === g ? fmtW(f.step) : (g ? 100 : 1), `<span class="mf-u">${us}</span>`)}</div>
+    <p class="note">Where a new entry starts. ${f ? 'What you logged before keeps its numbers.' : ''}</p>
+    <button class="btn block gap8" data-act="mfsave">${f ? 'Save' : 'Add food'}</button>
+    ${f ? '<button class="btn danger block gap8" data-act="mfdelete">Delete</button>' : ''}`;
+}
 function copySheet(){
   return sheetHead('Copy meals') + `<p class="note" style="margin:4px 4px 0">Copies every logged meal from the day you pick onto ${longDate(ui.date)}. Good for repeating your base day.</p>
     <input id="copyd" type="date" class="field" style="margin:14px 0" value="${addDays(ui.date, -1)}" aria-label="Day to copy">
@@ -2388,7 +2405,7 @@ function drawSheet(){
   const opening = el.hidden || !el.classList.contains('open');
   el.hidden = false; sc.hidden = false; document.body.classList.add('lock');
   const t = ui.sheet.type;
-  el.innerHTML = t === 'food' ? foodSheet() : t === 'entry' ? entrySheet() : t === 'exercise' ? exerciseSheet() : t === 'copyday' ? copySheet() : t === 'chatimport' ? chatImportSheet() : '';
+  el.innerHTML = t === 'food' ? foodSheet() : t === 'entry' ? entrySheet() : t === 'exercise' ? exerciseSheet() : t === 'copyday' ? copySheet() : t === 'myfood' ? myFoodSheet() : t === 'chatimport' ? chatImportSheet() : '';
   const contentH = Array.from(el.children).reduce((a, c) => a + c.offsetHeight, 0) + 40;   // the content, not the sheet: a full sheet is stretched
   el.classList.toggle('full', (t === 'food' && !ui.sheet.sel) || t === 'exercise' || contentH > innerHeight * .78);   // Foods and Quick entry share one full tray, so switching between them does not move it
   initSegs(el);
@@ -2966,13 +2983,26 @@ const H = {
   addwaist(){ const v = num($('#waistcm').value); if (!v) { toast('Enter your waist in cm', { err:true }); return; }
     const d = todayStr(); S.waist = S.waist.filter(x => x.date !== d); S.waist.push({ date:d, cm:v }); saveState(); render(); toast('Waist saved'); },
   delwaist(t){ S.waist = S.waist.filter(x => x.date !== t.dataset.date); saveState(); render(); },
-  nfunit(t){ ui.nfUnit = t.dataset.v; $$('[data-act="nfunit"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === ui.nfUnit))); },
-  addfoodcustom(){ const name = $('#nf-name').value.trim(), k = num($('#nf-k').value);
-    if (!name || k === null) { toast('Name and kcal are required', { err:true }); return; }
-    const pc = ui.nfUnit === 'pc';
-    S.foods.push({ id:'c_' + uid(), name, unit: pc ? 'portion' : 'g', group:'My foods', kcal:k, p:num($('#nf-p').value)||0, f:num($('#nf-f').value)||0, c:num($('#nf-c').value)||0, step: pc ? 1 : 100, inc: pc ? 0.5 : 10 });
-    saveState(); render(); toast(`${name} saved`); },
-  delfood(t){ S.foods = S.foods.filter(f => f.id !== t.dataset.id); saveState(); render(); },
+  mfedit(t){ const f = t.dataset.id && (S.foods || []).find(x => x.id === t.dataset.id); openSheet({ type:'myfood', id: f ? f.id : null, unit: f ? (mfIsG(f.unit) ? 'g' : f.unit) : 'g' }); },
+  mfunit(t){ const sh = ui.sheet, g = t.dataset.v === 'g'; if (mfIsG(sh.unit) === g) return;
+    const keep = ['mf-name', 'mf-k', 'mf-p', 'mf-f', 'mf-c'].map(id => $('#' + id).value);   // the name and numbers stay, the amounts start over for the new unit
+    const f = sh.id && S.foods.find(x => x.id === sh.id); sh.unit = g ? 'g' : f && !mfIsG(f.unit) ? f.unit : 'piece'; drawSheet();
+    ['mf-name', 'mf-k', 'mf-p', 'mf-f', 'mf-c'].forEach((id, i) => { $('#' + id).value = keep[i]; }); },
+  mfsave(){ const sh = ui.sheet, g = mfIsG(sh.unit), v = id => num($('#' + id).value);
+    const name = $('#mf-name').value.trim().slice(0, 60), amt = v('mf-amt'), k = v('mf-k');
+    if (!name) { toast('Give the food a name', { err:true }); $('#mf-name').focus(); return; }
+    if (k === null) { toast('Enter the calories', { err:true }); $('#mf-k').focus(); return; }
+    if (!(amt > 0)) { toast(`Enter how many ${g ? 'grams' : 'pieces'} that is`, { err:true }); $('#mf-amt').focus(); return; }
+    const per = g ? 100 / amt : 1 / amt, r = x => Math.round(x * 100) / 100, step = v('mf-step');
+    const old = sh.id && S.foods.find(x => x.id === sh.id), sameUnit = old && mfIsG(old.unit) === g;
+    const food = { ...(old || { id:'c_' + uid(), group:'My foods' }), name, unit: g ? 'g' : sh.unit || 'piece',
+      kcal: r(k * per), p: r((v('mf-p') || 0) * per), f: r((v('mf-f') || 0) * per), c: r((v('mf-c') || 0) * per),
+      step: step > 0 ? step : (g ? 100 : 1), inc: sameUnit && old.inc ? old.inc : (g ? 10 : 0.5) };
+    if (old) S.foods[S.foods.indexOf(old)] = food; else S.foods.push(food);
+    saveState(); closeSheet(); render(); toast(old ? `${name} updated` : `${name} added`); },
+  mfdelete(){ const i = S.foods.findIndex(x => x.id === ui.sheet.id); if (i < 0) return; const f = S.foods[i];
+    S.foods.splice(i, 1); ui.undo = { fn: () => { S.foods.splice(Math.min(i, S.foods.length), 0, f); saveState(); render(); } };
+    saveState(); closeSheet(); render(); toast(`${f.name} deleted`, { undo:true }); },
   export(){ const blob = new Blob([JSON.stringify(S, null, 2)], { type:'application/json' }), a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = `coach-backup-${todayStr()}.json`; document.body.appendChild(a); a.click(); a.remove();
     S.settings.lastExport = todayStr(); saveState(); if (ui.tab === 'setup') render(); toast('Backup downloaded'); },
@@ -3554,7 +3584,11 @@ function merge3(base, a, b){
   });
   const union = key => (x, y) => { const seen = new Set((x || []).map(key)); return [...(x || []), ...(y || []).filter(i => !seen.has(key(i)))]; };
   out.waist = deepClone(pick(O.waist, a.waist, b.waist, union(w => w.date)) || []);
-  out.foods = deepClone(pick(O.foods, a.foods, b.foods, union(f => JSON.stringify([f.name, f.unit, f.kcal, f.p, f.f, f.c]))) || []);
+  out.foods = deepClone(pick(O.foods, a.foods, b.foods, (x, y) => {   // matched by id, then by name, unit and macros; an edit beats the copy it was made from
+    const base = new Map((O.foods || []).map(f => [f.id, JSON.stringify(f)])), sig = f => JSON.stringify([f.name, f.unit, f.kcal, f.p, f.f, f.c]);
+    const out2 = (x || []).map(f => { const o = (y || []).find(g => g.id === f.id); return o && base.get(f.id) === JSON.stringify(f) ? o : f; });
+    const ids = new Set(out2.map(f => f.id)), sigs = new Set(out2.map(sig));
+    return out2.concat((y || []).filter(f => !ids.has(f.id) && !sigs.has(sig(f)))); }) || []);
   out.settings = deepClone(pick(O.settings, a.settings, b.settings, x => x));
   const starts = [a.settings && a.settings.planStart, b.settings && b.settings.planStart].filter(Boolean).sort();
   if (starts.length) out.settings.planStart = starts[0];
